@@ -46,6 +46,41 @@ must follow `docs/AI应用全链路质量平台开发流程.md`.
    it into `master`, and verify the merged `master` state. Do not merge a
    branch with failed, incomplete, or unverified acceptance criteria.
 
+## Release Delivery Lifecycle
+
+Every requirement or defect must follow this delivery chain, in order:
+
+```text
+Requirement/defect
+-> Issue
+-> Branch development
+-> Local tests
+-> Push to GitHub
+-> Pull Request
+-> GitHub Actions checks
+-> Code review
+-> Merge to master
+-> Publish Release
+-> Deployment and issue tracking
+```
+
+Local tests are necessary evidence, but they are not the definition of
+completion. A milestone or release cannot be reported as complete, and must
+not be marked ready for release, until the applicable GitHub push, Pull
+Request, Actions checks, review, merge, Release, and deployment/issue-tracking
+steps are complete. If this environment cannot perform a GitHub or deployment
+step, report it explicitly as blocked or pending; never imply that it happened.
+
+At every milestone acceptance checkpoint, proactively remind the user of:
+
+1. The current acceptance checkpoint and the evidence already available.
+2. The remaining GitHub, review, Release, and deployment/tracking actions.
+3. Whether the current evidence satisfies release conditions, and any blocker
+   that prevents release.
+
+This lifecycle applies to all subsequent development and remains mandatory in
+new conversations working on this project directory.
+
 ## Progress Reporting Contract
 
 When asked for development progress, answer against the three releases and
