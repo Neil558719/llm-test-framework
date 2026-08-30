@@ -243,7 +243,7 @@ performance:
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
 | 0. 基线冻结与兼容性清单 | 已完成 | 2026-08-30：`.venv\\Scripts\\python.exe -m pytest -q` 结果为 `9 passed, 1 skipped`；现有模块和适配器已评估 | 后续变更需持续回归 |
-| 1. 统一领域模型与结果协议 | 未开始 | 无 | 设计兼容 `AppResponse` 的 `ResponseEnvelope` 并先写失败测试 |
+| 1. 统一领域模型与结果协议 | 已完成 | `llmtest/specs.py` 新增 `ToolCall`、`TokenUsage`、`LatencyMetrics`、`ResponseEnvelope`；`tests/test_response_envelope.py` 定向结果 `3 passed`；2026-08-30 全量结果 `12 passed, 1 skipped` | 进入里程碑 2：创建独立 `reference_agent` 模块 |
 | 2. Agent 骨架、健康检查和 SQLite | 未开始 | 无 | 创建独立 `reference_agent` 模块 |
 | 3. Mock 业务服务 | 未开始 | 无 | 实现用户、资产、工单、审批和知识库 Mock |
 | 4. IT 知识问答流程 | 未开始 | 无 | 实现 RAG、引用、拒答与回归用例 |
