@@ -3,6 +3,7 @@
 from .assets import AssetService
 from .approvals import ApprovalService
 from .common import FailureConfig, ServiceError
+from .knowledge_base import KnowledgeBase
 from .tickets import TicketService
 from .users import UserService
 
@@ -10,6 +11,7 @@ __all__ = [
     "AssetService",
     "ApprovalService",
     "FailureConfig",
+    "KnowledgeBase",
     "ServiceError",
     "TicketService",
     "UserService",

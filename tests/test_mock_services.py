@@ -7,6 +7,7 @@ import pytest
 from reference_agent.services.assets import AssetService
 from reference_agent.services.common import FailureConfig, ServiceError
 from reference_agent.services.approvals import ApprovalService
+from reference_agent.services.knowledge_base import KnowledgeBase
 from reference_agent.services.tickets import TicketService
 from reference_agent.services.users import UserService
 
@@ -99,3 +100,33 @@ def test_approval_service_raises_configured_failure():
         service.create_approval("U1001", "Admin Console")
 
     assert exc_info.value.status_code == 403
+
+
+def test_knowledge_base_returns_ranked_limited_results():
+    service = KnowledgeBase(
+        records=[
+            {"document_id": "d1", "title": "VPN 连接", "content": "VPN 连接故障排查"},
+            {"document_id": "d2", "title": "密码重置", "content": "密码重置步骤"},
+        ]
+    )
+
+    results = service.search("VPN 连接", limit=1)
+
+    assert len(results) == 1
+    assert results[0]["document_id"] == "d1"
+    assert results[0]["score"] > 0
+
+
+def test_knowledge_base_returns_empty_for_blank_query():
+    service = KnowledgeBase(records=[])
+
+    assert service.search("   ") == []
+
+
+def test_knowledge_base_raises_configured_failure():
+    service = KnowledgeBase(failure=FailureConfig(status_code=504, message="kb timeout"))
+
+    with pytest.raises(ServiceError) as exc_info:
+        service.search("VPN")
+
+    assert exc_info.value.status_code == 504
