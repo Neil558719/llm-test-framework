@@ -6,6 +6,7 @@ import pytest
 
 from reference_agent.services.assets import AssetService
 from reference_agent.services.common import FailureConfig, ServiceError
+from reference_agent.services.approvals import ApprovalService
 from reference_agent.services.tickets import TicketService
 from reference_agent.services.users import UserService
 
@@ -70,3 +71,31 @@ def test_ticket_service_raises_configured_failure():
         service.create_ticket("U1001", "PC-1001", "vpn", "high")
 
     assert exc_info.value.status_code == 500
+
+
+def test_approval_service_creates_pending_request_and_retrieves_it():
+    service = ApprovalService()
+
+    approval = service.create_approval("U1001", "VPN Client", "远程办公")
+
+    assert approval["approval_id"].startswith("A-")
+    assert approval["status"] == "pending"
+    assert service.get_approval(approval["approval_id"]) == approval
+
+
+def test_approval_service_reuses_idempotency_key():
+    service = ApprovalService()
+
+    first = service.create_approval("U1001", "VPN Client", idempotency_key="request-1")
+    second = service.create_approval("U1001", "VPN Client", idempotency_key="request-1")
+
+    assert second == first
+
+
+def test_approval_service_raises_configured_failure():
+    service = ApprovalService(failure=FailureConfig(status_code=403, message="forbidden"))
+
+    with pytest.raises(ServiceError) as exc_info:
+        service.create_approval("U1001", "Admin Console")
+
+    assert exc_info.value.status_code == 403
