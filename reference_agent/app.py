@@ -12,6 +12,7 @@ from llmtest import LatencyMetrics, ResponseEnvelope
 
 from .graph import build_graph
 from .services.assets import AssetService
+from .services.approvals import ApprovalService
 from .services.knowledge_base import KnowledgeBase
 from .services.tickets import TicketService
 from .services.users import UserService
@@ -30,11 +31,13 @@ def create_app(
     user_service: UserService | None = None,
     asset_service: AssetService | None = None,
     ticket_service: TicketService | None = None,
+    approval_service: ApprovalService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Reference IT Service Desk Agent")
     store = SQLiteStore(database)
-    graph = build_graph(knowledge_base, user_service, asset_service, ticket_service)
+    graph = build_graph(knowledge_base, user_service, asset_service, ticket_service, approval_service)
     app.state.store = store
+    app.state.access_drafts = {}
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -45,9 +48,11 @@ def create_app(
         session_id = request.session_id or str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
         store.upsert_session(session_id, request.user_id)
+        draft = app.state.access_drafts.get(session_id, "")
+        effective_message = f"{draft} {request.message}".strip() if draft else request.message
         result = graph.invoke(
             {
-                "message": request.message,
+                "message": effective_message,
                 "answer": "",
                 "sources": [],
                 "user_id": request.user_id,
@@ -55,6 +60,10 @@ def create_app(
                 "tool_calls": [],
             }
         )
+        if result.get("approval_status") == "needs_information":
+            app.state.access_drafts[session_id] = effective_message
+        else:
+            app.state.access_drafts.pop(session_id, None)
         envelope = ResponseEnvelope(
             answer=str(result["answer"]),
             conversation_id=session_id,
@@ -67,6 +76,8 @@ def create_app(
                 "service": "reference-agent",
                 "knowledge_status": result.get("knowledge_status", "refused"),
                 "ticket_status": result.get("ticket_status", ""),
+                "approval_status": result.get("approval_status", ""),
+                "handoff_reason": result.get("handoff_reason", ""),
             },
         )
         return envelope.as_dict()
