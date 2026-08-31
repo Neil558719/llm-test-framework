@@ -19,6 +19,9 @@ classifiers = [
 dependencies = [
     "pytest>=7.0",
     "jsonschema>=4.0",
+    "fastapi>=0.115,<1.0",
+    "uvicorn>=0.30,<1.0",
+    "langgraph>=0.6,<1.0",
 ]
 
 [project.optional-dependencies]

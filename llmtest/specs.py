@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # 幻觉判定类别
 SUPPORTED = "SUPPORTED"            # 上下文支持该断言
@@ -124,6 +124,94 @@ class AppResponse:
 
     answer: str = ""
     sources: List[str] = field(default_factory=list)
+
+    def to_envelope(self, **kwargs: Any) -> "ResponseEnvelope":
+        """显式升级为包含测试平台观测字段的统一响应协议。"""
+        return ResponseEnvelope.from_app_response(self, **kwargs)
+
+
+@dataclass
+class ToolCall:
+    """一次由被测 Agent 发起的工具调用观测。"""
+
+    name: str
+    arguments: Dict[str, Any] = field(default_factory=dict)
+    result: Any = None
+    status: str = "succeeded"
+    error: str = ""
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "arguments": self.arguments,
+            "result": self.result,
+            "status": self.status,
+            "error": self.error,
+        }
+
+
+@dataclass
+class TokenUsage:
+    """一次模型调用的 Token 使用量。"""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+    def as_dict(self) -> Dict[str, int]:
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
+
+@dataclass
+class LatencyMetrics:
+    """一次应用响应的端到端与首 Token 延迟。"""
+
+    total_ms: float = 0.0
+    ttft_ms: Optional[float] = None
+
+    def as_dict(self) -> Dict[str, Optional[float]]:
+        return {"total_ms": self.total_ms, "ttft_ms": self.ttft_ms}
+
+
+@dataclass
+class ResponseEnvelope:
+    """面向业务流程、契约和性能测试的统一被测响应。"""
+
+    answer: str = ""
+    sources: List[str] = field(default_factory=list)
+    tool_calls: List[ToolCall] = field(default_factory=list)
+    conversation_id: str = ""
+    trace_id: str = ""
+    usage: Optional[TokenUsage] = None
+    latency: Optional[LatencyMetrics] = None
+    raw_response: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_app_response(
+        cls, response: AppResponse, **kwargs: Any
+    ) -> "ResponseEnvelope":
+        return cls(answer=response.answer, sources=list(response.sources), **kwargs)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "answer": self.answer,
+            "sources": self.sources,
+            "tool_calls": [call.as_dict() for call in self.tool_calls],
+            "conversation_id": self.conversation_id,
+            "trace_id": self.trace_id,
+            "usage": self.usage.as_dict() if self.usage else None,
+            "latency": self.latency.as_dict() if self.latency else None,
+            "raw_response": self.raw_response,
+            "metadata": self.metadata,
+        }
 
 
 @dataclass
