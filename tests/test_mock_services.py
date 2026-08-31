@@ -6,6 +6,7 @@ import pytest
 
 from reference_agent.services.assets import AssetService
 from reference_agent.services.common import FailureConfig, ServiceError
+from reference_agent.services.tickets import TicketService
 from reference_agent.services.users import UserService
 
 
@@ -40,3 +41,32 @@ def test_lookup_services_apply_configured_delay():
     assert service.get_asset("PC-1001") is not None
 
     assert time.perf_counter() - started >= 0.02
+
+
+def test_ticket_service_creates_and_retrieves_ticket():
+    service = TicketService()
+
+    ticket = service.create_ticket("U1001", "PC-1001", "vpn", "high")
+
+    assert ticket["ticket_id"].startswith("T-")
+    assert ticket["status"] == "created"
+    assert service.get_ticket(ticket["ticket_id"]) == ticket
+
+
+def test_ticket_service_reuses_idempotency_key():
+    service = TicketService()
+
+    first = service.create_ticket("U1001", "PC-1001", "vpn", "high", "request-1")
+    second = service.create_ticket("U1001", "PC-1001", "vpn", "high", "request-1")
+
+    assert second == first
+    assert len(service.list_tickets()) == 1
+
+
+def test_ticket_service_raises_configured_failure():
+    service = TicketService(failure=FailureConfig(status_code=500, message="db down"))
+
+    with pytest.raises(ServiceError) as exc_info:
+        service.create_ticket("U1001", "PC-1001", "vpn", "high")
+
+    assert exc_info.value.status_code == 500

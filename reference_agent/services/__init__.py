@@ -2,11 +2,13 @@
 
 from .assets import AssetService
 from .common import FailureConfig, ServiceError
+from .tickets import TicketService
 from .users import UserService
 
 __all__ = [
     "AssetService",
     "FailureConfig",
     "ServiceError",
+    "TicketService",
     "UserService",
 ]
