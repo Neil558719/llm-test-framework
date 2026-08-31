@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from llmtest import LatencyMetrics, ResponseEnvelope
 
 from .graph import build_graph
+from .services.knowledge_base import KnowledgeBase
 from .storage import SQLiteStore
 
 
@@ -20,10 +21,13 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
 
 
-def create_app(database: str = "reference_agent.db") -> FastAPI:
+def create_app(
+    database: str = "reference_agent.db",
+    knowledge_base: KnowledgeBase | None = None,
+) -> FastAPI:
     app = FastAPI(title="Reference IT Service Desk Agent")
     store = SQLiteStore(database)
-    graph = build_graph()
+    graph = build_graph(knowledge_base)
     app.state.store = store
 
     @app.get("/api/health")
@@ -35,14 +39,20 @@ def create_app(database: str = "reference_agent.db") -> FastAPI:
         session_id = request.session_id or str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
         store.upsert_session(session_id, request.user_id)
-        result = graph.invoke({"message": request.message, "answer": ""})
+        result = graph.invoke(
+            {"message": request.message, "answer": "", "sources": []}
+        )
         envelope = ResponseEnvelope(
             answer=str(result["answer"]),
             conversation_id=session_id,
             trace_id=trace_id,
+            sources=list(result.get("sources", [])),
             latency=LatencyMetrics(),
             raw_response={"message": request.message},
-            metadata={"service": "reference-agent"},
+            metadata={
+                "service": "reference-agent",
+                "knowledge_status": result.get("knowledge_status", "refused"),
+            },
         )
         return envelope.as_dict()
 
