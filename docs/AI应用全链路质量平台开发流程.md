@@ -245,7 +245,7 @@ performance:
 | 0. 基线冻结与兼容性清单 | 已完成 | 2026-08-30：`.venv\\Scripts\\python.exe -m pytest -q` 结果为 `9 passed, 1 skipped`；现有模块和适配器已评估 | 后续变更需持续回归 |
 | 1. 统一领域模型与结果协议 | 已完成 | `llmtest/specs.py` 新增 `ToolCall`、`TokenUsage`、`LatencyMetrics`、`ResponseEnvelope`；`tests/test_response_envelope.py` 定向结果 `3 passed`；2026-08-30 全量结果 `12 passed, 1 skipped` | 进入里程碑 2：创建独立 `reference_agent` 模块 |
 | 2. Agent 骨架、健康检查和 SQLite | 已完成 | 新增 `reference_agent` 的 FastAPI 应用工厂、LangGraph 最小状态图、SQLite 会话存储和 `/api/health`、`/api/chat`；`tests/test_reference_agent_core.py` 定向结果 `3 passed`；2026-08-30 全量结果 `15 passed, 1 skipped` | 进入里程碑 3：实现 Mock 用户、资产、工单、审批、知识库服务 |
-| 3. Mock 业务服务 | 未开始 | 无 | 实现用户、资产、工单、审批和知识库 Mock |
+| 3. Mock 业务服务 | 已完成 | `reference_agent/services/` 新增共享故障控制、`UserService`、`AssetService`、`TicketService`、`ApprovalService`、`KnowledgeBase`；2026-08-31 定向结果 `12 passed`，全量结果 `28 passed, 5 warnings`；覆盖成功、空结果、可配置 4xx/5xx、慢响应和工单/审批幂等 | 进入里程碑 4：实现 IT 知识问答流程 |
 | 4. IT 知识问答流程 | 未开始 | 无 | 实现 RAG、引用、拒答与回归用例 |
 | 5. 故障工单流程 | 未开始 | 无 | 实现工具调用、状态、幂等与故障恢复 |
 | 6. 权限申请与人工转接流程 | 未开始 | 无 | 实现审批、权限和转人工 |
