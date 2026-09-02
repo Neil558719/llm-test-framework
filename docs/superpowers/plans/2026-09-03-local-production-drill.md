@@ -27,11 +27,11 @@
 - Create: `.env.example`
 - Test: `tests/test_deployment_assets.py`
 
-- [ ] Write tests asserting files exist, compose has healthcheck and persistent volume, and `.env.example` contains no real secret values.
-- [ ] Run the focused test and confirm it fails because assets are missing.
-- [ ] Add the minimal image, compose, ignore, and environment contract.
-- [ ] Run focused tests and compose config validation.
-- [ ] Commit the deployment baseline.
+- [x] Write tests asserting files exist, compose has healthcheck and persistent volume, and `.env.example` contains no real secret values.
+- [x] Run the focused test and confirm it fails because assets are missing.
+- [x] Add the minimal image, compose, ignore, and environment contract.
+- [x] Run focused tests and compose config validation.
+- [x] Commit the deployment baseline.
 
 ### Task 2: Smoke, backup, and rollback tooling
 
@@ -42,11 +42,11 @@
 - Create: `deploy/rollback.ps1`
 - Create: `tests/test_deploy_scripts.py`
 
-- [ ] Write tests for script presence, safe defaults, and required smoke assertions.
-- [ ] Run focused tests and confirm the expected red failure.
-- [ ] Implement scripts with configurable base URL, image tag, compose project, and backup path.
-- [ ] Run static script checks and a local Docker smoke when Docker is available.
-- [ ] Commit the tooling.
+- [x] Write tests for script presence, safe defaults, and required smoke assertions.
+- [x] Run focused tests and confirm the expected red failure.
+- [x] Implement scripts with configurable base URL, image tag, compose project, and backup path.
+- [x] Run static script checks and a local Docker smoke when Docker is available.
+- [x] Commit the tooling.
 
 ### Task 3: CI image validation and release evidence
 
@@ -58,8 +58,8 @@
 - Create: `docs/deployment/migration-and-rollback.md`
 - Modify: `docs/AI应用全链路质量平台开发流程.md`
 
-- [ ] Add CI jobs for Docker build, compose config, and deployment asset checks without requiring secrets.
-- [ ] Document target environments, credential matrix, single-person role ownership, migration steps, rollback evidence, and explicit production gaps.
-- [ ] Update the milestone status table with commands and results.
-- [ ] Run full regression, build, diff, and local drill verification.
+- [x] Add CI jobs for Docker build, compose config, and deployment asset checks without requiring secrets.
+- [x] Document target environments, credential matrix, single-person role ownership, migration steps, rollback evidence, and explicit production gaps.
+- [x] Update the milestone status table with commands and results.
+- [x] Run full regression, build, diff, and local drill verification.
 - [ ] Commit, push, open PR, wait for Actions, review, merge, publish a release, and record deployment tracking evidence.

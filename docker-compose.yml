@@ -1,0 +1,21 @@
+services:
+  reference-agent:
+    build: .
+    image: ${REFERENCE_AGENT_IMAGE:-llmtest-reference-agent}:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      REFERENCE_AGENT_DATABASE: ${DATABASE_PATH:-/data/reference_agent.db}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    ports:
+      - "${REFERENCE_AGENT_PORT:-8000}:8000"
+    volumes:
+      - reference-agent-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  reference-agent-data: {}
