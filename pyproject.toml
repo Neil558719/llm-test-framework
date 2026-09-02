@@ -41,7 +41,7 @@ ci = [
 llmtest = "llmtest.plugin"
 
 [tool.setuptools.packages.find]
-include = ["llmtest*"]
+include = ["llmtest*", "qe_platform*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
