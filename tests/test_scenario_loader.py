@@ -1,0 +1,147 @@
+from pathlib import Path
+
+import pytest
+import json
+
+from qe_platform.scenarios import ScenarioLoadError, load_scenario_text, load_scenarios
+
+
+VALID = """
+id: ticket-1
+name: Ticket
+tags: [ticket]
+setup:
+  user_id: U1001
+  session_id: session-1
+conversation:
+  - user: VPN is down
+  - user: make it high priority
+expect:
+  tools:
+    - name: create_ticket
+      status: succeeded
+      arguments: {priority: high}
+      arguments_schema: {type: object}
+  tool_order: [query_user, query_asset, create_ticket]
+  strict_tool_order: true
+  business_state:
+    - path: metadata.ticket_status
+      operator: equals
+      value: created
+  response:
+    contains: [created]
+    not_contains: [failed]
+    sources_present: false
+quality:
+  relevance: {min_score: 0.8}
+"""
+
+
+def test_loader_parses_valid_multiturn_asset():
+    scenario = load_scenario_text(VALID)[0]
+
+    assert scenario.id == "ticket-1"
+    assert scenario.conversation[1].user == "make it high priority"
+    assert scenario.expect.tool_order == ["query_user", "query_asset", "create_ticket"]
+    assert scenario.expect.tools[0].arguments == {"priority": "high"}
+    assert scenario.quality.metrics == {"relevance": {"min_score": 0.8}}
+    assert scenario.as_dict()["source"] == "<memory>"
+
+
+def test_loader_accepts_scenarios_list_and_sorts_directory(tmp_path):
+    (tmp_path / "b.yml").write_text("id: b\nname: B\nconversation: [{user: b}]\n", encoding="utf-8")
+    (tmp_path / "a.yaml").write_text("scenarios: [{id: a, name: A, conversation: [{user: a}]}]\n", encoding="utf-8")
+
+    scenarios = load_scenarios(tmp_path)
+
+    assert [scenario.id for scenario in scenarios] == ["a", "b"]
+
+
+def test_loader_sorts_yaml_and_yml_files_in_one_lexical_order(tmp_path):
+    (tmp_path / "a.yml").write_text("id: a\nname: A\nconversation: [{user: a}]\n", encoding="utf-8")
+    (tmp_path / "b.yaml").write_text("id: b\nname: B\nconversation: [{user: b}]\n", encoding="utf-8")
+
+    assert [item.id for item in load_scenarios(tmp_path)] == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "scenarios: [{id: x, name: X, conversation: [{user: hi}]}]\nextra: true\n",
+        "id: x\nname: X\nconversation: [{user: hi}]\nsetup: {failures: {unsupported: {status_code: 500}}}\n",
+    ],
+)
+def test_loader_rejects_unknown_wrapper_fields_and_failure_services(text):
+    with pytest.raises(ScenarioLoadError):
+        load_scenario_text(text, source="strict.yaml")
+
+
+@pytest.mark.parametrize(
+    ("text", "path"),
+    [
+        ("id: x\nname: X\nconversation: []\n", "conversation"),
+        ("id: x\nname: X\nconversation: [{user: hi, extra: true}]\n", "conversation[0]"),
+        ("id: x\nname: X\nconversation: [{user: hi}]\nunknown: true\n", "$"),
+        ("id: x\nname: X\nconversation: [{user: hi}]\nexpect: {business_state: [{path: status, operator: matches, value: ok}]}\n", "operator"),
+        ("id: x\nname: X\nconversation: [{user: hi}]\nexpect: {tools: [{name: t, arguments_schema: {type: invalid}}]}\n", "arguments_schema"),
+    ],
+)
+def test_loader_rejects_invalid_assets_with_source_and_path(text, path):
+    with pytest.raises(ScenarioLoadError) as exc_info:
+        load_scenario_text(text, source="bad.yaml")
+
+    assert exc_info.value.source == "bad.yaml"
+    assert path in exc_info.value.path
+
+
+def test_loader_wraps_invalid_yaml():
+    with pytest.raises(ScenarioLoadError, match="invalid YAML"):
+        load_scenario_text("id: [", source="broken.yaml")
+
+
+def test_loader_rejects_duplicate_ids_across_directory(tmp_path):
+    for name in ("a.yaml", "b.yaml"):
+        (tmp_path / name).write_text("id: duplicate\nname: X\nconversation: [{user: hi}]\n", encoding="utf-8")
+
+    with pytest.raises(ScenarioLoadError, match="duplicate scenario id"):
+        load_scenarios(tmp_path)
+
+
+@pytest.mark.parametrize("path", ["missing.yaml", "asset.json"])
+def test_loader_rejects_missing_or_unsupported_path(tmp_path, path):
+    target = tmp_path / path
+    if target.suffix == ".json":
+        target.write_text("{}", encoding="utf-8")
+    with pytest.raises(ScenarioLoadError):
+        load_scenarios(target)
+
+
+def test_loader_rejects_directory_without_yaml(tmp_path):
+    (tmp_path / "readme.txt").write_text("none", encoding="utf-8")
+    with pytest.raises(ScenarioLoadError, match="no YAML files"):
+        load_scenarios(tmp_path)
+
+
+def test_loader_rejects_duplicate_ids_in_one_document():
+    with pytest.raises(ScenarioLoadError, match="duplicate scenario id"):
+        load_scenario_text("scenarios: [{id: a, name: A, conversation: [{user: a}]}, {id: a, name: A2, conversation: [{user: b}]}]")
+
+
+def test_loader_normalizes_yaml_dates_to_json_values():
+    scenario = load_scenario_text("id: x\nname: X\nconversation: [{user: hi}]\nquality: {release_date: 2026-09-02}\n")[0]
+    json.dumps(scenario.as_dict())
+    assert scenario.quality.metrics["release_date"] == "2026-09-02"
+
+
+def test_loader_wraps_unreadable_file(monkeypatch, tmp_path):
+    path = tmp_path / "broken.yaml"
+    path.write_text("id: x\nname: X\nconversation: [{user: hi}]\n", encoding="utf-8")
+    original = Path.read_text
+    def fail(self, *args, **kwargs):
+        if self == path:
+            raise UnicodeDecodeError("utf-8", b"", 0, 1, "bad")
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(Path, "read_text", fail)
+    with pytest.raises(ScenarioLoadError) as exc:
+        load_scenarios(path)
+    assert exc.value.source == str(path)

@@ -20,8 +20,10 @@ dependencies = [
     "pytest>=7.0",
     "jsonschema>=4.0",
     "fastapi>=0.115,<1.0",
+    "httpx>=0.27,<1.0",
     "uvicorn>=0.30,<1.0",
     "langgraph>=0.6,<1.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +43,10 @@ ci = [
 llmtest = "llmtest.plugin"
 
 [tool.setuptools.packages.find]
-include = ["llmtest*", "qe_platform*"]
+include = ["llmtest*", "qe_platform*", "reference_agent*"]
+
+[tool.setuptools.package-data]
+qe_platform = ["scenarios/assets/**/*.yaml", "scenarios/assets/**/*.yml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
