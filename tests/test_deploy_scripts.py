@@ -42,6 +42,13 @@ def test_compose_does_not_expose_unauthenticated_agent_or_forward_unused_llm_sec
     assert "LLM_API_KEY" not in compose
 
 
+def test_backup_verifies_sqlite_integrity_before_reporting_success():
+    backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
+
+    assert "PRAGMA integrity_check" in backup
+    assert "up -d --wait" in backup
+
+
 def test_smoke_asserts_business_payloads():
     smoke = (ROOT / "deploy" / "smoke.sh").read_text(encoding="utf-8")
 

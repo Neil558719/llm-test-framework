@@ -9,4 +9,8 @@ if ($LASTEXITCODE -ne 0) { throw "Database backup failed" }
 docker compose start reference-agent
 if ($LASTEXITCODE -ne 0) { throw "Unable to restart service after backup" }
 if (-not (Test-Path $target)) { throw "Backup file was not created" }
+docker run --rm -v "${PWD}\${OutputDirectory}:/backup:ro" python:3.12-alpine python -c "import sqlite3; import sys; path='/backup/$(Split-Path $target -Leaf)'; result=sqlite3.connect(path).execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)"
+if ($LASTEXITCODE -ne 0) { throw "Backup integrity check failed" }
+docker compose up -d --wait
+if ($LASTEXITCODE -ne 0) { throw "Service did not become healthy after backup" }
 Write-Host "Backup written to $target"

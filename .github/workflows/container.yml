@@ -25,12 +25,26 @@ jobs:
         run: docker compose up -d --wait
       - name: Run smoke
         run: BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/container-smoke.json sh deploy/smoke.sh
+      - name: Verify stopped-service SQLite backup
+        run: |
+          docker compose stop reference-agent
+          mkdir -p reports/backup
+          docker run --rm -v local-production-drill_reference-agent-data:/data:ro -v "$PWD/reports/backup:/backup" alpine:3.20 cp /data/reference_agent.db /backup/reference_agent.db
+          python - <<'PY'
+          import sqlite3
+          assert sqlite3.connect('reports/backup/reference_agent.db').execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+          PY
+          docker compose up -d --wait
+          BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/post-backup-smoke.json sh deploy/smoke.sh
       - name: Upload smoke evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: container-smoke-evidence
-          path: reports/container-smoke.json
+          path: |
+            reports/container-smoke.json
+            reports/post-backup-smoke.json
+            reports/backup/reference_agent.db
           if-no-files-found: error
       - name: Container logs
         if: always()
