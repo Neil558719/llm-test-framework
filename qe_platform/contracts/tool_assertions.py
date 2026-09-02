@@ -11,6 +11,12 @@ from llmtest import ToolCall
 from .models import AssertionResult, ToolContract
 
 
+def _ensure_call(call: Any) -> ToolCall:
+    if not isinstance(call, ToolCall):
+        raise TypeError("call must be a ToolCall")
+    return call
+
+
 def _path(root: str, parts: Iterable[Any]) -> str:
     value = root
     for part in parts:
@@ -51,6 +57,7 @@ def _schema_result(assertion_type: str, value: Any, schema: Mapping[str, Any], p
 
 
 def validate_tool_contract(call: ToolCall, contract: ToolContract, *, call_index: int = 0) -> list[AssertionResult]:
+    call = _ensure_call(call)
     base = f"tool_calls[{call_index}]"
     if call.name != contract.name:
         return [AssertionResult("tool_name", False, "tool name mismatch", f"{base}.name", contract.name, call.name)]
@@ -89,12 +96,17 @@ def _compare(expected: Any, actual: Any, path: str, allow_extra: bool) -> Union[
 
 
 def validate_tool_arguments(call: ToolCall, expected: Mapping[str, Any], *, call_index: int = 0, allow_extra: bool = True) -> AssertionResult:
+    call = _ensure_call(call)
     path = f"tool_calls[{call_index}].arguments"
     failure = _compare(expected, call.arguments, path, allow_extra)
     return failure or AssertionResult("tool_arguments", True, "argument values matched", path, expected, call.arguments)
 
 
 def validate_tool_order(calls: Sequence[ToolCall], expected_names: Sequence[str], *, strict: bool = True) -> AssertionResult:
+    if not isinstance(calls, Sequence) or isinstance(calls, (str, bytes)):
+        raise TypeError("calls must be a sequence of ToolCall")
+    if any(not isinstance(call, ToolCall) for call in calls):
+        raise TypeError("calls must be a sequence of ToolCall")
     actual = [call.name for call in calls]
     expected = list(expected_names)
     if strict:
@@ -114,6 +126,7 @@ def validate_tool_order(calls: Sequence[ToolCall], expected_names: Sequence[str]
 
 
 def validate_tool_status(call: ToolCall, expected_status: str = "succeeded", *, call_index: int = 0) -> AssertionResult:
+    call = _ensure_call(call)
     return AssertionResult("tool_status", call.status == expected_status, "tool status matched" if call.status == expected_status else "tool status mismatch", f"tool_calls[{call_index}].status", expected_status, call.status)
 
 

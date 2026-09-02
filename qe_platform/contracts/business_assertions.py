@@ -33,14 +33,19 @@ def _segments(path: str) -> list[Union[str, int]]:
         raise ValueError(f"invalid business-state path: {path!r}")
     result: list[Union[str, int]] = []
     position = 0
+    previous_was_index = False
     for match in _SEGMENT.finditer(path):
         separator = path[position:match.start()]
         if position and separator not in ("", "."):
             raise ValueError(f"invalid business-state path: {path!r}")
         if not position and separator:
             raise ValueError(f"invalid business-state path: {path!r}")
-        result.append(int(match.group(2)) if match.group(2) is not None else match.group(1))
+        current_is_index = match.group(2) is not None
+        if position and not separator and previous_was_index and not current_is_index:
+            raise ValueError(f"invalid business-state path: {path!r}")
+        result.append(int(match.group(2)) if current_is_index else match.group(1))
         position = match.end()
+        previous_was_index = current_is_index
     if position != len(path) or path.endswith("."):
         raise ValueError(f"invalid business-state path: {path!r}")
     return result

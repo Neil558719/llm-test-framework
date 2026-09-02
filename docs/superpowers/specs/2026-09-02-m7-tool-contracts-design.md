@@ -1,6 +1,6 @@
 # Milestone 7: Tool Contract and Business Assertion Library Design
 
-Date: 2026-09-02  
+Date: 2026-09-02
 Issue: https://github.com/Neil558719/llm-test-framework/issues/11
 
 ## 1. Purpose

@@ -61,3 +61,5 @@ def test_business_state_rejects_unsupported_source_type():
 def test_business_state_rejects_invalid_path_syntax():
     with pytest.raises(ValueError, match="invalid business-state path"):
         validate_business_state({"metadata": {}}, "metadata..status", "created")
+    with pytest.raises(ValueError, match="invalid business-state path"):
+        validate_business_state({"metadata": [{"result": "ok"}]}, "metadata[0]result", "ok")

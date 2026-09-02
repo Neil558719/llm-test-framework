@@ -218,3 +218,8 @@ def test_tool_status_is_compared_without_inference():
     assert result.path == "tool_calls[5].status"
     with pytest.raises(AssertionError, match=r"succeeded.*failed"):
         assert_tool_status(call, call_index=5)
+
+
+def test_tool_validators_reject_unsupported_call_type():
+    with pytest.raises(TypeError, match="ToolCall"):
+        validate_tool_status(object())
