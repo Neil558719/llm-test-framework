@@ -47,6 +47,26 @@ def test_backup_verifies_sqlite_integrity_before_reporting_success():
 
     assert "PRAGMA integrity_check" in backup
     assert "up -d --wait" in backup
+    assert "finally" in backup
+    assert "Resolve-Path" in backup
+
+
+def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
+    backup = (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8")
+    restore = (ROOT / "deploy" / "restore.sh").read_text(encoding="utf-8")
+
+    assert "trap" in backup and "PRAGMA integrity_check" in backup
+    assert "PRAGMA integrity_check" in restore and "docker compose up -d --wait" in restore
+    assert "trap" in restore
+
+
+def test_ci_restores_backup_and_checks_persisted_session_boundary():
+    workflow = (ROOT / ".github" / "workflows" / "container.yml").read_text(encoding="utf-8")
+
+    assert "backup-marker" in workflow
+    assert "post-backup-marker" in workflow
+    assert "deploy/restore.sh" in workflow
+    assert "SELECT session_id FROM sessions" in workflow
 
 
 def test_smoke_asserts_business_payloads():

@@ -25,17 +25,15 @@ jobs:
         run: docker compose up -d --wait
       - name: Run smoke
         run: BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/container-smoke.json sh deploy/smoke.sh
-      - name: Verify stopped-service SQLite backup
+      - name: Verify SQLite backup and actual restore
         run: |
-          docker compose stop reference-agent
-          mkdir -p reports/backup
-          docker run --rm -v local-production-drill_reference-agent-data:/data:ro -v "$PWD/reports/backup:/backup" alpine:3.20 cp /data/reference_agent.db /backup/reference_agent.db
-          python - <<'PY'
-          import sqlite3
-          assert sqlite3.connect('reports/backup/reference_agent.db').execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
-          PY
-          docker compose up -d --wait
-          BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/post-backup-smoke.json sh deploy/smoke.sh
+          curl -fsS -X POST http://localhost:8000/api/chat -H 'content-type: application/json' -d '{"message":"VPN 使用帮助","user_id":"U1001","session_id":"backup-marker"}' >/dev/null
+          BACKUP_DIR=reports/backup sh deploy/backup.sh
+          backup_file=$(find reports/backup -name 'reference_agent_*.db' -type f | head -n 1)
+          curl -fsS -X POST http://localhost:8000/api/chat -H 'content-type: application/json' -d '{"message":"VPN 使用帮助","user_id":"U1001","session_id":"post-backup-marker"}' >/dev/null
+          sh deploy/restore.sh "$backup_file"
+          docker run --rm -v local-production-drill_reference-agent-data:/data:ro python:3.12-alpine python -c "import sqlite3; rows={r[0] for r in sqlite3.connect('/data/reference_agent.db').execute('SELECT session_id FROM sessions')}; assert 'backup-marker' in rows and 'post-backup-marker' not in rows, rows"
+          BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/post-restore-smoke.json sh deploy/smoke.sh
       - name: Upload smoke evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -43,8 +41,8 @@ jobs:
           name: container-smoke-evidence
           path: |
             reports/container-smoke.json
-            reports/post-backup-smoke.json
-            reports/backup/reference_agent.db
+            reports/post-restore-smoke.json
+            reports/backup/*.db
           if-no-files-found: error
       - name: Container logs
         if: always()
