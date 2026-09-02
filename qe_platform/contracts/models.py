@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
+import jsonschema
+
 
 @dataclass(frozen=True)
 class ToolContract:
@@ -13,6 +15,11 @@ class ToolContract:
     name: str
     arguments_schema: Mapping[str, Any]
     result_schema: Optional[Mapping[str, Any]] = None
+
+    def __post_init__(self) -> None:
+        jsonschema.Draft202012Validator.check_schema(self.arguments_schema)
+        if self.result_schema is not None:
+            jsonschema.Draft202012Validator.check_schema(self.result_schema)
 
 
 @dataclass(frozen=True)
