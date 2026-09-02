@@ -249,7 +249,7 @@ performance:
 | 4. IT 知识问答流程 | 已完成 | `reference_agent/graph.py` 接入 `KnowledgeBase`，`reference_agent/app.py` 返回 sources 和 `metadata.knowledge_status`；`tests/test_reference_agent_knowledge.py` 定向结果 `4 passed`，含命中引用、知识库外拒答和 504 恢复；2026-08-31 相关回归 `7 passed`，全量结果 `32 passed, 13 warnings` | 进入里程碑 5：实现故障工单流程 |
 | 5. 故障工单流程 | 已完成 | `reference_agent/graph.py` 增加工单意图识别、用户/资产校验、归属校验、工单创建和 ToolCall 记录；`reference_agent/app.py` 注入服务并返回 `tool_calls`、`metadata.ticket_status`；`tests/test_reference_agent_ticket.py` 覆盖正常、用户/资产失败、归属不匹配、幂等和 5xx；2026-09-01 相关回归 `12 passed`，全量结果 `37 passed, 23 warnings` | 进入里程碑 6：实现权限申请与人工转接流程 |
 | 6. 权限申请与人工转接流程 | 已完成 | `reference_agent/graph.py` 增加权限申请意图、用户校验、软件/理由提取、受限软件转人工、审批创建和幂等；`reference_agent/app.py` 支持同会话补充信息并返回 `approval_status`、`handoff_reason`；`tests/test_reference_agent_access.py` 覆盖正常申请、缺字段、受限软件、用户失败、审批 5xx、幂等和多轮补充；2026-09-01 定向结果 `9 passed`，全量结果 `46 passed, 41 warnings` | 进入里程碑 7：实现 Tool Contract 与业务断言库 |
-| 7. Tool Contract 与业务断言库 | 未开始 | 无 | 新增确定性断言 API |
+| 7. Tool Contract 与业务断言库 | 已完成 | 新增 `qe_platform/contracts/`，提供 `ToolContract`、可序列化 `AssertionResult`、工具名/参数 JSON Schema/字段值/调用顺序/状态断言和业务状态点路径断言；`tests/test_tool_contracts.py`、`tests/test_business_assertions.py`、`tests/test_contract_integration.py` 覆盖错误定位、严格与子序列顺序、工单及审批真实调用链；2026-09-02 Task 3 定向结果 `11 passed, 5 warnings`，相关回归 `31 passed, 41 warnings`，全量结果 `71 passed, 1 skipped, 45 warnings`；构建 wheel 已确认包含 `qe_platform` | 进入里程碑 8：实现 YAML 场景 DSL 与工作流执行器；Embedding 跳过项、LangGraph 上游警告及生产部署仍需持续跟踪 |
 | 8. YAML 场景 DSL 与工作流执行器 | 未开始 | 无 | 定义 Schema、加载器、执行器和结果写入 |
 | 9. V1 报告、API E2E 与 CI | 未开始 | 无 | 完成功能版本发布门禁 |
 | 10. Playwright UI 自动化 | 未开始 | 无 | 增加 Web UI 与页面对象测试 |
