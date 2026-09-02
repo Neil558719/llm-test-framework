@@ -45,11 +45,22 @@ class ReferenceAgentAdapter:
             body = response.json()
             if not isinstance(body, Mapping):
                 raise ValueError("response is not an object")
-            calls = [ToolCall(call["name"], call.get("arguments", {}), call.get("result"), call.get("status", "succeeded"), call.get("error", "")) for call in body.get("tool_calls", [])]
+            required = {"answer", "sources", "tool_calls", "conversation_id", "trace_id"}
+            if not required.issubset(body):
+                raise ValueError("response is missing required fields")
+            if not isinstance(body["answer"], str) or not isinstance(body["sources"], list) or not all(isinstance(item, str) for item in body["sources"]):
+                raise ValueError("answer or sources has an invalid type")
+            if not isinstance(body["tool_calls"], list):
+                raise ValueError("tool_calls is not a list")
+            calls = []
+            for call in body["tool_calls"]:
+                if not isinstance(call, Mapping) or not isinstance(call.get("name"), str) or not isinstance(call.get("arguments", {}), Mapping):
+                    raise ValueError("tool call has an invalid shape")
+                calls.append(ToolCall(call["name"], dict(call.get("arguments", {})), call.get("result"), call.get("status", "succeeded"), call.get("error", "")))
             usage_raw = body.get("usage")
             usage = TokenUsage(usage_raw.get("prompt_tokens", 0), usage_raw.get("completion_tokens", 0)) if isinstance(usage_raw, Mapping) else None
             latency_raw = body.get("latency")
             latency = LatencyMetrics(latency_raw.get("total_ms", 0.0), latency_raw.get("ttft_ms")) if isinstance(latency_raw, Mapping) else None
-            return ResponseEnvelope(str(body.get("answer", "")), list(body.get("sources", [])), calls, str(body.get("conversation_id", "")), str(body.get("trace_id", "")), usage, latency, dict(body.get("raw_response", {})), dict(body.get("metadata", {})))
+            return ResponseEnvelope(body["answer"], list(body["sources"]), calls, str(body["conversation_id"]), str(body["trace_id"]), usage, latency, dict(body.get("raw_response", {})), dict(body.get("metadata", {})))
         except (KeyError, TypeError, ValueError) as exc:
             raise ApplicationAdapterError("application returned invalid JSON response", response.status_code) from exc

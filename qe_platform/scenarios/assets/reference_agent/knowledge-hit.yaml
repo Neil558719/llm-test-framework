@@ -1,0 +1,28 @@
+scenarios:
+  - id: knowledge-hit
+    name: IT 知识库命中
+    setup:
+      user_id: U1001
+      knowledge: [{document_id: kb-vpn-1, title: VPN 连接故障排查, content: 请检查账号状态并重新连接 VPN。}]
+    conversation: [{user: VPN 连接故障怎么排查？}]
+    expect:
+      response: {contains: [VPN, 账号状态], sources_present: true}
+      business_state: [{path: metadata.knowledge_status, value: answered}]
+  - id: knowledge-refusal
+    name: 知识库外问题拒答
+    setup:
+      user_id: U1001
+      knowledge: [{document_id: kb-vpn-1, title: VPN 连接故障排查, content: 请检查账号状态并重新连接 VPN。}]
+    conversation: [{user: 公司食堂今天有什么菜？}]
+    expect:
+      response: {contains: [无法可靠回答], sources_present: false}
+      business_state: [{path: metadata.knowledge_status, value: refused}]
+  - id: knowledge-timeout
+    name: 知识库超时恢复提示
+    setup:
+      user_id: U1001
+      failures: {knowledge: {status_code: 504, message: timeout}}
+    conversation: [{user: VPN 怎么连接？}]
+    expect:
+      response: {contains: [暂时不可用]}
+      business_state: [{path: metadata.knowledge_status, value: unavailable}]

@@ -41,7 +41,11 @@ class QualityCheckResult:
 @dataclass
 class ScenarioRunResult:
     scenario_id: str
+    scenario_name: str
+    source: str
     session_id: str
+    started_at: str
+    finished_at: str = ""
     expected_step_count: int = 0
     steps: List[StepResult] = field(default_factory=list)
     tool_calls: List[ToolCall] = field(default_factory=list)
@@ -62,7 +66,9 @@ class ScenarioRunResult:
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "scenario_id": self.scenario_id, "session_id": self.session_id,
+            "scenario_id": self.scenario_id, "scenario_name": self.scenario_name,
+            "source": self.source, "session_id": self.session_id,
+            "started_at": self.started_at, "finished_at": self.finished_at,
             "passed": self.passed, "complete": self.complete,
             "steps": [step.as_dict() for step in self.steps],
             "tool_calls": [call.as_dict() for call in self.tool_calls],

@@ -125,6 +125,29 @@ expect: {response: {contains: [done]}}
     assert result.steps[0].status == "error"
     assert "service unavailable" in result.steps[0].error
     assert result.final_assertions[0].passed is False
+    assert {item.assertion_type for item in result.final_assertions} >= {
+        "execution", "response_contains"
+    }
+
+
+def test_runner_records_response_and_business_assertions_as_failed_after_execution_error():
+    adapter = SequenceAdapter([ApplicationAdapterError("service unavailable", 503)])
+    scenario = load_scenario_text("""
+id: error-assertions
+name: Adapter error assertions
+conversation: [{user: first}]
+expect:
+  response: {contains: [done], sources_present: true}
+  business_state: [{path: metadata.status, value: ok}]
+""")[0]
+
+    result = ScenarioRunner(lambda setup: adapter).run(scenario)
+
+    failures = [item for item in result.final_assertions if not item.passed]
+    assert {item.assertion_type for item in failures} == {
+        "execution", "response_contains", "sources_present", "business_state"
+    }
+    assert all("execution error" in item.message for item in failures[1:])
 
 
 def test_runner_matches_declared_tools_by_position_and_checks_final_response():
@@ -143,3 +166,40 @@ expect:
     assert result.passed is False
     assert any(item.assertion_type == "tool_name" and not item.passed for item in result.final_assertions)
     assert any(item.assertion_type == "response_contains" and item.passed for item in result.final_assertions)
+    assert any(item.assertion_type == "tool_arguments" for item in result.final_assertions)
+    assert any(item.assertion_type == "tool_status" for item in result.final_assertions)
+
+
+def test_runner_result_preserves_scenario_identity_and_timestamps():
+    adapter = SequenceAdapter([ResponseEnvelope(answer="ok")])
+    scenario = load_scenario_text("""
+id: identity
+name: Identity scenario
+conversation: [{user: hello}]
+""", source="identity.yaml")[0]
+
+    result = ScenarioRunner(lambda setup: adapter).run(scenario)
+    payload = result.as_dict()
+
+    assert payload["scenario_name"] == "Identity scenario"
+    assert payload["source"] == "identity.yaml"
+    assert payload["started_at"]
+    assert payload["finished_at"]
+
+
+def test_runner_records_adapter_factory_error_as_incomplete_execution():
+    scenario = load_scenario_text("""
+id: factory-error
+name: Factory error
+conversation: [{user: hello}]
+""")[0]
+
+    def fail_factory(setup):
+        raise ApplicationAdapterError("adapter setup failed")
+
+    result = ScenarioRunner(fail_factory).run(scenario)
+
+    assert result.passed is False
+    assert result.complete is False
+    assert result.steps[0].status == "error"
+    assert "adapter setup failed" in result.steps[0].error

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import json
 
 from qe_platform.scenarios import ScenarioLoadError, load_scenario_text, load_scenarios
 
@@ -56,6 +57,25 @@ def test_loader_accepts_scenarios_list_and_sorts_directory(tmp_path):
     assert [scenario.id for scenario in scenarios] == ["a", "b"]
 
 
+def test_loader_sorts_yaml_and_yml_files_in_one_lexical_order(tmp_path):
+    (tmp_path / "a.yml").write_text("id: a\nname: A\nconversation: [{user: a}]\n", encoding="utf-8")
+    (tmp_path / "b.yaml").write_text("id: b\nname: B\nconversation: [{user: b}]\n", encoding="utf-8")
+
+    assert [item.id for item in load_scenarios(tmp_path)] == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "scenarios: [{id: x, name: X, conversation: [{user: hi}]}]\nextra: true\n",
+        "id: x\nname: X\nconversation: [{user: hi}]\nsetup: {failures: {unsupported: {status_code: 500}}}\n",
+    ],
+)
+def test_loader_rejects_unknown_wrapper_fields_and_failure_services(text):
+    with pytest.raises(ScenarioLoadError):
+        load_scenario_text(text, source="strict.yaml")
+
+
 @pytest.mark.parametrize(
     ("text", "path"),
     [
@@ -100,3 +120,28 @@ def test_loader_rejects_directory_without_yaml(tmp_path):
     (tmp_path / "readme.txt").write_text("none", encoding="utf-8")
     with pytest.raises(ScenarioLoadError, match="no YAML files"):
         load_scenarios(tmp_path)
+
+
+def test_loader_rejects_duplicate_ids_in_one_document():
+    with pytest.raises(ScenarioLoadError, match="duplicate scenario id"):
+        load_scenario_text("scenarios: [{id: a, name: A, conversation: [{user: a}]}, {id: a, name: A2, conversation: [{user: b}]}]")
+
+
+def test_loader_normalizes_yaml_dates_to_json_values():
+    scenario = load_scenario_text("id: x\nname: X\nconversation: [{user: hi}]\nquality: {release_date: 2026-09-02}\n")[0]
+    json.dumps(scenario.as_dict())
+    assert scenario.quality.metrics["release_date"] == "2026-09-02"
+
+
+def test_loader_wraps_unreadable_file(monkeypatch, tmp_path):
+    path = tmp_path / "broken.yaml"
+    path.write_text("id: x\nname: X\nconversation: [{user: hi}]\n", encoding="utf-8")
+    original = Path.read_text
+    def fail(self, *args, **kwargs):
+        if self == path:
+            raise UnicodeDecodeError("utf-8", b"", 0, 1, "bad")
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(Path, "read_text", fail)
+    with pytest.raises(ScenarioLoadError) as exc:
+        load_scenarios(path)
+    assert exc.value.source == str(path)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Optional, Protocol
 
 from llmtest import ResponseEnvelope
 
@@ -11,6 +11,6 @@ class ApplicationAdapter(Protocol):
 
 
 class ApplicationAdapterError(RuntimeError):
-    def __init__(self, message: str, status_code: int | None = None):
+    def __init__(self, message: str, status_code: Optional[int] = None):
         super().__init__(message)
         self.status_code = status_code

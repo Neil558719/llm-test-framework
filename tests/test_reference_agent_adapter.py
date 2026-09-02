@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from qe_platform.adapters import ApplicationAdapterError, ReferenceAgentAdapter
 from qe_platform.scenarios import SetupSpec
@@ -98,3 +99,25 @@ def test_reference_adapter_wraps_malformed_json_safely():
 
     with pytest.raises(ApplicationAdapterError, match="invalid JSON response"):
         adapter.send("hello", user_id="U1001", session_id="s1")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"answer": "ok", "sources": "not-a-list", "tool_calls": []},
+        {"answer": "ok", "sources": [], "tool_calls": [{"arguments": {}}]},
+    ],
+)
+def test_reference_adapter_rejects_incomplete_or_invalid_success_payload(payload):
+    adapter = ReferenceAgentAdapter(_Client(_Response(200, payload)))
+    with pytest.raises(ApplicationAdapterError, match="invalid JSON response"):
+        adapter.send("hello", user_id="U1001", session_id="s1")
+
+
+def test_reference_adapter_applies_yaml_setup_delay():
+    setup = _setup({"knowledge": {"delay_seconds": 0.01}})
+    adapter = ReferenceAgentAdapter.from_setup(setup)
+    started = time.perf_counter()
+    adapter.send("如何处理 VPN？", user_id="U1001", session_id="delay")
+    assert time.perf_counter() - started >= 0.01

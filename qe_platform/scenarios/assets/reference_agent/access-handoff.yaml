@@ -1,0 +1,50 @@
+scenarios:
+  - id: access-create
+    name: 软件权限申请
+    setup: {user_id: U1001, users: [{user_id: U1001, name: 张三}]}
+    conversation: [{user: 申请安装 VPN，理由是远程办公}]
+    expect:
+      tools: [{name: query_user}, {name: create_approval, arguments: {software: VPN}}]
+      tool_order: [query_user, create_approval]
+      business_state: [{path: metadata.approval_status, value: pending}]
+      response: {contains: [权限申请已提交, 审批单]}
+  - id: access-multiturn
+    name: 权限申请补充理由
+    setup: {user_id: U1001, users: [{user_id: U1001, name: 张三}]}
+    conversation:
+      - user: 申请安装 VPN
+        expect:
+          response: {contains: [申请理由]}
+          business_state: [{path: metadata.approval_status, value: needs_information}]
+      - user: 理由是远程办公
+        expect:
+          response: {contains: [权限申请已提交]}
+          business_state: [{path: metadata.approval_status, value: pending}]
+  - id: access-handoff
+    name: 受限软件转人工审批
+    setup: {user_id: U1001, users: [{user_id: U1001, name: 张三}]}
+    conversation: [{user: 申请访问 Admin Console，理由是排查生产问题}]
+    expect:
+      tools: [{name: query_user}]
+      tool_order: [query_user]
+      business_state:
+        - {path: metadata.approval_status, value: handoff_required}
+        - {path: metadata.handoff_reason, value: restricted_software}
+      response: {contains: [人工, 受限资源]}
+  - id: access-user-missing
+    name: 权限申请用户不存在
+    setup: {user_id: missing, users: []}
+    conversation: [{user: 申请安装 VPN，理由是远程办公}]
+    expect:
+      response: {contains: [未找到当前用户]}
+      business_state: [{path: metadata.approval_status, value: user_not_found}]
+  - id: access-service-5xx
+    name: 审批服务 5xx
+    setup:
+      user_id: U1001
+      users: [{user_id: U1001, name: 张三}]
+      failures: {approval: {status_code: 503, message: approval service down}}
+    conversation: [{user: 申请安装 VPN，理由是远程办公}]
+    expect:
+      response: {contains: [暂时无法提交]}
+      business_state: [{path: metadata.approval_status, value: unavailable}]
