@@ -4,8 +4,8 @@
 
 1. 准备 Ubuntu LTS、Docker Engine、Compose 插件和最小权限部署用户。
 2. 复制 `docker-compose.yml` 与生产 `.env`，不要复制开发密钥。
-3. 拉取 Release 对应镜像，或在服务器构建同一 Git 标签。
-4. 恢复 `reference_agent.db` 到命名卷 `/data`。
+3. 拉取 Release 对应镜像（优先使用不可变 digest），或先获取同一 Git 标签源码再构建；不要只复制 Compose 文件。
+4. 恢复 `reference_agent.db` 到配置的命名卷 `/data`，修正文件属主为 UID 10001，并执行 SQLite 完整性检查。
 5. 配置 Caddy/Nginx、域名、HTTPS 和防火墙，仅公开 80/443。
 6. `docker compose up -d --wait` 后运行 Smoke，并在部署 Issue 留证据。
 

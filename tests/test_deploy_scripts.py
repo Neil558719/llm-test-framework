@@ -23,3 +23,28 @@ def test_rollback_waits_for_container_health_before_returning():
     rollback = (ROOT / "deploy" / "rollback.ps1").read_text(encoding="utf-8")
 
     assert "up -d --no-build --wait" in rollback
+
+
+def test_deployment_scripts_check_native_command_exit_codes_and_use_stable_volume_name():
+    backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
+    rollback = (ROOT / "deploy" / "rollback.ps1").read_text(encoding="utf-8")
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "$LASTEXITCODE" in backup
+    assert "$LASTEXITCODE" in rollback
+    assert "REFERENCE_AGENT_VOLUME" in compose
+
+
+def test_compose_does_not_expose_unauthenticated_agent_or_forward_unused_llm_secret():
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert '"127.0.0.1:${REFERENCE_AGENT_PORT:-8000}:8000"' in compose
+    assert "LLM_API_KEY" not in compose
+
+
+def test_smoke_asserts_business_payloads():
+    smoke = (ROOT / "deploy" / "smoke.sh").read_text(encoding="utf-8")
+
+    assert "tool_calls" in smoke
+    assert "ticket_status" in smoke
+    assert "approval_status" in smoke
