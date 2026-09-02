@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+import os
 from typing import Any
 
 from fastapi import FastAPI
@@ -26,13 +27,14 @@ class ChatRequest(BaseModel):
 
 
 def create_app(
-    database: str = "reference_agent.db",
+    database: str | None = None,
     knowledge_base: KnowledgeBase | None = None,
     user_service: UserService | None = None,
     asset_service: AssetService | None = None,
     ticket_service: TicketService | None = None,
     approval_service: ApprovalService | None = None,
 ) -> FastAPI:
+    database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
     store = SQLiteStore(database)
     graph = build_graph(knowledge_base, user_service, asset_service, ticket_service, approval_service)

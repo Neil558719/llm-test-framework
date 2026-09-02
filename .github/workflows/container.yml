@@ -1,0 +1,59 @@
+name: Container Readiness
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: ["codex/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  local-production-drill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Validate deployment assets
+        run: python -m pip install PyYAML pytest && python -m pytest tests/test_deployment_assets.py tests/test_deploy_scripts.py -q
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build image
+        run: docker compose build reference-agent
+      - name: Start and wait for health
+        run: docker compose up -d --wait
+      - name: Run smoke
+        run: BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/container-smoke.json sh deploy/smoke.sh
+      - name: Verify SQLite backup and actual restore
+        run: |
+          curl -fsS -X POST http://localhost:8000/api/chat -H 'content-type: application/json' -d '{"message":"VPN 使用帮助","user_id":"U1001","session_id":"backup-marker"}' >/dev/null
+          BACKUP_DIR=reports/backup sh deploy/backup.sh
+          backup_file=$(find reports/backup -name 'reference_agent_*.db' -type f | head -n 1)
+          curl -fsS -X POST http://localhost:8000/api/chat -H 'content-type: application/json' -d '{"message":"VPN 使用帮助","user_id":"U1001","session_id":"post-backup-marker"}' >/dev/null
+          sh deploy/restore.sh "$backup_file"
+          docker run --rm -v local-production-drill_reference-agent-data:/data:ro python:3.12-alpine python -c "import sqlite3; rows={r[0] for r in sqlite3.connect('/data/reference_agent.db').execute('SELECT session_id FROM sessions')}; assert 'backup-marker' in rows and 'post-backup-marker' not in rows, rows"
+          BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/post-restore-smoke.json sh deploy/smoke.sh
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-smoke-evidence
+          path: |
+            reports/container-smoke.json
+            reports/post-restore-smoke.json
+            reports/backup/*.db
+          if-no-files-found: error
+      - name: Container logs
+        if: always()
+        run: mkdir -p reports && docker compose logs --no-color > reports/container.log || true
+      - name: Upload container logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-logs
+          path: reports/container.log
+          if-no-files-found: warn
+      - name: Stop drill
+        if: always()
+        run: docker compose down
