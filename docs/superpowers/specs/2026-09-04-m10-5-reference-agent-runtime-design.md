@@ -8,6 +8,10 @@
 
 10.5 位于里程碑 10（Playwright UI）之后、里程碑 11（Token、成本和版本数据）之前。它依赖现有 `ResponseEnvelope`、Reference Agent LangGraph、Mock 业务服务和 UI/API 入口；里程碑 11 将在本里程碑输出的模型元数据和 usage 基础上扩展成本持久化。
 
+## 当前交付边界
+
+本阶段暂无独立云服务器部署计划。10.5 的交付验收以 Windows + Docker Desktop + Docker Compose 的本地类生产部署流程跑通为准，包括镜像构建、健康检查、API/UI Smoke、配置注入、SQLite 持久化及备份/恢复验证。部署资产必须保持可迁移：使用环境变量、标准容器端口、持久化卷、无主机绑定路径和独立迁移/回滚文档，后续可在具备服务器、域名、HTTPS 和正式凭据后直接迁移到云端独立服务器。云端部署、生产鉴权和公网可用性不作为本阶段阻塞条件。
+
 ## 设计原则
 
 - `reference_agent/runtime/` 是唯一的 Agent 模型适配边界；`graph.py` 不直接导入 OpenAI 或 Anthropic SDK。

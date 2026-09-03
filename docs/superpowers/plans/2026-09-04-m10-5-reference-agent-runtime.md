@@ -18,6 +18,8 @@
 - API keys are server-side only and are never accepted, returned, logged, or persisted by UI APIs.
 - Deterministic code retains authority over identity, asset ownership, tool execution, idempotency, and handoff decisions.
 - Existing `/api/chat`, `/api/chat/stream`, `AppResponse`, `ResponseEnvelope`, V1 scenarios, and default CI remain compatible.
+- Current delivery acceptance is the local production-like Docker Compose drill; no independent cloud server is planned in this phase.
+- Container configuration, persistent volume, environment injection, backup/restore, smoke scripts, and migration/rollback docs must remain portable to a future independent cloud server.
 
 ---
 
@@ -114,3 +116,5 @@
 - [ ] Inspect the complete branch diff for protocol, security, and regression risks.
 - [ ] Record exact commands/results in the status table and commit the evidence.
 - [ ] Push the branch, open a PR, wait for Actions, perform review, merge to `master`, publish a release, and update deployment/issue tracking before declaring 10.5 complete.
+ - [ ] Run the local production-like Docker Compose drill, including image build, health check, API/UI smoke, model configuration injection, SQLite persistence, and backup/restore evidence.
+ - [ ] Push the branch, open a PR, wait for Actions, perform review, merge to `master`, publish a release, and update local deployment evidence before declaring 10.5 complete. Independent cloud deployment is future work, not a release blocker for this milestone.
