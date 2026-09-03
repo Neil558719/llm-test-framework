@@ -37,7 +37,7 @@
         const chunks = buffer.split('\n\n'); buffer = chunks.pop();
         for (const chunk of chunks) { const line = chunk.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const eventData = JSON.parse(line.slice(6));
           if (eventData.type === 'chunk') agentNode.textContent += eventData.text;
-          if (eventData.type === 'complete') { state.sessionId = eventData.response.conversation_id; $('stream-status').textContent = `完成 · trace ${eventData.response.trace_id}`; renderStatus(agentNode, eventData.response); }
+          if (eventData.type === 'complete') { state.sessionId = eventData.response.conversation_id; $('stream-status').dataset.traceId = eventData.response.trace_id; $('stream-status').textContent = `完成 · trace ${eventData.response.trace_id}`; renderStatus(agentNode, eventData.response); }
         }
       }
     } catch (error) { agentNode.textContent = error.message; agentNode.classList.add('error'); $('stream-status').textContent = '请求失败'; }
