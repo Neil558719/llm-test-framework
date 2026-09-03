@@ -46,3 +46,30 @@ jobs:
           name: test-reports-python-${{ matrix.python-version }}
           path: reports/
           if-no-files-found: warn
+
+  v1-api-gate:
+    name: V1 API gate (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - name: Run V1 API E2E quality gate
+        run: python -m qe_platform.v1_gate --json reports/v1-api-e2e.json --html reports/v1-api-e2e.html
+      - name: Upload V1 reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: v1-api-gate-python-${{ matrix.python-version }}
+          path: reports/v1-api-e2e.*
+          if-no-files-found: error

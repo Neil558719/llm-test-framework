@@ -42,6 +42,9 @@ ci = [
 [project.entry-points.pytest11]
 llmtest = "llmtest.plugin"
 
+[project.scripts]
+v1-api-gate = "qe_platform.v1_gate:main"
+
 [tool.setuptools.packages.find]
 include = ["llmtest*", "qe_platform*", "reference_agent*"]
 
