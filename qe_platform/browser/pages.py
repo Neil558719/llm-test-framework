@@ -30,3 +30,6 @@ class ReferenceAgentPage:
 
     def trace_status(self) -> str:
         return self.page.locator("#stream-status").inner_text()
+
+    def trace_id(self) -> str:
+        return str(self.page.locator("#stream-status").get_attribute("data-trace-id") or "")
