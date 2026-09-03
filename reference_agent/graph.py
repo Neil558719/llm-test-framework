@@ -79,8 +79,10 @@ def _access_response(
     if user is None:
         return {**state, "answer": "未找到当前用户信息，暂时无法申请权限。", "tool_calls": calls, "approval_status": "user_not_found"}
 
-    software = _extract_software(message)
-    justification = _extract_justification(message)
+    hints = state.get("runtime_hints", {})
+    parameters = hints.get("parameters", {}) if isinstance(hints, dict) else {}
+    software = str(parameters.get("software") or _extract_software(message))
+    justification = str(parameters.get("justification") or _extract_justification(message))
     if not software or not justification:
         missing = "软件名称" if not software else "申请理由"
         return {
@@ -144,8 +146,10 @@ def _ticket_response(
     if user is None:
         return {**state, "answer": "未找到当前用户信息，暂时无法创建工单。", "tool_calls": calls, "ticket_status": "user_not_found"}
 
+    hints = state.get("runtime_hints", {})
+    parameters = hints.get("parameters", {}) if isinstance(hints, dict) else {}
     asset_match = re.search(r"PC[-_][A-Za-z0-9]+", message, re.IGNORECASE)
-    asset_id = asset_match.group(0).upper().replace("_", "-") if asset_match else ""
+    asset_id = str(parameters.get("asset_id") or (asset_match.group(0).upper().replace("_", "-") if asset_match else ""))
     if not asset_id:
         return {**state, "answer": "请提供设备编号后再创建工单。", "tool_calls": calls, "ticket_status": "asset_required"}
     try:
@@ -159,8 +163,8 @@ def _ticket_response(
     if asset.get("owner_id") != user_id:
         return {**state, "answer": "该设备不属于当前用户，无法创建工单。", "tool_calls": calls, "ticket_status": "asset_forbidden"}
 
-    priority = "high" if any(word in message for word in ("高", "紧急", "严重")) else "normal"
-    category = "vpn" if "VPN" in message.upper() else "general"
+    priority = str(parameters.get("priority") or ("high" if any(word in message for word in ("高", "紧急", "严重")) else "normal"))
+    category = str(parameters.get("category") or ("vpn" if "VPN" in message.upper() else "general"))
     arguments = {
         "user_id": user_id,
         "asset_id": asset_id,
@@ -191,9 +195,11 @@ def _respond(
     approval_service: ApprovalService,
 ) -> AgentState:
     message = state.get("message", "").strip()
-    if _is_access_intent(message):
+    hints = state.get("runtime_hints", {})
+    hinted_intent = hints.get("intent") if isinstance(hints, dict) else None
+    if hinted_intent == "access" or (not hinted_intent and _is_access_intent(message)):
         return _access_response(state, user_service, approval_service)
-    if _is_ticket_intent(message):
+    if hinted_intent == "ticket" or (not hinted_intent and _is_ticket_intent(message)):
         return _ticket_response(state, user_service, asset_service, ticket_service)
     if not message:
         return {**state, "answer": "请输入需要查询的 IT 问题。", "sources": [], "knowledge_status": "refused"}

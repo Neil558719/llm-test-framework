@@ -27,6 +27,14 @@
         <div><p class="eyebrow">ACTIVE SESSION</p><h2>服务台对话</h2></div>
         <div class="session-meta"><span id="session-label"></span><button id="new-session" type="button" class="quiet">新会话</button></div>
       </header>
+      <div class="model-controls" aria-label="模型配置">
+        <label for="model-profile">模型</label>
+        <select id="model-profile"></select>
+        <input id="model-name" type="text" placeholder="模型名（可选）" autocomplete="off">
+        <input id="model-base-url" type="url" placeholder="Base URL（可选）" autocomplete="off">
+        <button id="save-model" type="button" class="quiet">应用</button>
+        <span id="model-status" class="muted"></span>
+      </div>
       <div id="conversation" class="conversation" aria-live="polite"></div>
       <form id="chat-form" class="composer">
         <label class="sr-only" for="message-input">消息</label>
