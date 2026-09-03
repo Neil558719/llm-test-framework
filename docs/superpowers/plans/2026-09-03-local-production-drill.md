@@ -63,4 +63,4 @@
 - [x] Update the milestone status table with commands and results.
 - [x] Run full regression, build, diff, and local drill verification.
 - [x] Commit, push, open PR, wait for Actions, review, and merge the implementation branch (PR #18 merged as `4de5c42`).
-- [ ] Publish the post-merge Release and record deployment tracking evidence; real public production remains pending an independent server and credentials.
+- [x] Publish the post-merge Release `v0.1.0-alpha.8` and record deployment tracking evidence in Issue #17; real public production remains pending an independent server and credentials.
