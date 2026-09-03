@@ -353,6 +353,21 @@ pytest examples/model_vs_model/ --app-provider deepseek --app-model deepseek-cha
 
 ## CLI 选项
 
+## Reference Agent UI 验收
+
+里程碑 10 提供一个零构建的本地 Reference Agent Web UI。启动服务后访问 `http://127.0.0.1:8000/`，使用演示用户 `U1001` 登录；该登录仅用于本地验收，不代表生产鉴权。
+
+安装浏览器测试依赖并运行 UI 验收：
+
+```powershell
+pip install -e ".[ui]"
+python -m playwright install chromium
+python -m uvicorn reference_agent.deployment:create_deployment_app --factory --host 127.0.0.1 --port 8000
+pytest -m ui
+```
+
+UI 测试独立于默认 `pytest tests/` 回归，覆盖登录、会话、流式回复、知识引用、工单结果、转人工和错误提示。SSE 完成事件与页面状态携带同一个 `trace_id`，便于 API/UI 结果关联。
+
 | 选项 | 说明 |
 | --- | --- |
 | `--llm-mode mock\|real` | 裁判运行模式（默认 mock） |

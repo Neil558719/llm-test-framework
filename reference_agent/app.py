@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import uuid
 import os
+import json
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from llmtest import LatencyMetrics, ResponseEnvelope
 
@@ -24,6 +28,10 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     user_id: str = Field(default="test-user", min_length=1)
     session_id: str | None = None
+
+
+class LoginRequest(BaseModel):
+    user_id: str = Field(min_length=1)
 
 
 def create_app(
@@ -45,8 +53,20 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "reference-agent"}
 
-    @app.post("/api/chat")
-    def chat(request: ChatRequest) -> dict[str, Any]:
+    @app.post("/api/login")
+    def login(request: LoginRequest) -> dict[str, str]:
+        session_id = str(uuid.uuid4())
+        store.upsert_session(session_id, request.user_id)
+        return {"session_id": session_id, "user_id": request.user_id}
+
+    @app.get("/api/sessions/{session_id}")
+    def get_session(session_id: str) -> dict[str, str]:
+        session = store.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return session
+
+    def _run_chat(request: ChatRequest) -> dict[str, Any]:
         session_id = request.session_id or str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
         store.upsert_session(session_id, request.user_id)
@@ -83,5 +103,24 @@ def create_app(
             },
         )
         return envelope.as_dict()
+
+    @app.post("/api/chat")
+    def chat(request: ChatRequest) -> dict[str, Any]:
+        return _run_chat(request)
+
+    @app.post("/api/chat/stream")
+    def chat_stream(request: ChatRequest) -> StreamingResponse:
+        response = _run_chat(request)
+
+        def events():
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': response['conversation_id']})}\n\n"
+            answer = response["answer"]
+            for index in range(0, len(answer), 24):
+                yield f"data: {json.dumps({'type': 'chunk', 'text': answer[index:index + 24]})}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'response': response}, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
+    app.mount("/", StaticFiles(directory=Path(__file__).parent / "web", html=True), name="web")
 
     return app
