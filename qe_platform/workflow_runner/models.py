@@ -53,6 +53,22 @@ class ScenarioRunResult:
     quality_checks: List[QualityCheckResult] = field(default_factory=list)
 
     @property
+    def total_usage(self):
+        from llmtest import TokenUsage
+        values = [step.response.usage for step in self.steps if step.response and step.response.usage]
+        return TokenUsage(sum(v.prompt_tokens for v in values), sum(v.completion_tokens for v in values)) if values else None
+
+    @property
+    def total_cost(self):
+        values = [step.response.cost for step in self.steps if step.response and step.response.cost]
+        if not values:
+            return None
+        from llmtest import CostMetrics
+        currencies = {v.currency for v in values}
+        versions = {v.price_version for v in values}
+        return CostMetrics(sum(v.input for v in values), sum(v.output for v in values), sum(v.total for v in values), currencies.pop() if len(currencies) == 1 else "MIXED", versions.pop() if len(versions) == 1 else "MIXED")
+
+    @property
     def passed(self) -> bool:
         return bool(self.steps) and all(step.status == "passed" for step in self.steps) and all(item.passed for item in self.final_assertions)
 
@@ -74,4 +90,7 @@ class ScenarioRunResult:
             "tool_calls": [call.as_dict() for call in self.tool_calls],
             "final_assertions": [item.as_dict() for item in self.final_assertions],
             "quality_checks": [item.as_dict() for item in self.quality_checks],
+            "usage": self.total_usage.as_dict() if self.total_usage else None,
+            "cost": self.total_cost.as_dict() if self.total_cost else None,
+            "model_versions": [step.response.model_version.as_dict() for step in self.steps if step.response and step.response.model_version],
         }

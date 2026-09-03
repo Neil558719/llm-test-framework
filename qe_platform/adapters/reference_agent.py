@@ -61,6 +61,6 @@ class ReferenceAgentAdapter:
             usage = TokenUsage(usage_raw.get("prompt_tokens", 0), usage_raw.get("completion_tokens", 0)) if isinstance(usage_raw, Mapping) else None
             latency_raw = body.get("latency")
             latency = LatencyMetrics(latency_raw.get("total_ms", 0.0), latency_raw.get("ttft_ms")) if isinstance(latency_raw, Mapping) else None
-            return ResponseEnvelope(body["answer"], list(body["sources"]), calls, str(body["conversation_id"]), str(body["trace_id"]), usage, latency, dict(body.get("raw_response", {})), dict(body.get("metadata", {})))
+            return ResponseEnvelope.from_dict({**body, "tool_calls": [c.as_dict() for c in calls]})
         except (KeyError, TypeError, ValueError) as exc:
             raise ApplicationAdapterError("application returned invalid JSON response", response.status_code) from exc

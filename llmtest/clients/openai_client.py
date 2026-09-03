@@ -67,6 +67,11 @@ class OpenAIClient(LLMClient):
             params["max_tokens"] = max_tokens
         # 网关 5xx / 429 / 断连等瞬时错误自动重试
         resp = self._retry_call(lambda: client.chat.completions.create(**params))
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            from ..specs import TokenUsage
+            self.last_usage = TokenUsage(int(getattr(usage, "prompt_tokens", 0)), int(getattr(usage, "completion_tokens", 0)))
+        self.last_model_version = self.last_model_version.__class__(self.provider, params["model"])
         content = resp.choices[0].message.content
         return content or ""
 

@@ -169,6 +169,51 @@ class TokenUsage:
         }
 
 
+@dataclass(frozen=True)
+class ModelVersion:
+    """Model and dependent asset versions used for one response."""
+
+    provider: str = ""
+    model: str = ""
+    prompt: str = ""
+    knowledge_base: str = ""
+    tools: str = ""
+
+    def as_dict(self) -> Dict[str, str]:
+        return {"provider": self.provider, "model": self.model, "prompt": self.prompt,
+                "knowledge_base": self.knowledge_base, "tools": self.tools,
+                "prompt_version": self.prompt, "knowledge_base_version": self.knowledge_base,
+                "tool_schema_version": self.tools}
+
+    @property
+    def prompt_version(self) -> str:
+        return self.prompt
+
+    @property
+    def knowledge_base_version(self) -> str:
+        return self.knowledge_base
+
+    @property
+    def tool_schema_version(self) -> str:
+        return self.tools
+
+
+@dataclass(frozen=True)
+class CostMetrics:
+    """Price calculation for one model response."""
+
+    input: float = 0.0
+    output: float = 0.0
+    total: float = 0.0
+    currency: str = "USD"
+    price_version: str = ""
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"input": self.input, "output": self.output, "total": self.total,
+                "input_cost": self.input, "output_cost": self.output, "total_cost": self.total,
+                "currency": self.currency, "price_version": self.price_version}
+
+
 @dataclass
 class LatencyMetrics:
     """一次应用响应的端到端与首 Token 延迟。"""
@@ -193,6 +238,8 @@ class ResponseEnvelope:
     latency: Optional[LatencyMetrics] = None
     raw_response: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    model_version: Optional[ModelVersion] = None
+    cost: Optional[CostMetrics] = None
 
     @classmethod
     def from_app_response(
@@ -211,7 +258,31 @@ class ResponseEnvelope:
             "latency": self.latency.as_dict() if self.latency else None,
             "raw_response": self.raw_response,
             "metadata": self.metadata,
+            "model_version": self.model_version.as_dict() if self.model_version else None,
+            "cost": self.cost.as_dict() if self.cost else None,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "ResponseEnvelope":
+        usage = payload.get("usage")
+        latency = payload.get("latency")
+        version = payload.get("model_version")
+        cost = payload.get("cost")
+        return cls(
+            answer=str(payload.get("answer", "")), sources=list(payload.get("sources", [])),
+            tool_calls=[ToolCall(**item) for item in payload.get("tool_calls", [])],
+            conversation_id=str(payload.get("conversation_id", "")), trace_id=str(payload.get("trace_id", "")),
+            usage=TokenUsage(int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0))) if usage else None,
+            latency=LatencyMetrics(float(latency.get("total_ms", 0.0)), latency.get("ttft_ms")) if latency else None,
+            raw_response=dict(payload.get("raw_response", {})), metadata=dict(payload.get("metadata", {})),
+            model_version=ModelVersion(
+                str(version.get("provider", "")), str(version.get("model", "")),
+                str(version.get("prompt", version.get("prompt_version", ""))),
+                str(version.get("knowledge_base", version.get("knowledge_base_version", ""))),
+                str(version.get("tools", version.get("tool_schema_version", ""))),
+            ) if version else None,
+            cost=CostMetrics(float(cost.get("input", 0.0)), float(cost.get("output", 0.0)), float(cost.get("total", 0.0)), str(cost.get("currency", "USD")), str(cost.get("price_version", ""))) if cost else None,
+        )
 
 
 @dataclass

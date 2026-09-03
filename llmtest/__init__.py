@@ -30,7 +30,7 @@ from .hallucination.detector import detect_hallucination, assert_hallucination_r
 from .judge.evaluator import llm_judge, JudgeSpec
 from .config import Config
 from .clients import get_client
-from .specs import AppResponse, LatencyMetrics, ResponseEnvelope, TokenUsage, ToolCall
+from .specs import AppResponse, CostMetrics, LatencyMetrics, ModelVersion, ResponseEnvelope, TokenUsage, ToolCall
 from .metrics.tracker import track_latency
 from .apps import apps, register_app
 
@@ -49,6 +49,8 @@ __all__ = [
     "AppResponse",
     "ToolCall",
     "TokenUsage",
+    "CostMetrics",
+    "ModelVersion",
     "LatencyMetrics",
     "ResponseEnvelope",
     "track_latency",

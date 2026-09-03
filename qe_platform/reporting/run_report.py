@@ -33,8 +33,28 @@ class RunReport:
     def gate_passed(self) -> bool:
         return self.total > 0 and self.failed == 0 and all(item["complete"] for item in self.scenarios)
 
+    @property
+    def usage(self) -> dict[str, int]:
+        values = [item.get("usage") or {} for item in self.scenarios]
+        return {"prompt_tokens": sum(int(v.get("prompt_tokens", 0)) for v in values),
+                "completion_tokens": sum(int(v.get("completion_tokens", 0)) for v in values),
+                "total_tokens": sum(int(v.get("total_tokens", 0)) for v in values)}
+
+    @property
+    def cost(self) -> dict[str, Any] | None:
+        values = [item.get("cost") for item in self.scenarios if item.get("cost")]
+        if not values:
+            return None
+        currencies = {v.get("currency", "USD") for v in values}
+        versions = {v.get("price_version", "") for v in values}
+        return {"input": sum(float(v.get("input", 0)) for v in values),
+                "output": sum(float(v.get("output", 0)) for v in values),
+                "total": sum(float(v.get("total", 0)) for v in values),
+                "currency": currencies.pop() if len(currencies) == 1 else "MIXED",
+                "price_version": versions.pop() if len(versions) == 1 else "MIXED"}
+
     def as_dict(self) -> dict[str, Any]:
-        return {"run_id": self.run_id, "started_at": self.started_at, "finished_at": self.finished_at, "total": self.total, "passed": self.passed, "failed": self.failed, "gate_passed": self.gate_passed, "scenarios": self.scenarios}
+        return {"run_id": self.run_id, "started_at": self.started_at, "finished_at": self.finished_at, "total": self.total, "passed": self.passed, "failed": self.failed, "gate_passed": self.gate_passed, "usage": self.usage, "cost": self.cost, "scenarios": self.scenarios}
 
 
 def _scenario_payload(result: ScenarioRunResult) -> dict[str, Any]:
@@ -66,8 +86,11 @@ def write_html(report: RunReport, path: str | Path) -> Path:
         status = "PASSED" if scenario["passed"] else "FAILED"
         failures = "<br>".join(html.escape(item.get("message", "")) for item in scenario["failed_assertions"]) or "-"
         tools = ", ".join(html.escape(item["name"]) for item in scenario["tool_calls"]) or "-"
-        rows.append(f"<tr><td>{html.escape(scenario['scenario_id'])}</td><td>{status}</td><td>{tools}</td><td>{failures}</td></tr>")
+        model = (scenario.get("model_versions") or [{}])[0].get("model", "-")
+        usage = scenario.get("usage") or {}
+        cost = scenario.get("cost") or {}
+        rows.append(f"<tr><td>{html.escape(scenario['scenario_id'])}</td><td>{status}</td><td>{tools}</td><td>{html.escape(model)}</td><td>{usage.get('total_tokens', '-')}</td><td>{cost.get('total', '-')}</td><td>{failures}</td></tr>")
     body = "".join(rows)
-    document = f"<!doctype html><html><head><meta charset='utf-8'><title>V1 Run Report</title><style>body{{font:15px system-ui;margin:2rem}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:.5rem;text-align:left}}.ok{{color:green}}.bad{{color:#b00}}</style></head><body><h1>V1 API E2E Run Report</h1><p>Run: <code>{html.escape(report.run_id)}</code></p><p>Total: {report.total} | Passed: <span class='ok'>{report.passed}</span> | Failed: <span class='bad'>{report.failed}</span> | Gate: {str(report.gate_passed).lower()}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Tool calls</th><th>Failed assertions</th></tr></thead><tbody>{body}</tbody></table></body></html>"
+    document = f"<!doctype html><html><head><meta charset='utf-8'><title>V1 Run Report</title><style>body{{font:15px system-ui;margin:2rem}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:.5rem;text-align:left}}.ok{{color:green}}.bad{{color:#b00}}</style></head><body><h1>V1 API E2E Run Report</h1><p>Run: <code>{html.escape(report.run_id)}</code></p><p>Total: {report.total} | Passed: <span class='ok'>{report.passed}</span> | Failed: <span class='bad'>{report.failed}</span> | Gate: {str(report.gate_passed).lower()}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Tool calls</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Failed assertions</th></tr></thead><tbody>{body}</tbody></table></body></html>"
     target.write_text(document, encoding="utf-8")
     return target
