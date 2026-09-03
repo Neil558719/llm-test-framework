@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IT 服务台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section id="login-panel" class="panel">
+      <p class="eyebrow">REFERENCE AGENT</p>
+      <h1>企业 IT 服务台</h1>
+      <p class="muted">登录后提交知识问答、故障工单或权限申请。</p>
+      <form id="login-form">
+        <label for="user-id">用户</label>
+        <select id="user-id" name="user_id">
+          <option value="U1001">U1001 · Smoke User</option>
+        </select>
+        <button type="submit" id="login-button">进入服务台</button>
+      </form>
+      <p id="login-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section id="chat-panel" class="panel" hidden>
+      <header class="chat-header">
+        <div><p class="eyebrow">ACTIVE SESSION</p><h2>服务台对话</h2></div>
+        <div class="session-meta"><span id="session-label"></span><button id="new-session" type="button" class="quiet">新会话</button></div>
+      </header>
+      <div id="conversation" class="conversation" aria-live="polite"></div>
+      <form id="chat-form" class="composer">
+        <label class="sr-only" for="message-input">消息</label>
+        <textarea id="message-input" rows="3" placeholder="描述你的 IT 问题或申请" required></textarea>
+        <div class="composer-footer"><span id="stream-status" class="muted">准备就绪</span><button id="send-button" type="submit">发送消息</button></div>
+      </form>
+    </section>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>
