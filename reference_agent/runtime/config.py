@@ -34,7 +34,9 @@ class AgentModelConfig:
     def from_env(cls) -> "AgentModelConfig":
         mode = os.getenv("REFERENCE_AGENT_MODEL_MODE", "mock").lower()
         provider = os.getenv("REFERENCE_AGENT_MODEL_PROVIDER", "").lower()
-        profile = "deepseek-official" if provider == "deepseek" else ("mock" if mode == "mock" else "")
+        if mode not in {"mock", "real"}:
+            raise ValueError("REFERENCE_AGENT_MODEL_MODE must be mock or real")
+        profile = "deepseek-official" if mode == "real" and provider == "deepseek" else ("mock" if mode == "mock" else "")
         base = os.getenv("REFERENCE_AGENT_MODEL_BASE_URL", "")
         if provider == "deepseek" and not base:
             base = "https://api.deepseek.com"

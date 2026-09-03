@@ -62,3 +62,9 @@ def test_registry_rejects_unknown_profile():
 
     with pytest.raises(ValueError, match="unknown model profile"):
         registry.resolve("anthropic")
+
+
+def test_invalid_mode_is_rejected(monkeypatch):
+    monkeypatch.setenv("REFERENCE_AGENT_MODEL_MODE", "staging")
+    with pytest.raises(ValueError, match="must be mock or real"):
+        AgentModelConfig.from_env()
