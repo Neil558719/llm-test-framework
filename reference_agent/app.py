@@ -22,6 +22,8 @@ from .services.knowledge_base import KnowledgeBase
 from .services.tickets import TicketService
 from .services.users import UserService
 from .storage import SQLiteStore
+from .runtime import AgentModelConfig, ModelProviderRegistry
+from .runtime.agent import AgentRuntime
 
 
 class ChatRequest(BaseModel):
@@ -46,12 +48,37 @@ def create_app(
     app = FastAPI(title="Reference IT Service Desk Agent")
     store = SQLiteStore(database)
     graph = build_graph(knowledge_base, user_service, asset_service, ticket_service, approval_service)
+    registry = ModelProviderRegistry.with_defaults()
+    app.state.model_registry = registry
+    app.state.model_config = AgentModelConfig.from_env()
+    app.state.runtime = AgentRuntime(graph, app.state.model_config, registry)
     app.state.store = store
     app.state.access_drafts = {}
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "reference-agent"}
+
+    @app.get("/api/model-profiles")
+    def model_profiles() -> dict[str, Any]:
+        current = app.state.model_config
+        return {"profiles": [{"name": p.name, "label": p.label, "mode": p.mode, "provider": p.provider, "base_url": p.base_url} for p in registry.profiles()], "current": current.as_public_dict()}
+
+    @app.put("/api/model-profile")
+    def set_model_profile(payload: dict[str, Any]) -> dict[str, Any]:
+        name = str(payload.get("profile", ""))
+        try:
+            profile = registry.resolve(name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        model = str(payload.get("model", ""))[:200]
+        base_url = str(payload.get("base_url", profile.base_url))[:500]
+        if profile.mode == "real" and not os.getenv("REFERENCE_AGENT_MODEL_API_KEY"):
+            raise HTTPException(status_code=409, detail="server model API key is not configured")
+        config = AgentModelConfig(profile=name, mode=profile.mode, provider=profile.provider, model=model, base_url=base_url, api_key=os.getenv("REFERENCE_AGENT_MODEL_API_KEY"))
+        app.state.model_config = config
+        app.state.runtime = AgentRuntime(graph, config, registry)
+        return config.as_public_dict()
 
     @app.post("/api/login")
     def login(request: LoginRequest) -> dict[str, str]:
@@ -72,7 +99,7 @@ def create_app(
         store.upsert_session(session_id, request.user_id)
         draft = app.state.access_drafts.get(session_id, "")
         effective_message = f"{draft} {request.message}".strip() if draft else request.message
-        result = graph.invoke(
+        result = app.state.runtime.invoke(
             {
                 "message": effective_message,
                 "answer": "",
@@ -94,7 +121,7 @@ def create_app(
             tool_calls=list(result.get("tool_calls", [])),
             latency=LatencyMetrics(),
             raw_response={"message": request.message},
-            metadata={
+            metadata={**result.get("metadata", {}),
                 "service": "reference-agent",
                 "knowledge_status": result.get("knowledge_status", "refused"),
                 "ticket_status": result.get("ticket_status", ""),
