@@ -115,5 +115,6 @@
 - [ ] Run focused runtime/API/UI tests, `python -m pytest -q`, V1 API gate, compileall, compose validation, and `git diff --check`.
 - [ ] Inspect the complete branch diff for protocol, security, and regression risks.
 - [ ] Record exact commands/results in the status table and commit the evidence.
+- [ ] Push the branch, open a PR, wait for Actions, perform review, merge to `master`, publish a release, and update deployment/issue tracking before declaring 10.5 complete.
  - [ ] Run the local production-like Docker Compose drill, including image build, health check, API/UI smoke, model configuration injection, SQLite persistence, and backup/restore evidence.
  - [ ] Push the branch, open a PR, wait for Actions, perform review, merge to `master`, publish a release, and update local deployment evidence before declaring 10.5 complete. Independent cloud deployment is future work, not a release blocker for this milestone.
