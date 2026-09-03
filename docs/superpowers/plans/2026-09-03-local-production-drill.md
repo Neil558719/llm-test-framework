@@ -62,4 +62,5 @@
 - [x] Document target environments, credential matrix, single-person role ownership, migration steps, rollback evidence, and explicit production gaps.
 - [x] Update the milestone status table with commands and results.
 - [x] Run full regression, build, diff, and local drill verification.
-- [ ] Commit, push, open PR, wait for Actions, review, merge, publish a release, and record deployment tracking evidence.
+- [x] Commit, push, open PR, wait for Actions, review, and merge the implementation branch (PR #18 merged as `4de5c42`).
+- [ ] Publish the post-merge Release and record deployment tracking evidence; real public production remains pending an independent server and credentials.
