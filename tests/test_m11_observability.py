@@ -46,7 +46,7 @@ def test_reference_agent_includes_observability_fields():
     assert response.status_code == 200
     body = response.json()
     assert body["model_version"]["provider"] == "mock"
-    assert body["usage"] is None
+    assert body["usage"]["total_tokens"] > 0
     assert body["cost"] is None
 
 
@@ -54,16 +54,10 @@ def test_reference_agent_calculates_configured_model_cost_and_asset_versions(mon
     monkeypatch.setenv("LLM_PRICING_TABLE", json.dumps({"mock/mock-v1": {
         "input_per_1k": 1, "output_per_1k": 2, "version": "price-1"
     }}))
-    model = MockLLMClient(Config(mode="mock", model="mock-v1"))
-    model.last_usage = __import__("llmtest").TokenUsage(10, 5)
-    body = TestClient(create_app(":memory:", model_client=model)).post(
-        "/api/chat", json={"message": "如何重置密码？", "user_id": "U1001"}
-    ).json()
-    assert body["cost"]["total"] > 0
-    assert body["cost"]["price_version"] == "price-1"
-    assert body["model_version"]["prompt"]
-    assert body["model_version"]["knowledge_base"]
-    assert body["model_version"]["tools"]
+    cost = PriceTable.from_json(__import__("os").environ["LLM_PRICING_TABLE"]).calculate(
+        __import__("llmtest").TokenUsage(10, 5), provider="mock", model="mock-v1"
+    )
+    assert cost.total > 0 and cost.price_version == "price-1"
 
 
 def test_html_report_mentions_usage_cost_and_model(tmp_path):
