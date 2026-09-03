@@ -78,6 +78,11 @@ class AnthropicClient(LLMClient):
             params["system"] = system
         # 网关 5xx / 429 / 断连等瞬时错误自动重试
         resp = self._retry_call(lambda: client.messages.create(**params))
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            from ..specs import TokenUsage
+            self.last_usage = TokenUsage(int(getattr(usage, "input_tokens", 0)), int(getattr(usage, "output_tokens", 0)))
+        self.last_model_version = self.last_model_version.__class__(self.provider, params["model"])
         parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
         return "".join(parts)
 

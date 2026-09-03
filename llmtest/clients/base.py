@@ -19,6 +19,7 @@ from ..specs import (
     JudgeResult,
     JudgeSpec,
     SemanticResult,
+    ModelVersion, TokenUsage,
 )
 from ..utils import split_sentences
 
@@ -78,6 +79,8 @@ class LLMClient(ABC):
     def __init__(self, config: Config):
         self.config = config
         self.last_latency_ms = 0.0
+        self.last_usage: Optional[TokenUsage] = None
+        self.last_model_version = ModelVersion(provider=self.provider, model=config.model or self.name)
 
     # ------------------------------------------------------------------
     # 公开 API（含计时与指标采集）
@@ -91,6 +94,7 @@ class LLMClient(ABC):
         max_tokens: Optional[int] = None,
     ) -> str:
         """聊天补全（被测应用 / 一般对话）。"""
+        self.last_usage = None
         with self._timed(SOURCE_APP):
             return self._complete(messages, temperature=temperature, max_tokens=max_tokens)
 
@@ -105,6 +109,7 @@ class LLMClient(ABC):
 
         真实 RAG 应用应重写 `_ask` 携带其真实检索结果；默认实现仅返回 answer，sources 为空。
         """
+        self.last_usage = None
         with self._timed(SOURCE_APP):
             return self._ask(question, temperature=temperature, max_tokens=max_tokens)
 

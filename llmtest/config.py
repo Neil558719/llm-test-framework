@@ -38,6 +38,7 @@ class Config:
     mock_responses: Dict[str, Any] = field(default_factory=dict)
     report_path: str = DEFAULT_REPORT_PATH
     mock_latency_ms: float = 8.0      # Mock 模式模拟的响应延迟（看板演示用；设为 0 关闭）
+    pricing_table: Optional[str] = None  # JSON price table, server-side only
 
     # ---- 环境变量名映射 ----
     _ENV = {
@@ -48,6 +49,7 @@ class Config:
         "model": "LLM_MODEL",
         "embedding_model": "LLM_EMBEDDING_MODEL",
         "report_path": "LLM_REPORT_PATH",
+        "pricing_table": "LLM_PRICING_TABLE",
     }
 
     @classmethod

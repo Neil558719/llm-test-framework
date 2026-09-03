@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from llmtest import LatencyMetrics, ResponseEnvelope
+from llmtest import LatencyMetrics, ResponseEnvelope, ModelVersion, CostMetrics, TokenUsage
+from llmtest.cost import PriceTable
 
 from .graph import build_graph
 from .services.assets import AssetService
@@ -43,6 +44,8 @@ def create_app(
     asset_service: AssetService | None = None,
     ticket_service: TicketService | None = None,
     approval_service: ApprovalService | None = None,
+    price_table: PriceTable | None = None,
+    model_client: Any | None = None,
 ) -> FastAPI:
     database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
@@ -52,6 +55,9 @@ def create_app(
     app.state.model_registry = registry
     app.state.model_config = AgentModelConfig.from_env()
     app.state.runtime = AgentRuntime(graph, app.state.model_config, registry)
+    if model_client is not None:
+        app.state.runtime.client = model_client
+    app.state.price_table = price_table or PriceTable.from_json(os.getenv("LLM_PRICING_TABLE"))
     app.state.store = store
     app.state.access_drafts = {}
 
@@ -128,7 +134,17 @@ def create_app(
                 "approval_status": result.get("approval_status", ""),
                 "handoff_reason": result.get("handoff_reason", ""),
             },
+            usage=TokenUsage(int(result["metadata"]["usage"].get("prompt_tokens", 0)), int(result["metadata"]["usage"].get("completion_tokens", 0))) if result.get("metadata", {}).get("usage") else None,
+            model_version=ModelVersion(
+                provider=str(result["metadata"]["model_version"].get("provider", "")),
+                model=str(result["metadata"]["model_version"].get("model", "")),
+                prompt=str(result["metadata"]["model_version"].get("prompt", "")),
+                knowledge_base=str(result["metadata"]["model_version"].get("knowledge_base", "")),
+                tools=str(result["metadata"]["model_version"].get("tools", "")),
+            ) if result.get("metadata", {}).get("model_version") else None,
         )
+        if envelope.usage and envelope.model_version:
+            envelope.cost = app.state.price_table.calculate(envelope.usage, provider=app.state.model_config.provider, model=envelope.model_version.model)
         return envelope.as_dict()
 
     @app.post("/api/chat")

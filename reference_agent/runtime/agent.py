@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import time
+import os
 from typing import Any, Callable
 
-from llmtest import LatencyMetrics
+from llmtest import LatencyMetrics, TokenUsage, ModelVersion
 from llmtest.clients.base import extract_json
 
 from .config import AgentModelConfig
@@ -18,7 +19,7 @@ class AgentRuntime:
         self.graph = graph
         self.registry = registry or ModelProviderRegistry.with_defaults()
         self.config = config or AgentModelConfig.from_env()
-        self.client = self.registry.create_client(self.config)
+        self.client = None
 
     def invoke(self, state: dict[str, Any]) -> dict[str, Any]:
         started = time.perf_counter()
@@ -33,8 +34,12 @@ class AgentRuntime:
             "fallback_reason": "",
         }
         hints: dict[str, Any] = {}
+        client = self.client or self.registry.create_client(self.config)
+        usages = []
         try:
-            raw = self.client.complete([{"role": "system", "content": "Return JSON only: {intent,parameters}."}, {"role": "user", "content": message}], temperature=self.config.temperature, max_tokens=self.config.max_tokens)
+            raw = client.complete([{"role": "system", "content": "Return JSON only: {intent,parameters}."}, {"role": "user", "content": message}], temperature=self.config.temperature, max_tokens=self.config.max_tokens)
+            if getattr(client, "last_usage", None):
+                usages.append(client.last_usage)
             parsed = extract_json(raw)
             if not isinstance(parsed, dict) or parsed.get("intent") not in {"knowledge", "ticket", "access", "unknown"}:
                 raise ValueError("invalid intent schema")
@@ -46,7 +51,7 @@ class AgentRuntime:
         result = self.graph.invoke({**state, **({"runtime_hints": hints} if hints else {})})
         if self.config.mode == "real":
             try:
-                answer = self.client.complete([
+                answer = client.complete([
                     {"role": "system", "content": "Answer the user using only the supplied business result. Do not invent actions or statuses."},
                     {"role": "user", "content": json.dumps({"message": message, "business_result": result.get("answer", "")}, ensure_ascii=False)},
                 ], temperature=self.config.temperature, max_tokens=self.config.max_tokens)
@@ -60,6 +65,16 @@ class AgentRuntime:
                 metadata["generation_status"] = "fallback"
                 metadata["fallback_reason"] = type(exc).__name__
         result.setdefault("metadata", {}).update(metadata)
+        if usages or getattr(client, "last_usage", None):
+            if getattr(client, "last_usage", None) and not usages:
+                usages.append(client.last_usage)
+            result["metadata"]["usage"] = TokenUsage(sum(item.prompt_tokens for item in usages), sum(item.completion_tokens for item in usages)).as_dict()
+        result["metadata"]["model_version"] = ModelVersion(
+            self.config.provider, self.config.model or "",
+            os.getenv("REFERENCE_AGENT_PROMPT_VERSION", "reference-agent-prompt-v1"),
+            os.getenv("REFERENCE_AGENT_KNOWLEDGE_VERSION", "knowledge-base-v1"),
+            os.getenv("REFERENCE_AGENT_TOOLS_VERSION", "reference-tools-v1"),
+        ).as_dict()
         result["metadata"]["intent"] = hints.get("intent", "")
         result["metadata"]["latency_ms"] = (time.perf_counter() - started) * 1000.0
         return result

@@ -50,7 +50,10 @@ class MockLLMClient(LLMClient):
     ) -> str:
         user_msg = self._last_user_message(messages)
         self._simulate_latency()
-        return self._answer_of(self._find_response(user_msg))
+        answer = self._answer_of(self._find_response(user_msg))
+        self.last_usage = self._estimate_usage(messages, answer)
+        self.last_model_version = self.last_model_version.__class__(self.provider, self.config.model or self.name)
+        return answer
 
     def _ask(
         self,
@@ -61,7 +64,14 @@ class MockLLMClient(LLMClient):
     ) -> AppResponse:
         self._simulate_latency()
         value = self._find_response(question)
-        return AppResponse(answer=self._answer_of(value), sources=self._sources_of(value))
+        answer = self._answer_of(value)
+        self.last_usage = self._estimate_usage([{"role": "user", "content": question}], answer)
+        return AppResponse(answer=answer, sources=self._sources_of(value))
+
+    @staticmethod
+    def _estimate_usage(messages, answer):
+        prompt = sum(len(str(item.get("content", ""))) for item in messages)
+        return __import__("llmtest").TokenUsage(max(1, (prompt + 3) // 4), max(1, (len(answer) + 3) // 4))
 
     # ------------------------------------------------------------------
     # 内部：响应匹配
