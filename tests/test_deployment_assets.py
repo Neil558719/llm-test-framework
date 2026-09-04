@@ -32,3 +32,10 @@ def test_container_contract_keeps_runtime_configuration_external_and_has_no_secr
 def test_dockerfile_installs_real_client_extras_for_configured_model_runtime():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "pip install --no-cache-dir .[real]" in dockerfile
+
+
+def test_model_config_reload_script_recreates_container_and_waits_for_health():
+    script = (ROOT / "deploy" / "reload-model-config.ps1").read_text(encoding="utf-8")
+    assert "--force-recreate" in script
+    assert "--wait" in script
+    assert "/api/model-profiles" in script

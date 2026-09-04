@@ -41,7 +41,8 @@ class AgentRuntime:
             if getattr(client, "last_usage", None):
                 usages.append(client.last_usage)
             parsed = extract_json(raw)
-            if not isinstance(parsed, dict) or parsed.get("intent") not in {"knowledge", "ticket", "access", "unknown"}:
+            parsed = self._normalize_hints(parsed)
+            if parsed is None:
                 raise ValueError("invalid intent schema")
             hints = parsed
             metadata["intent_source"] = "model"
@@ -78,3 +79,27 @@ class AgentRuntime:
         result["metadata"]["intent"] = hints.get("intent", "")
         result["metadata"]["latency_ms"] = (time.perf_counter() - started) * 1000.0
         return result
+
+    @staticmethod
+    def _normalize_hints(parsed: Any) -> dict[str, Any] | None:
+        if not isinstance(parsed, dict):
+            return None
+        aliases = {
+            "create_ticket": "ticket", "report_issue": "ticket", "故障工单": "ticket",
+            "create_access_request": "access", "request_access": "access", "权限申请": "access",
+            "qa": "knowledge", "question": "knowledge", "问答": "knowledge",
+        }
+        intent = str(parsed.get("intent", "")).strip().lower()
+        intent = aliases.get(intent, intent)
+        if intent not in {"knowledge", "ticket", "access", "unknown"}:
+            return None
+        raw_parameters = parsed.get("parameters", {})
+        if not isinstance(raw_parameters, dict):
+            return None
+        parameters = dict(raw_parameters)
+        if "asset_id" not in parameters and parameters.get("device"):
+            parameters["asset_id"] = parameters["device"]
+        issue = str(parameters.get("issue", ""))
+        if "category" not in parameters and "vpn" in issue.lower():
+            parameters["category"] = "vpn"
+        return {"intent": intent, "parameters": parameters}
