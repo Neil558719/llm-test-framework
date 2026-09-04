@@ -18,6 +18,8 @@ def load_config(path: str | Path) -> LoadTestConfig:
         raise ValueError(f"cannot load load-test config: {exc}") from exc
     if not isinstance(raw, Mapping):
         raise ValueError("load-test config must be a YAML mapping")
+    if not all(isinstance(key, str) for key in raw):
+        raise ValueError("load-test config keys must be strings")
     unknown = sorted(set(raw) - _ALLOWED)
     if unknown:
         raise ValueError(f"unknown load-test config fields: {', '.join(unknown)}")

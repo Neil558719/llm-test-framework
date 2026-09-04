@@ -17,6 +17,8 @@ def _sensitive_query_key(value: str) -> bool:
 def _public_url(value: str) -> str:
     parsed = urlsplit(value)
     host = parsed.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
     if parsed.port is not None:
         host = f"{host}:{parsed.port}"
     query = urlencode([

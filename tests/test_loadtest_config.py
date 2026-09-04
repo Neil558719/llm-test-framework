@@ -81,3 +81,17 @@ def test_load_config_rejects_invalid_url_port_during_configuration(tmp_path):
     path.write_text("target_url: https://example.test:99999/\n", encoding="utf-8")
     with pytest.raises(ValueError, match="target_url"):
         load_config(path)
+
+
+def test_load_config_rejects_non_string_mapping_keys(tmp_path):
+    path = tmp_path / "bad-key.yaml"
+    path.write_text("target_url: http://localhost:8000\n1: invalid\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="keys must be strings"):
+        load_config(path)
+
+
+def test_public_config_preserves_ipv6_brackets():
+    from qe_platform.loadtest.models import LoadTestConfig
+
+    public = LoadTestConfig(target_url="http://[::1]:8000").as_public_dict()
+    assert public["target_url"] == "http://[::1]:8000"

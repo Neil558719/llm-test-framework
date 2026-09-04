@@ -15,3 +15,12 @@ def test_cli_reports_invalid_text_scalar_without_traceback(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "configuration error" in captured.err.lower()
     assert "traceback" not in captured.err.lower()
+
+
+def test_cli_reports_non_string_yaml_key_without_traceback(tmp_path, capsys):
+    path = tmp_path / "bad-key.yaml"
+    path.write_text("target_url: http://localhost:8000\n1: invalid\n", encoding="utf-8")
+    assert cli.main([str(path)]) == 2
+    captured = capsys.readouterr()
+    assert "configuration error" in captured.err.lower()
+    assert "traceback" not in captured.err.lower()
