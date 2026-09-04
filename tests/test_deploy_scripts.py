@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import time
+import uuid
 
 import yaml
 
@@ -29,6 +30,79 @@ def test_start_script_runs_compose_watch_and_waits_for_health():
     assert "CommandLine" in script and "-WatchOnly" in script
     assert "$pathHash" in script
     assert "process-error.log" in script
+
+
+def test_startup_task_registration_script_is_idempotent_and_retry_configured():
+    script = (ROOT / "deploy" / "register-reference-agent-task.ps1").read_text(encoding="utf-8")
+
+    assert "Register-ScheduledTask" in script
+    assert "Unregister-ScheduledTask" in script
+    assert "New-ScheduledTaskTrigger" in script
+    assert "-AtLogOn" in script
+    assert "-User $currentUser" in script
+    assert "RestartCount" in script
+    assert "RestartInterval" in script
+    assert "-LogonType Interactive" in script
+    assert "-AllowStartIfOnBatteries" in script
+    assert "-DontStopIfGoingOnBatteries" in script
+    assert "Start-Sleep" in script
+    assert "-Command" in script
+    assert "start-reference-agent.ps1" in script
+    assert "REFERENCE_AGENT_MODEL_API_KEY" not in script
+    assert "-Argument" in script
+    assert "CmdletizationQuery_NotFound_TaskName" in script
+    assert "Get-ScheduledTask -TaskName $Name -ErrorAction Stop" in script
+    assert "throw" in script
+
+
+def test_readme_documents_logon_registration_and_unregistration():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "register-reference-agent-task.ps1" in readme
+    assert "Unregister" in readme
+    assert "5 次" in readme
+
+
+def test_windows_startup_task_registration_is_idempotent_and_removable():
+    if os.name != "nt" or shutil.which("powershell.exe") is None:
+        import pytest
+        pytest.skip("Windows Task Scheduler is required")
+
+    script = ROOT / "deploy" / "register-reference-agent-task.ps1"
+    task_name = f"LLMTest startup test {uuid.uuid4()}"
+    register = [
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", str(script), "-TaskName", task_name, "-DelaySeconds", "1",
+    ]
+    unregister = register[:-2] + ["-Unregister"]
+    try:
+        subprocess.run(register, check=True, capture_output=True, text=True)
+        subprocess.run(register[:-1] + ["2"], check=True, capture_output=True, text=True)
+        inspect = subprocess.run(
+            [
+                "powershell.exe", "-NoProfile", "-Command",
+                f"$t=Get-ScheduledTask -TaskName '{task_name}'; $x=Export-ScheduledTask -TaskName '{task_name}'; "
+                "[pscustomobject]@{Count=@($t).Count; Xml=$x; Args=$t.Actions[0].Arguments} | ConvertTo-Json -Compress",
+            ],
+            check=True, capture_output=True, text=True, encoding="utf-8",
+        )
+        import json
+        task = json.loads(inspect.stdout.lstrip("\ufeff"))
+        assert task["Count"] == 1
+        assert "<LogonTrigger>" in task["Xml"]
+        assert "Start-Sleep -Seconds 2" in task["Xml"]
+        assert "<Count>5</Count>" in task["Xml"]
+        assert "<Interval>PT1M</Interval>" in task["Xml"]
+        assert "API_KEY" not in task["Args"]
+        subprocess.run(unregister, check=True, capture_output=True, text=True)
+        missing = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", f"if (Get-ScheduledTask -TaskName '{task_name}' -ErrorAction SilentlyContinue) {{ exit 1 }}"],
+            check=False, capture_output=True, text=True,
+        )
+        assert missing.returncode == 0
+        subprocess.run(unregister, check=True, capture_output=True, text=True)
+    finally:
+        subprocess.run(unregister, check=False, capture_output=True, text=True)
 
 
 def test_windows_watcher_survives_failed_refresh_and_retries_next_env_save(tmp_path, monkeypatch):
