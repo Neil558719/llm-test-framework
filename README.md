@@ -28,6 +28,18 @@ pip install -e ".[real]"  # 加上真实模型 SDK（openai / anthropic）
 
 脚本会构建并启动容器、等待健康检查通过，然后在后台监听项目根目录的 `.env`。之后修改模型模式、供应商、模型名、Base URL、API Key 或温度并保存，脚本会自动重新创建容器、重新注入配置并等待服务恢复健康，无需再次输入刷新命令。`deploy/reload-model-config.ps1` 保留为 watcher 未运行时的手动故障兜底。
 
+若希望每次登录 Windows 后自动恢复服务和 `.env` watcher，只需注册一次当前用户的计划任务：
+
+```powershell
+.\deploy\register-reference-agent-task.ps1
+```
+
+脚本可重复运行并更新同名任务。默认在登录后延迟 30 秒启动；若 Docker Desktop 尚未就绪导致失败，任务会每分钟重试一次、最多重试 5 次。重试耗尽后可手动运行计划任务或启动脚本，也可等下次登录再次触发。要移除该任务：
+
+```powershell
+.\deploy\register-reference-agent-task.ps1 -Unregister
+```
+
 ## 快速开始（Mock 模式）
 
 ```bash
