@@ -388,6 +388,22 @@ pytest -m ui
 
 UI 测试独立于默认 `pytest tests/` 回归，覆盖登录、会话、流式回复、知识引用、工单结果、转人工和错误提示。SSE 完成事件与页面状态携带同一个 `trace_id`，便于 API/UI 结果关联。
 
+## 独立异步压测
+
+里程碑 12 提供独立于 pytest 插件的 `llmtest-load` 命令。先启动 Reference Agent，再执行固定请求数 HTTP 压测：
+
+```powershell
+.\.venv\Scripts\python.exe -m qe_platform.loadtest.cli configs/loadtest-reference-agent-http.yaml
+```
+
+或执行按持续时间运行的 SSE 压测：
+
+```powershell
+.\.venv\Scripts\python.exe -m qe_platform.loadtest.cli configs/loadtest-reference-agent-sse.yaml
+```
+
+安装项目后也可将 `python -m qe_platform.loadtest.cli` 替换为 `llmtest-load`。JSON 与自包含 HTML 报告包含并发、吞吐、总延迟和 TTFT 的 P50/P95/P99、错误率、429 比例、流式中断率、HTTP 状态、Token、成本及 Trace ID。配置中的消息正文和鉴权头在报告中脱敏。压测只记录指标，不判定 SLA/SLO；阈值门禁属于里程碑 13。
+
 | 选项 | 说明 |
 | --- | --- |
 | `--llm-mode mock\|real` | 裁判运行模式（默认 mock） |

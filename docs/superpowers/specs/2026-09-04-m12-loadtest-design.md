@@ -34,8 +34,8 @@ YAML -> LoadTestConfig -> async workers -> SampleResult[]
 - `duration_ms`：从发送请求开始到完整响应/错误结束的单次墙钟时间。
 - `ttft_ms`：SSE 首个有效内容事件相对请求开始的时间；非流式为空。
 - `throughput_rps`：完成请求数除以压测总墙钟秒数。
-- `p50/p95/p99`：成功和失败样本的 `duration_ms` 全体分布，线性插值采用
-  `ceil(q*n)-1` 索引并截断到有效范围；空样本返回 null。
+- `p50/p95/p99`：成功和失败样本的 `duration_ms` 全体分布，采用相邻顺序统计量
+  的线性插值；空样本返回 null。
 - `error_rate`：错误样本数 / 总样本数；`429_rate`：429 样本数 / 总样本数。
 - `stream_interruption_rate`：SSE 启动后未收到完整事件的样本数 / SSE 总样本数。
 - Token 与 cost：只聚合响应中存在的 usage/cost；缺失值保持 null，不猜测价格。

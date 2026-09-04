@@ -1,0 +1,10 @@
+target_url: http://127.0.0.1:8000
+protocol: http
+requests: 20
+concurrency: 4
+warmup_requests: 2
+timeout_seconds: 30
+user_id: U1001
+message: "VPN 无法连接，请帮我排查"
+json_report: reports/loadtest-reference-agent-http.json
+html_report: reports/loadtest-reference-agent-http.html
