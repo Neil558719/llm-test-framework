@@ -1,6 +1,74 @@
 from pathlib import Path
+import os
+import shutil
+import subprocess
+import time
+
+import yaml
 
 ROOT = Path(__file__).parents[1]
+
+
+def test_compose_remains_valid_for_model_runtime_configuration():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+
+    assert compose["services"]["reference-agent"]["environment"]["REFERENCE_AGENT_MODEL"]
+
+
+def test_start_script_runs_compose_watch_and_waits_for_health():
+    script = (ROOT / "deploy" / "start-reference-agent.ps1").read_text(encoding="utf-8")
+
+    assert "FileSystemWatcher" in script
+    assert "WatchOnly" in script
+    assert "--force-recreate" in script
+    assert "--wait" in script
+    assert "/api/health" in script
+    assert "Start-Process" in script
+    assert "docker compose -f $composePath port reference-agent 8000" in script
+    assert "try {" in script and "Invoke-ReferenceAgentRefresh" in script and "catch" in script
+    assert "CommandLine" in script and "-WatchOnly" in script
+    assert "$pathHash" in script
+    assert "process-error.log" in script
+
+
+def test_windows_watcher_survives_failed_refresh_and_retries_next_env_save(tmp_path, monkeypatch):
+    if shutil.which("powershell.exe") is None:
+        import pytest
+        pytest.skip("Windows PowerShell is required")
+
+    deploy = tmp_path / "deploy"
+    deploy.mkdir()
+    source = ROOT / "deploy" / "start-reference-agent.ps1"
+    (deploy / source.name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "docker-compose.yml").write_text("services:\n  reference-agent:\n    image: test\n", encoding="utf-8")
+    env_file = tmp_path / ".env"
+    env_file.write_text("REFERENCE_AGENT_MODEL=one\n", encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log_file = tmp_path / "docker-calls.log"
+    counter_file = tmp_path / "docker-counter"
+    (fake_bin / "docker.ps1").write_text(
+        "param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)\n"
+        f"Add-Content -LiteralPath '{log_file}' -Value ($Arguments -join ' ')\n"
+        f"if (-not (Test-Path -LiteralPath '{counter_file}')) {{ Set-Content -LiteralPath '{counter_file}' -Value 1; exit 1 }}\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    child_env = os.environ.copy()
+    child_env["PATH"] = str(fake_bin) + ";" + child_env["PATH"]
+    command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(deploy / source.name), "-ComposeFile", str(tmp_path / "docker-compose.yml"), "-WatchOnly", "-WaitTimeout", "5"]
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=child_env)
+    try:
+        time.sleep(1)
+        env_file.write_text("REFERENCE_AGENT_MODEL=two\n", encoding="utf-8")
+        time.sleep(2)
+        env_file.write_text("REFERENCE_AGENT_MODEL=three\n", encoding="utf-8")
+        time.sleep(2)
+        assert process.poll() is None
+        assert log_file.read_text(encoding="utf-8").count("compose") >= 2
+    finally:
+        process.kill()
+        process.wait(timeout=5)
 
 
 def test_deployment_scripts_are_repeatable_and_document_required_checks():
