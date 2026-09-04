@@ -49,7 +49,18 @@ class LoadTestRunner:
 
             wall_start = time.perf_counter()
             if self.config.requests is not None:
-                samples = list(await asyncio.gather(*(bounded() for _ in range(self.config.requests))))
+                next_index = 0
+
+                async def fixed_worker() -> list[SampleResult]:
+                    nonlocal next_index
+                    worker_samples = []
+                    while next_index < self.config.requests:
+                        next_index += 1
+                        worker_samples.append(await self._sample(client))
+                    return worker_samples
+
+                batches = await asyncio.gather(*(fixed_worker() for _ in range(min(self.config.concurrency, self.config.requests))))
+                samples = [sample for batch in batches for sample in batch]
             else:
                 deadline = wall_start + float(self.config.duration_seconds)
 
@@ -86,7 +97,11 @@ class LoadTestRunner:
                 stream_interrupted=self.config.protocol == "sse",
             )
         except (json.JSONDecodeError, TypeError, ValueError, KeyError) as exc:
-            return SampleResult(False, (time.perf_counter() - start) * 1000, None, error_type="invalid_response", error_message=str(exc))
+            return SampleResult(
+                False, (time.perf_counter() - start) * 1000, None,
+                error_type="invalid_response", error_message=str(exc),
+                stream_interrupted=self.config.protocol == "sse",
+            )
         except httpx.HTTPError as exc:
             return SampleResult(
                 False, (time.perf_counter() - start) * 1000, None,

@@ -78,6 +78,11 @@ class _TimeoutStreamClient(_Client):
         return _TimeoutStream([])
 
 
+class _MalformedStreamClient(_Client):
+    def stream(self, method, url, json):
+        return _Stream(["data: {not-json}"])
+
+
 class _RateLimitedClient(_Client):
     async def post(self, url, json):
         return _Response(status_code=429, payload={"detail": "limited"})
@@ -140,6 +145,30 @@ def test_runner_counts_sse_timeout_as_stream_interruption():
     assert sample.error_type == "timeout"
     assert sample.stream_interrupted is True
     assert result.summary.stream_interruption_rate == 1.0
+
+
+def test_runner_counts_malformed_sse_as_stream_interruption():
+    config = LoadTestConfig(target_url="http://test", protocol="sse", requests=1)
+    result = asyncio.run(LoadTestRunner(config, client_factory=lambda **kwargs: _MalformedStreamClient(**kwargs)).run())
+    sample = result.samples[0]
+    assert sample.error_type == "invalid_response"
+    assert sample.stream_interrupted is True
+    assert result.summary.stream_interruption_rate == 1.0
+
+
+def test_fixed_count_runner_schedules_at_most_concurrency_workers(monkeypatch):
+    observed = []
+    original_gather = asyncio.gather
+
+    async def bounded_gather(*items):
+        observed.append(len(items))
+        return await original_gather(*items)
+
+    monkeypatch.setattr("qe_platform.loadtest.runner.asyncio.gather", bounded_gather)
+    config = LoadTestConfig(target_url="http://test", requests=100, concurrency=3)
+    result = asyncio.run(LoadTestRunner(config, client_factory=_factory).run())
+    assert result.summary.completed == 100
+    assert max(observed) <= 3
 
 
 def test_runner_consumes_reference_agent_response_protocol(tmp_path):

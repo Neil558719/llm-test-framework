@@ -2,9 +2,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, List, Mapping, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 _SENSITIVE_HEADERS = {"authorization", "proxy-authorization", "x-api-key", "api-key"}
+_SENSITIVE_QUERY_KEYS = {"api_key", "apikey", "access_token", "token", "key", "secret"}
+
+
+def _public_url(value: str) -> str:
+    parsed = urlsplit(value)
+    host = parsed.hostname or ""
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    query = urlencode([
+        (key, "[REDACTED]" if key.lower() in _SENSITIVE_QUERY_KEYS else item)
+        for key, item in parse_qsl(parsed.query, keep_blank_values=True)
+    ])
+    return urlunsplit((parsed.scheme, host, parsed.path, query, parsed.fragment))
 
 
 @dataclass(frozen=True)
@@ -23,6 +37,18 @@ class LoadTestConfig:
     html_report: str = "reports/loadtest.html"
 
     def __post_init__(self) -> None:
+        numeric_types = {
+            "requests": (self.requests, int, True),
+            "duration_seconds": (self.duration_seconds, (int, float), True),
+            "concurrency": (self.concurrency, int, False),
+            "warmup_requests": (self.warmup_requests, int, False),
+            "timeout_seconds": (self.timeout_seconds, (int, float), False),
+        }
+        for name, (value, expected, optional) in numeric_types.items():
+            if value is None and optional:
+                continue
+            if isinstance(value, bool) or not isinstance(value, expected):
+                raise ValueError(f"{name} has an invalid numeric type")
         if not self.target_url.startswith(("http://", "https://")):
             raise ValueError("target_url must use http or https")
         if self.protocol not in {"http", "sse"}:
@@ -51,7 +77,7 @@ class LoadTestConfig:
 
     def as_public_dict(self) -> dict[str, Any]:
         return {
-            "target_url": self.target_url,
+            "target_url": _public_url(self.target_url),
             "protocol": self.protocol,
             "requests": self.requests,
             "duration_seconds": self.duration_seconds,

@@ -25,3 +25,27 @@ def test_load_config_accepts_duration_instead_of_request_count(tmp_path):
     config = load_config(path)
     assert config.requests is None
     assert config.duration_seconds == 0.1
+
+
+def test_public_config_redacts_url_userinfo_and_sensitive_query_values(tmp_path):
+    path = tmp_path / "secret-url.yaml"
+    path.write_text(
+        "target_url: https://user:password@example.test/path?api_key=secret&region=cn&token=hidden\n",
+        encoding="utf-8",
+    )
+    public = load_config(path).as_public_dict()
+    assert public["target_url"] == "https://example.test/path?api_key=%5BREDACTED%5D&region=cn&token=%5BREDACTED%5D"
+    assert "password" not in str(public)
+    assert "secret" not in str(public)
+    assert "hidden" not in str(public)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("requests", '"5"'), ("concurrency", '"2"'), ("timeout_seconds", '"slow"')],
+)
+def test_load_config_normalizes_invalid_scalar_types_to_value_error(tmp_path, field, value):
+    path = tmp_path / "bad-type.yaml"
+    path.write_text(f"target_url: http://localhost:8000\n{field}: {value}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=field):
+        load_config(path)

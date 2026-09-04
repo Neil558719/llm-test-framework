@@ -26,3 +26,8 @@ def test_reports_include_required_metrics_and_redact_request_secrets(tmp_path):
     assert "TTFT" in html_text
     assert "流式中断率" in html_text
     assert "Token" in html_text
+    assert "TTFT P50" in html_text
+    assert "TTFT P99" in html_text
+    assert "HTTP 状态分布" in html_text
+    assert "错误分类" in html_text
+    assert "价格版本" in html_text
