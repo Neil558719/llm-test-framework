@@ -29,8 +29,6 @@ def test_container_contract_keeps_runtime_configuration_external_and_has_no_secr
     assert "sk-" not in env_example
 
 
-def test_dockerfile_installs_llmtest_real_extras_for_openai_and_anthropic_clients():
+def test_dockerfile_installs_real_client_extras_for_configured_model_runtime():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-
-    install_lines = [line.strip() for line in dockerfile.splitlines() if "pip install" in line]
-    assert any(".[real]" in line or "'.[real]'" in line or '".[real]"' in line for line in install_lines)
+    assert "pip install --no-cache-dir .[real]" in dockerfile

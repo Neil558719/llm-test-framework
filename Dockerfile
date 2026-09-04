@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 ARG BUILD_REV=source
 COPY . /app
-RUN python -m pip install --no-cache-dir .
+RUN python -m pip install --no-cache-dir .[real]
 
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /data \
