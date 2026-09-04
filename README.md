@@ -20,13 +20,13 @@ pip install -e .          # 基础（Mock 模式 + 测试）
 pip install -e ".[real]"  # 加上真实模型 SDK（openai / anthropic）
 ```
 
-修改 Reference Agent 的 `.env` 模型参数后，必须重新创建容器，运行中进程不会自动读取宿主机 `.env`：
+首次启动 Reference Agent 时运行：
 
 ```powershell
-.\deploy\reload-model-config.ps1
+.\deploy\start-reference-agent.ps1
 ```
 
-脚本会强制重建容器、等待健康检查通过，并打印容器当前实际使用的模型配置。
+脚本会构建并启动容器、等待健康检查通过，然后在后台监听项目根目录的 `.env`。之后修改模型模式、供应商、模型名、Base URL、API Key 或温度并保存，脚本会自动重新创建容器、重新注入配置并等待服务恢复健康，无需再次输入刷新命令。`deploy/reload-model-config.ps1` 保留为 watcher 未运行时的手动故障兜底。
 
 ## 快速开始（Mock 模式）
 
