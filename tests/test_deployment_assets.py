@@ -27,3 +27,10 @@ def test_container_contract_keeps_runtime_configuration_external_and_has_no_secr
     assert "DATABASE_PATH=/data/reference_agent.db" in env_example
     assert "LLM_API_KEY=" in env_example
     assert "sk-" not in env_example
+
+
+def test_dockerfile_installs_llmtest_real_extras_for_openai_and_anthropic_clients():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    install_lines = [line.strip() for line in dockerfile.splitlines() if "pip install" in line]
+    assert any(".[real]" in line or "'.[real]'" in line or '".[real]"' in line for line in install_lines)
