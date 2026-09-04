@@ -47,6 +47,7 @@ llmtest = "llmtest.plugin"
 
 [project.scripts]
 v1-api-gate = "qe_platform.v1_gate:main"
+llmtest-load = "qe_platform.loadtest.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["llmtest*", "qe_platform*", "reference_agent*"]
