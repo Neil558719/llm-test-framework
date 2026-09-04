@@ -6,7 +6,12 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 _SENSITIVE_HEADERS = {"authorization", "proxy-authorization", "x-api-key", "api-key"}
-_SENSITIVE_QUERY_KEYS = {"api_key", "apikey", "access_token", "token", "key", "secret"}
+_SENSITIVE_QUERY_PARTS = ("api_key", "apikey", "token", "key", "secret", "password", "signature", "credential")
+
+
+def _sensitive_query_key(value: str) -> bool:
+    normalized = value.lower().replace("-", "_")
+    return any(part in normalized for part in _SENSITIVE_QUERY_PARTS)
 
 
 def _public_url(value: str) -> str:
@@ -15,10 +20,10 @@ def _public_url(value: str) -> str:
     if parsed.port is not None:
         host = f"{host}:{parsed.port}"
     query = urlencode([
-        (key, "[REDACTED]" if key.lower() in _SENSITIVE_QUERY_KEYS else item)
+        (key, "[REDACTED]" if _sensitive_query_key(key) else item)
         for key, item in parse_qsl(parsed.query, keep_blank_values=True)
     ])
-    return urlunsplit((parsed.scheme, host, parsed.path, query, parsed.fragment))
+    return urlunsplit((parsed.scheme, host, parsed.path, query, ""))
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,14 @@ class LoadTestConfig:
     html_report: str = "reports/loadtest.html"
 
     def __post_init__(self) -> None:
+        text_fields = {
+            "target_url": self.target_url, "protocol": self.protocol,
+            "user_id": self.user_id, "message": self.message,
+            "json_report": self.json_report, "html_report": self.html_report,
+        }
+        for name, value in text_fields.items():
+            if not isinstance(value, str):
+                raise ValueError(f"{name} must be a string")
         numeric_types = {
             "requests": (self.requests, int, True),
             "duration_seconds": (self.duration_seconds, (int, float), True),
@@ -51,6 +64,13 @@ class LoadTestConfig:
                 raise ValueError(f"{name} has an invalid numeric type")
         if not self.target_url.startswith(("http://", "https://")):
             raise ValueError("target_url must use http or https")
+        try:
+            parsed_url = urlsplit(self.target_url)
+            port = parsed_url.port
+        except ValueError as exc:
+            raise ValueError(f"target_url is invalid: {exc}") from exc
+        if not parsed_url.hostname or port is not None and not 1 <= port <= 65535:
+            raise ValueError("target_url must include a valid host and port")
         if self.protocol not in {"http", "sse"}:
             raise ValueError("protocol must be 'http' or 'sse'")
         if self.requests is None and self.duration_seconds is None:

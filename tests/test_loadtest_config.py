@@ -40,6 +40,19 @@ def test_public_config_redacts_url_userinfo_and_sensitive_query_values(tmp_path)
     assert "hidden" not in str(public)
 
 
+def test_public_config_redacts_broad_secret_query_names_and_drops_fragment(tmp_path):
+    path = tmp_path / "more-secret-url.yaml"
+    path.write_text(
+        "target_url: https://user:pw@example.test/path?client_secret=abc&password=x&signature=z&region=cn#access_token=frag\n",
+        encoding="utf-8",
+    )
+    public_url = load_config(path).as_public_dict()["target_url"]
+    assert "abc" not in public_url and "password=x" not in public_url
+    assert "signature=z" not in public_url and "frag" not in public_url
+    assert "region=cn" in public_url
+    assert "#" not in public_url
+
+
 @pytest.mark.parametrize(
     "field,value",
     [("requests", '"5"'), ("concurrency", '"2"'), ("timeout_seconds", '"slow"')],
@@ -48,4 +61,23 @@ def test_load_config_normalizes_invalid_scalar_types_to_value_error(tmp_path, fi
     path = tmp_path / "bad-type.yaml"
     path.write_text(f"target_url: http://localhost:8000\n{field}: {value}\n", encoding="utf-8")
     with pytest.raises(ValueError, match=field):
+        load_config(path)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("target_url", "1"), ("protocol", "[]"), ("user_id", "1"),
+     ("message", "{}"), ("json_report", "1"), ("html_report", "[]")],
+)
+def test_load_config_rejects_invalid_text_scalar_types(tmp_path, field, value):
+    path = tmp_path / "bad-text-type.yaml"
+    path.write_text(f"target_url: http://localhost:8000\n{field}: {value}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=field):
+        load_config(path)
+
+
+def test_load_config_rejects_invalid_url_port_during_configuration(tmp_path):
+    path = tmp_path / "bad-port.yaml"
+    path.write_text("target_url: https://example.test:99999/\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="target_url"):
         load_config(path)
