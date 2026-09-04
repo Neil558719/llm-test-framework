@@ -20,6 +20,14 @@ pip install -e .          # 基础（Mock 模式 + 测试）
 pip install -e ".[real]"  # 加上真实模型 SDK（openai / anthropic）
 ```
 
+修改 Reference Agent 的 `.env` 模型参数后，必须重新创建容器，运行中进程不会自动读取宿主机 `.env`：
+
+```powershell
+.\deploy\reload-model-config.ps1
+```
+
+脚本会强制重建容器、等待健康检查通过，并打印容器当前实际使用的模型配置。
+
 ## 快速开始（Mock 模式）
 
 ```bash
