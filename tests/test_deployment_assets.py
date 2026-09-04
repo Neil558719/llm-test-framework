@@ -27,3 +27,8 @@ def test_container_contract_keeps_runtime_configuration_external_and_has_no_secr
     assert "DATABASE_PATH=/data/reference_agent.db" in env_example
     assert "LLM_API_KEY=" in env_example
     assert "sk-" not in env_example
+
+
+def test_dockerfile_installs_real_client_extras_for_configured_model_runtime():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "pip install --no-cache-dir .[real]" in dockerfile
