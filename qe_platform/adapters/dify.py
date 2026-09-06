@@ -79,6 +79,8 @@ class DifyAdapterConfig:
         parsed = urlsplit(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("DIFY_BASE_URL must be an absolute HTTP URL")
+        if not parsed.path.rstrip("/").endswith("/v1"):
+            base_url = "%s/v1" % base_url
         if not self.api_key.strip():
             raise ValueError("DIFY_API_KEY is required")
         if not isinstance(self.inputs, Mapping):

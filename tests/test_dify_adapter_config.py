@@ -33,6 +33,12 @@ def test_dify_config_reads_normalized_safe_environment_values(monkeypatch):
     assert config.timeout_seconds == 12.5
 
 
+def test_dify_config_adds_api_version_path_when_base_url_omits_it():
+    config = DifyAdapterConfig("https://dify.example", "app-secret")
+
+    assert config.base_url == "https://dify.example/v1"
+
+
 @pytest.mark.parametrize(
     ("inputs", "timeout", "message"),
     [
