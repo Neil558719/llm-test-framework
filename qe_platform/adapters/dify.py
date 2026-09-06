@@ -9,7 +9,7 @@ from threading import Lock
 from time import perf_counter
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from llmtest import LatencyMetrics, ResponseEnvelope
@@ -79,11 +79,24 @@ class DifyAdapterConfig:
         parsed = urlsplit(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("DIFY_BASE_URL must be an absolute HTTP URL")
-        if not parsed.path.rstrip("/").endswith("/v1"):
-            base_url = "%s/v1" % base_url
-        if not self.api_key.strip():
+        if parsed.query or parsed.fragment:
+            raise ValueError("DIFY_BASE_URL must not include query or fragment")
+        path = parsed.path.rstrip("/")
+        if not path.endswith("/v1"):
+            path = "%s/v1" % path if path else "/v1"
+        base_url = urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+        if "\r" in self.api_key or "\n" in self.api_key:
+            raise ValueError("DIFY_API_KEY must not contain line breaks")
+        api_key = self.api_key.strip()
+        if not api_key:
             raise ValueError("DIFY_API_KEY is required")
         if not isinstance(self.inputs, Mapping):
+            raise ValueError("DIFY_INPUTS_JSON must be an object")
+        try:
+            inputs = json.loads(json.dumps(dict(self.inputs), ensure_ascii=False))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("DIFY_INPUTS_JSON must be JSON serializable") from exc
+        if not isinstance(inputs, dict):
             raise ValueError("DIFY_INPUTS_JSON must be an object")
         try:
             timeout_seconds = float(self.timeout_seconds)
@@ -92,8 +105,8 @@ class DifyAdapterConfig:
         if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("DIFY_TIMEOUT_SECONDS must be a positive number")
         object.__setattr__(self, "base_url", base_url)
-        object.__setattr__(self, "api_key", self.api_key.strip())
-        object.__setattr__(self, "inputs", MappingProxyType(dict(self.inputs)))
+        object.__setattr__(self, "api_key", api_key)
+        object.__setattr__(self, "inputs", MappingProxyType(inputs))
         object.__setattr__(self, "timeout_seconds", timeout_seconds)
 
     @classmethod
@@ -179,13 +192,13 @@ class DifyChatAdapter:
         if conversation_id:
             payload["conversation_id"] = conversation_id
         started = perf_counter()
-        data = self._post_json(payload)
+        data, status_code = self._post_json(payload)
         elapsed_ms = (perf_counter() - started) * 1000
         try:
             answer = _required_string(data, "answer")
             next_conversation_id = _required_string(data, "conversation_id")
         except ValueError as exc:
-            raise ApplicationAdapterError("Dify returned invalid response", 200) from exc
+            raise ApplicationAdapterError("Dify returned invalid response", status_code) from exc
         sources = _extract_sources(data)
         with self._conversation_lock:
             self._conversation_ids[key] = next_conversation_id
@@ -199,16 +212,19 @@ class DifyChatAdapter:
             metadata=_safe_metadata(data, len(sources)),
         )
 
-    def _post_json(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-        request = Request(
-            "%s/chat-messages" % self.config.base_url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": "Bearer %s" % self.config.api_key,
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
+    def _post_json(self, payload: Mapping[str, Any]) -> tuple[Mapping[str, Any], int]:
+        try:
+            request = Request(
+                "%s/chat-messages" % self.config.base_url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": "Bearer %s" % self.config.api_key,
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+        except (TypeError, ValueError, UnicodeError) as exc:
+            raise ApplicationAdapterError("Dify request could not be constructed") from exc
         try:
             with urlopen(request, timeout=self.config.timeout_seconds) as response:
                 status_code = response.getcode()
@@ -225,4 +241,4 @@ class DifyChatAdapter:
             raise ApplicationAdapterError("Dify returned invalid JSON", status_code) from exc
         if not isinstance(data, Mapping):
             raise ApplicationAdapterError("Dify returned invalid JSON", status_code)
-        return data
+        return data, status_code

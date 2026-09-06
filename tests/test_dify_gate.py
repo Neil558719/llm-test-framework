@@ -9,7 +9,9 @@ from typing import Any
 import pytest
 
 from qe_platform.adapters import DifyAdapterConfig
-from qe_platform.dify_gate import main, run_gate
+from qe_platform.contracts import AssertionResult
+from qe_platform.dify_gate import build_dify_report, main, run_gate
+from qe_platform.workflow_runner import ScenarioRunResult, StepResult
 
 
 ASSETS = "qe_platform/scenarios/assets/dify"
@@ -136,3 +138,30 @@ def test_dify_gate_cli_does_not_accept_api_key_argument():
         main(["--api-key", "secret"])
 
     assert exit_info.value.code == 2
+
+
+def test_dify_report_redacts_execution_and_assertion_error_messages():
+    secret = "m14-control-key"
+    result = ScenarioRunResult(
+        scenario_id="dify-private-error",
+        scenario_name="Dify private error",
+        source="fixture",
+        session_id="session",
+        started_at="2026-09-06T00:00:00Z",
+        expected_step_count=1,
+        steps=[
+            StepResult(
+                index=1,
+                user="private user message",
+                status="error",
+                error="Authorization: Bearer %s" % secret,
+                assertions=[AssertionResult("execution", False, "Authorization: Bearer %s" % secret)],
+            )
+        ],
+        final_assertions=[AssertionResult("final", False, "Authorization: Bearer %s" % secret)],
+    )
+
+    serialized = json.dumps(build_dify_report([result]), ensure_ascii=False)
+
+    assert secret not in serialized
+    assert "private user message" not in serialized

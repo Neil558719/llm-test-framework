@@ -39,6 +39,30 @@ def test_dify_config_adds_api_version_path_when_base_url_omits_it():
     assert config.base_url == "https://dify.example/v1"
 
 
+def test_dify_config_copies_json_inputs_and_rejects_non_json_values():
+    original = {"nested": {"language": "zh-CN"}}
+    config = DifyAdapterConfig("https://dify.example/v1", "app-secret", original)
+    original["nested"]["language"] = "en-US"
+
+    assert config.inputs["nested"]["language"] == "zh-CN"
+    with pytest.raises(ValueError, match="DIFY_INPUTS_JSON"):
+        DifyAdapterConfig("https://dify.example/v1", "app-secret", {"unsupported": {1, 2}})
+
+
+@pytest.mark.parametrize("suffix", ["?tenant=private", "#private-fragment"])
+def test_dify_config_rejects_base_url_query_or_fragment(suffix):
+    with pytest.raises(ValueError, match="query or fragment"):
+        DifyAdapterConfig("https://dify.example/v1" + suffix, "app-secret")
+
+
+@pytest.mark.parametrize("api_key", ["app-secret\r\nInjected: true", "app-secret\nInjected: true"])
+def test_dify_config_rejects_api_key_line_breaks(api_key):
+    with pytest.raises(ValueError, match="line breaks") as error:
+        DifyAdapterConfig("https://dify.example/v1", api_key)
+
+    assert api_key not in str(error.value)
+
+
 @pytest.mark.parametrize(
     ("inputs", "timeout", "message"),
     [

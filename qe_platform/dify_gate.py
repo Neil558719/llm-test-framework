@@ -15,6 +15,8 @@ from qe_platform.workflow_runner import ScenarioRunner, ScenarioRunResult
 
 def _redact_assertion(item: dict[str, Any]) -> dict[str, Any]:
     result = dict(item)
+    if result.get("message"):
+        result["message"] = "[REDACTED]"
     if "expected" in result:
         result["expected"] = "[REDACTED]"
     if "actual" in result:
@@ -28,6 +30,8 @@ def _redact_scenario(item: dict[str, Any]) -> dict[str, Any]:
     for step in scenario.get("steps", []):
         safe_step = dict(step)
         safe_step["user"] = "[REDACTED]"
+        if safe_step.get("error"):
+            safe_step["error"] = "[REDACTED]"
         response = safe_step.get("response")
         if isinstance(response, dict):
             safe_response = dict(response)

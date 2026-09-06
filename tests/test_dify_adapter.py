@@ -192,6 +192,16 @@ def test_adapter_rejects_malformed_or_incomplete_success_payloads(http_dify, pay
     assert "question" not in str(error.value)
 
 
+def test_adapter_preserves_success_status_for_malformed_response(http_dify):
+    http_dify.respond(201, {"answer": "answer"})
+    adapter = DifyChatAdapter(DifyAdapterConfig(http_dify.base_url, "secret-key"))
+
+    with pytest.raises(ApplicationAdapterError, match="Dify returned invalid response") as error:
+        adapter.send("question", user_id="user", session_id="session")
+
+    assert error.value.status_code == 201
+
+
 def test_adapter_classifies_transport_failure_without_disclosing_request(monkeypatch):
     def fail(*_args, **_kwargs):
         raise URLError("network unavailable")
