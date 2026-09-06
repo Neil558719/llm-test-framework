@@ -1,0 +1,12 @@
+id: dify-conversation
+name: Dify Chat conversation continuation
+tags: [dify, conversation]
+conversation:
+  - user: 第一轮问题
+    expect:
+      response:
+        contains: [第一轮]
+  - user: 下一步是什么？
+    expect:
+      response:
+        contains: [下一步]
