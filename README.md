@@ -402,7 +402,32 @@ UI 测试独立于默认 `pytest tests/` 回归，覆盖登录、会话、流式
 .\.venv\Scripts\python.exe -m qe_platform.loadtest.cli configs/loadtest-reference-agent-sse.yaml
 ```
 
-安装项目后也可将 `python -m qe_platform.loadtest.cli` 替换为 `llmtest-load`。JSON 与自包含 HTML 报告包含并发、吞吐、总延迟和 TTFT 的 P50/P95/P99、错误率、429 比例、流式中断率、HTTP 状态、Token、成本及 Trace ID。配置中的消息正文和鉴权头在报告中脱敏。压测只记录指标，不判定 SLA/SLO；阈值门禁属于里程碑 13。
+安装项目后也可将 `python -m qe_platform.loadtest.cli` 替换为 `llmtest-load`。JSON 与自包含 HTML 报告包含并发、吞吐、总延迟和 TTFT 的 P50/P95/P99、错误率、429 比例、流式中断率、HTTP 状态、Token、成本及 Trace ID。配置中的消息正文和鉴权头在报告中脱敏。独立压测命令只记录指标；里程碑 13 的质量门禁由下面的独立命令执行。
+
+## 故障注入与 SLA/SLO 门禁
+
+里程碑 13 固定验证模型超时、模型 429、下游 5xx、工具慢响应、知识库不可用、SSE 中断和数据库异常。每个故障阶段后立即运行无故障恢复阶段，恢复指标才参与 SLA/SLO 阈值判断；故障阶段按明确的状态码、错误分类和业务状态断言。TTFT 只对 SSE 恢复阶段启用，缺失成本或 TTFT 数据时对应门禁会失败关闭。
+
+故障控制默认关闭，只能在隔离的本地或 CI Reference Agent 上临时开启。令牌通过环境变量传递，不写入 YAML 或报告：
+
+```powershell
+$env:REFERENCE_AGENT_TEST_FAULTS_ENABLED = "true"
+$env:REFERENCE_AGENT_TEST_FAULT_TOKEN = "local-only-token"
+$env:REFERENCE_AGENT_MODEL_MODE = "mock"
+$env:REFERENCE_AGENT_MODEL_PROVIDER = "mock"
+$env:REFERENCE_AGENT_MODEL = "mock"
+$env:LLM_PRICING_TABLE = '{"mock/mock":{"input_per_1k":0,"output_per_1k":0,"currency":"USD","version":"m13-local"}}'
+python -m uvicorn reference_agent.deployment:create_deployment_app --factory --host 127.0.0.1 --port 8000
+```
+
+在另一个终端使用相同的临时令牌运行固定门禁：
+
+```powershell
+$env:REFERENCE_AGENT_TEST_FAULT_TOKEN = "local-only-token"
+python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
+```
+
+安装项目后可使用 `llmtest-gate`。报告写入 `reports/m13-gate.json` 和 `reports/m13-gate.html`。退出码 `0` 表示通过，`1` 表示执行或报告错误，`2` 表示配置错误，`3` 表示门禁未通过。
 
 | 选项 | 说明 |
 | --- | --- |

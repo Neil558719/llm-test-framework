@@ -88,6 +88,29 @@ class _RateLimitedClient(_Client):
         return _Response(status_code=429, payload={"detail": "limited"})
 
 
+class _ObservationClient(_Client):
+    async def post(self, url, json):
+        return _Response(
+            payload={
+                "answer": "fallback answer",
+                "trace_id": "trace-observed",
+                "conversation_id": json["session_id"],
+                "sources": ["KB-1"],
+                "tool_calls": [
+                    {"name": "query_user", "status": "succeeded"},
+                    {"name": "create_ticket", "status": "failed", "error": "down"},
+                ],
+                "metadata": {
+                    "fallback_reason": "TimeoutError",
+                    "knowledge_status": "answered",
+                    "ticket_status": "unavailable",
+                    "approval_status": "",
+                    "private_context": "must-not-leak",
+                },
+            }
+        )
+
+
 class _TimeoutClient(_Client):
     async def post(self, url, json):
         import httpx
@@ -136,6 +159,27 @@ def test_runner_classifies_timeout():
     config = LoadTestConfig(target_url="http://test", requests=1)
     result = asyncio.run(LoadTestRunner(config, client_factory=lambda **kwargs: _TimeoutClient(**kwargs)).run())
     assert result.samples[0].error_type == "timeout"
+
+
+def test_runner_extracts_only_allowlisted_fault_observations():
+    config = LoadTestConfig(target_url="http://test", requests=1)
+
+    result = asyncio.run(
+        LoadTestRunner(
+            config,
+            client_factory=lambda **kwargs: _ObservationClient(**kwargs),
+        ).run()
+    )
+
+    assert result.samples[0].observations == {
+        "fallback_reason": "TimeoutError",
+        "knowledge_status": "answered",
+        "ticket_status": "unavailable",
+        "approval_status": "",
+        "source_count": 1,
+        "failed_tool_count": 1,
+    }
+    assert "private_context" not in str(result.samples[0].as_dict())
 
 
 def test_runner_counts_sse_timeout_as_stream_interruption():

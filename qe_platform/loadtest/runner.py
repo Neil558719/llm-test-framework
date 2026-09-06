@@ -20,6 +20,28 @@ def _utc_now() -> str:
 def _observability(payload: Mapping[str, Any]) -> dict[str, Any]:
     usage = payload.get("usage") if isinstance(payload.get("usage"), Mapping) else {}
     cost = payload.get("cost") if isinstance(payload.get("cost"), Mapping) else {}
+    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+    sources = payload.get("sources") if isinstance(payload.get("sources"), list) else []
+    tool_calls = payload.get("tool_calls") if isinstance(payload.get("tool_calls"), list) else []
+    observations = {
+        key: str(metadata[key])
+        for key in (
+            "fallback_reason",
+            "knowledge_status",
+            "ticket_status",
+            "approval_status",
+        )
+        if key in metadata
+    }
+    observations.update(
+        {
+            "source_count": len(sources),
+            "failed_tool_count": sum(
+                isinstance(call, Mapping) and call.get("status") == "failed"
+                for call in tool_calls
+            ),
+        }
+    )
     return {
         "trace_id": str(payload.get("trace_id", "")),
         "conversation_id": str(payload.get("conversation_id", "")),
@@ -28,6 +50,7 @@ def _observability(payload: Mapping[str, Any]) -> dict[str, Any]:
         "cost_total": float(cost["total"]) if cost.get("total") is not None else None,
         "cost_currency": str(cost.get("currency", "")),
         "price_version": str(cost.get("price_version", "")),
+        "observations": observations,
     }
 
 

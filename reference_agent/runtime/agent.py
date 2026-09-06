@@ -35,8 +35,11 @@ class AgentRuntime:
         }
         hints: dict[str, Any] = {}
         client = self.client or self.registry.create_client(self.config)
+        fault = state.get("fault")
         usages = []
         try:
+            if fault is not None:
+                fault.before_model()
             raw = client.complete([{"role": "system", "content": "Return JSON only: {intent,parameters}."}, {"role": "user", "content": message}], temperature=self.config.temperature, max_tokens=self.config.max_tokens)
             if getattr(client, "last_usage", None):
                 usages.append(client.last_usage)
@@ -52,6 +55,8 @@ class AgentRuntime:
         result = self.graph.invoke({**state, **({"runtime_hints": hints} if hints else {})})
         if self.config.mode == "real":
             try:
+                if fault is not None:
+                    fault.before_model()
                 answer = client.complete([
                     {"role": "system", "content": "Answer the user using only the supplied business result. Do not invent actions or statuses."},
                     {"role": "user", "content": json.dumps({"message": message, "business_result": result.get("answer", "")}, ensure_ascii=False)},

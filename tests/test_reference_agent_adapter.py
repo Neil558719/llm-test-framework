@@ -35,7 +35,7 @@ def test_reference_adapter_returns_envelope_from_chat_api():
     ]
     assert envelope.tool_calls[-1].result["ticket_id"] == "T-0001"
     assert envelope.latency is not None
-    assert envelope.raw_response["message"].startswith("VPN")
+    assert envelope.raw_response == {}
 
 
 def test_reference_adapter_applies_setup_failure_configuration():

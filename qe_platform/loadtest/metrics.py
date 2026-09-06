@@ -50,4 +50,6 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
         cost_total=round(sum(float(sample.cost_total) for sample in costs), 12) if costs and len(currencies) <= 1 else None,
         cost_currency=currencies.pop() if len(currencies) == 1 else ("MIXED" if currencies else ""),
         price_version=versions.pop() if len(versions) == 1 else ("MIXED" if versions else ""),
+        costed_samples=len(costs),
+        cost_complete=bool(values) and len(costs) == len(values),
     )
