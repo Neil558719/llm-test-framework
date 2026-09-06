@@ -32,9 +32,6 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
     failed = total - succeeded
     stream_total = total if config.protocol == "sse" else 0
     costs = [sample for sample in values if sample.cost_total is not None]
-    complete_success_costs = all(
-        not sample.success or sample.cost_total is not None for sample in values
-    )
     currencies = {sample.cost_currency for sample in costs}
     versions = {sample.price_version for sample in costs}
     return LoadTestSummary(
@@ -50,7 +47,9 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
         prompt_tokens=sum(sample.prompt_tokens for sample in values),
         completion_tokens=sum(sample.completion_tokens for sample in values),
         total_tokens=sum(sample.prompt_tokens + sample.completion_tokens for sample in values),
-        cost_total=round(sum(float(sample.cost_total) for sample in costs), 12) if costs and complete_success_costs and len(currencies) <= 1 else None,
+        cost_total=round(sum(float(sample.cost_total) for sample in costs), 12) if costs and len(currencies) <= 1 else None,
         cost_currency=currencies.pop() if len(currencies) == 1 else ("MIXED" if currencies else ""),
         price_version=versions.pop() if len(versions) == 1 else ("MIXED" if versions else ""),
+        costed_samples=len(costs),
+        cost_complete=bool(values) and len(costs) == len(values),
     )

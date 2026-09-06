@@ -105,7 +105,7 @@ class GateSuiteRunner:
                         and payload.get("session_id") == session_id
                     ):
                         found += 1
-                except (httpx.HTTPError, ValueError, TypeError):
+                except (ValueError, TypeError):
                     continue
         passed = found == expected
         return GateCheck(

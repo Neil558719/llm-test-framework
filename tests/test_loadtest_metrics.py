@@ -41,7 +41,7 @@ def test_summary_does_not_sum_incompatible_currencies():
     assert summary.cost_currency == "MIXED"
 
 
-def test_summary_marks_partial_success_cost_data_unavailable():
+def test_summary_marks_partial_cost_data_incomplete():
     config = LoadTestConfig(target_url="http://test", requests=2)
     samples = [
         SampleResult(
@@ -57,4 +57,6 @@ def test_summary_marks_partial_success_cost_data_unavailable():
 
     summary = summarize(samples, config, wall_time_ms=20)
 
-    assert summary.cost_total is None
+    assert summary.cost_total == 0.0
+    assert summary.costed_samples == 1
+    assert summary.cost_complete is False

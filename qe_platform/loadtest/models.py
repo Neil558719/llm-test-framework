@@ -6,11 +6,31 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 _SENSITIVE_QUERY_PARTS = ("api_key", "apikey", "token", "key", "secret", "password", "signature", "credential")
+_SENSITIVE_HEADER_PARTS = {
+    "auth",
+    "authorization",
+    "cookie",
+    "credential",
+    "key",
+    "password",
+    "secret",
+    "session",
+    "signature",
+    "token",
+}
+_SENSITIVE_HEADERS = {"x-qe-fault"}
 
 
 def _sensitive_query_key(value: str) -> bool:
     normalized = value.lower().replace("-", "_")
     return any(part in normalized for part in _SENSITIVE_QUERY_PARTS)
+
+
+def _sensitive_header_name(value: str) -> bool:
+    normalized = value.lower().replace("_", "-")
+    return normalized in _SENSITIVE_HEADERS or bool(
+        set(normalized.split("-")) & _SENSITIVE_HEADER_PARTS
+    )
 
 
 def _public_url(value: str) -> str:
@@ -107,7 +127,10 @@ class LoadTestConfig:
             "timeout_seconds": self.timeout_seconds,
             "user_id": self.user_id,
             "message": "[REDACTED]",
-            "headers": {key: "[REDACTED]" for key in self.headers},
+            "headers": {
+                key: "[REDACTED]" if _sensitive_header_name(key) else value
+                for key, value in self.headers.items()
+            },
             "json_report": self.json_report,
             "html_report": self.html_report,
         }
@@ -165,6 +188,8 @@ class LoadTestSummary:
     cost_total: Optional[float]
     cost_currency: str = ""
     price_version: str = ""
+    costed_samples: int = 0
+    cost_complete: bool = True
 
     def as_dict(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__dataclass_fields__}

@@ -276,3 +276,49 @@ def test_phase_execution_error_still_runs_recovery_and_remaining_scenarios(tmp_p
     assert result.scenarios[1].gate_passed is True
     assert result.execution_error_count == 1
     assert result.gate_passed is False
+
+
+def test_database_recovery_transport_error_is_an_execution_error(tmp_path):
+    app = _app(tmp_path)
+    calls = 0
+
+    def client_factory(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            async def fail(request):
+                raise httpx.ConnectError("recovery lookup failed", request=request)
+
+            return httpx.AsyncClient(
+                transport=httpx.MockTransport(fail),
+                base_url="http://test",
+                **kwargs,
+            )
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+            **kwargs,
+        )
+
+    scenario = GateScenarioConfig(
+        id="database",
+        load=_load(),
+        fault=FaultSpec("database_error"),
+        expect=SampleExpectation(success=False, status_code=503),
+        recovery=True,
+        recovery_expect=SampleExpectation(success=True, status_code=200),
+        thresholds=GateThresholds(max_error_rate=0),
+    )
+
+    result = asyncio.run(
+        GateSuiteRunner(
+            _suite(tmp_path, [scenario]),
+            client_factory=client_factory,
+            environ={"M13_TOKEN": "secret"},
+        ).run()
+    )
+
+    assert calls == 3
+    assert result.execution_error_count == 1
+    assert result.scenarios[0].execution_errors[0].stage == "recovery_verification"
+    assert result.scenarios[0].execution_errors[0].error_type == "ConnectError"

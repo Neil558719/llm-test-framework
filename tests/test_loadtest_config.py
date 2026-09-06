@@ -116,7 +116,7 @@ def test_public_config_redacts_test_fault_control_headers():
     assert "database_error" not in str(public)
 
 
-def test_public_config_redacts_every_header_value():
+def test_public_config_redacts_sensitive_header_names_and_preserves_benign_values():
     from qe_platform.loadtest.models import LoadTestConfig
 
     public = LoadTestConfig(
@@ -131,5 +131,5 @@ def test_public_config_redacts_every_header_value():
     assert public["headers"] == {
         "Cookie": "[REDACTED]",
         "X-Auth-Token": "[REDACTED]",
-        "X-Feature-Flag": "[REDACTED]",
+        "X-Feature-Flag": "internal-cohort",
     }

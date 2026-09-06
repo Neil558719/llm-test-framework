@@ -96,6 +96,23 @@ def evaluate_thresholds(
         if expected is None:
             continue
         actual, unit, operator, compare = metrics[name]
+        if name in {"max_cost_total", "max_cost_per_success"} and not summary.cost_complete:
+            checks.append(
+                GateCheck(
+                    name=name,
+                    stage=stage,
+                    operator=operator,
+                    expected=float(expected),
+                    actual=None,
+                    unit=unit,
+                    passed=False,
+                    reason=(
+                        "configured cost metric is incomplete: "
+                        f"{summary.costed_samples}/{summary.completed} samples priced"
+                    ),
+                )
+            )
+            continue
         checks.append(
             _metric_check(
                 name,

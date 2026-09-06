@@ -6,7 +6,8 @@ import pytest
 
 from qe_platform.loadtest.gate_models import GateThresholds, SampleExpectation
 from qe_platform.loadtest.gates import evaluate_samples, evaluate_thresholds
-from qe_platform.loadtest.models import LoadTestSummary, SampleResult
+from qe_platform.loadtest.metrics import summarize
+from qe_platform.loadtest.models import LoadTestConfig, LoadTestSummary, SampleResult
 
 
 def _summary(**changes) -> LoadTestSummary:
@@ -113,6 +114,36 @@ def test_configured_missing_ttft_and_cost_metrics_fail_closed():
     assert all(check.passed is False for check in checks)
     assert all(check.actual is None for check in checks)
     assert all("unavailable" in check.reason for check in checks)
+
+
+def test_cost_thresholds_fail_closed_when_any_sample_cost_is_missing():
+    config = LoadTestConfig(target_url="http://test", requests=2)
+    summary = summarize(
+        [
+            SampleResult(
+                True,
+                10,
+                None,
+                cost_total=0.0,
+                cost_currency="USD",
+                price_version="p1",
+            ),
+            SampleResult(False, 20, None, error_type="timeout"),
+        ],
+        config,
+        wall_time_ms=20,
+    )
+
+    checks = evaluate_thresholds(
+        summary,
+        GateThresholds(max_cost_total=0, max_cost_per_success=0),
+        "recovery",
+    )
+
+    assert len(checks) == 2
+    assert all(check.passed is False for check in checks)
+    assert all(check.actual is None for check in checks)
+    assert all("incomplete" in check.reason for check in checks)
 
 
 @pytest.mark.parametrize(
