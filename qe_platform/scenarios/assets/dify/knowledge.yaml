@@ -1,0 +1,9 @@
+id: dify-knowledge
+name: Dify Chat knowledge source observation
+tags: [dify, knowledge]
+conversation:
+  - user: M14_DIFY_PRIVATE_QUESTION
+expect:
+  response:
+    contains: [知识库政策]
+    sources_present: true

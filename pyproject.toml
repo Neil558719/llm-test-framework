@@ -49,6 +49,7 @@ llmtest = "llmtest.plugin"
 v1-api-gate = "qe_platform.v1_gate:main"
 llmtest-load = "qe_platform.loadtest.cli:main"
 llmtest-gate = "qe_platform.loadtest.gate_cli:main"
+dify-compat-gate = "qe_platform.dify_gate:main"
 
 [tool.setuptools.packages.find]
 include = ["llmtest*", "qe_platform*", "reference_agent*"]
