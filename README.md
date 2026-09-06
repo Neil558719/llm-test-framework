@@ -167,7 +167,7 @@ Dify 的对话接口天然返回 `answer` + 检索到的知识片段，适配器
 幻觉检测即用机器人**真实看到的知识**核对；另覆盖换述鲁棒性、知识库外拒答、相关性打分、
 多轮会话、**批量问题集回归**等企业客服场景。报告内置**历史运行对比**表；配套
 `compare_judges.py` 做**双裁判模型一致性**体检（各裁判可独立 key，自动生成 `reports/judge_compare.html`）。用例讲解见术语手册 3.5c/3.5d；部署 + 建知识库 +
-迁移到另一台电脑的指引见 [`docs/Dify 部署与迁移指南.md`](docs/Dify 部署与迁移指南.md)。
+平台级 Chat 兼容能力、边界和门禁用法见 [`docs/Dify 兼容性测试指南.md`](docs/Dify 兼容性测试指南.md)。
 ```
 
 ## 使用手册：切换被测模型 / 裁判模型
@@ -490,7 +490,7 @@ scripts/ci_run.py           # CI 脚本：一条命令跑两档（Mock 冒烟 + 
 scripts/probe_embedding.py  # 诊断脚本：探测网关 Embedding 可用性
 docs/术语手册与原理详解.md        # 术语 + 原理 + 用例全解
 docs/使用手册.md                  # 完整功能 + 运行方法（不遗漏）
-docs/Dify 部署与迁移指南.md       # Dify 部署 · 接入 · 迁移
+docs/Dify 兼容性测试指南.md       # Dify Chat 兼容能力、限制和门禁
 docs/FastGPT 部署与迁移指南.md    # FastGPT 部署 · 接入 · 迁移
 docs/迁移说明.md                  # 迁移到新电脑 / Python 3.14 兼容 / GitHub 上传
 CHANGELOG.md                      # 开发记录 + 遇到的问题
