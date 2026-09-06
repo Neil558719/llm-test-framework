@@ -95,3 +95,22 @@ def test_public_config_preserves_ipv6_brackets():
 
     public = LoadTestConfig(target_url="http://[::1]:8000").as_public_dict()
     assert public["target_url"] == "http://[::1]:8000"
+
+
+def test_public_config_redacts_test_fault_control_headers():
+    from qe_platform.loadtest.models import LoadTestConfig
+
+    public = LoadTestConfig(
+        target_url="http://test",
+        headers={
+            "X-QE-Test-Token": "top-secret",
+            "X-QE-Fault": '{"type":"database_error"}',
+        },
+    ).as_public_dict()
+
+    assert public["headers"] == {
+        "X-QE-Test-Token": "[REDACTED]",
+        "X-QE-Fault": "[REDACTED]",
+    }
+    assert "top-secret" not in str(public)
+    assert "database_error" not in str(public)

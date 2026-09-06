@@ -5,7 +5,14 @@ from typing import Any, List, Mapping, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-_SENSITIVE_HEADERS = {"authorization", "proxy-authorization", "x-api-key", "api-key"}
+_SENSITIVE_HEADERS = {
+    "authorization",
+    "proxy-authorization",
+    "x-api-key",
+    "api-key",
+    "x-qe-test-token",
+    "x-qe-fault",
+}
 _SENSITIVE_QUERY_PARTS = ("api_key", "apikey", "token", "key", "secret", "password", "signature", "credential")
 
 
@@ -130,6 +137,7 @@ class SampleResult:
     cost_total: Optional[float] = None
     cost_currency: str = ""
     price_version: str = ""
+    observations: Mapping[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -140,6 +148,7 @@ class SampleResult:
             "usage": {"prompt_tokens": self.prompt_tokens, "completion_tokens": self.completion_tokens,
                       "total_tokens": self.prompt_tokens + self.completion_tokens},
             "cost": None if self.cost_total is None else {"total": self.cost_total, "currency": self.cost_currency, "price_version": self.price_version},
+            "observations": dict(self.observations),
         }
 
 
