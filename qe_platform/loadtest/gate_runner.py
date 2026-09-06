@@ -7,10 +7,11 @@ import os
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 
-from .gate_models import GateScenarioResult, GateSuiteConfig, GateSuiteResult
+from .gate_models import GateCheck, GateScenarioResult, GateSuiteConfig, GateSuiteResult
 from .gates import evaluate_samples, evaluate_thresholds
 from .models import LoadTestConfig, LoadTestRun
 from .runner import LoadTestRunner
@@ -37,6 +38,55 @@ class GateSuiteRunner:
             config,
             client_factory=self.client_factory,
         ).run()
+
+    async def _verify_database_recovery(
+        self,
+        config: LoadTestConfig,
+        recovery_run: LoadTestRun,
+    ) -> GateCheck:
+        expected = len(recovery_run.samples)
+        session_ids = [
+            sample.conversation_id
+            for sample in recovery_run.samples
+            if sample.conversation_id
+        ]
+        found = 0
+        parsed = urlsplit(config.target_url)
+        base_path = parsed.path.rstrip("/")
+        async with self.client_factory(
+            headers=dict(config.headers),
+            timeout=config.timeout_seconds,
+        ) as client:
+            for session_id in session_ids:
+                session_path = f"{base_path}/api/sessions/{quote(session_id, safe='')}"
+                session_url = urlunsplit(
+                    (parsed.scheme, parsed.netloc, session_path, "", "")
+                )
+                try:
+                    response = await client.get(session_url)
+                    payload = response.json() if response.status_code == 200 else {}
+                    if (
+                        isinstance(payload, Mapping)
+                        and payload.get("session_id") == session_id
+                    ):
+                        found += 1
+                except (httpx.HTTPError, ValueError, TypeError):
+                    continue
+        passed = found == expected
+        return GateCheck(
+            name="database_recovery_session_count",
+            stage="recovery",
+            operator="==",
+            expected=expected,
+            actual=found,
+            unit="sessions",
+            passed=passed,
+            reason=(
+                f"persisted recovery sessions {found} == expected {expected}"
+                if passed
+                else f"persisted recovery sessions {found} != expected {expected}"
+            ),
+        )
 
     async def run(self) -> GateSuiteResult:
         token = self.environ.get(self.config.fault_token_env, "")
@@ -75,6 +125,13 @@ class GateSuiteRunner:
                         "recovery",
                     )
                 )
+                if scenario.fault.type == "database_error":
+                    checks.append(
+                        await self._verify_database_recovery(
+                            scenario.load,
+                            recovery_run,
+                        )
+                    )
             results.append(
                 GateScenarioResult(
                     scenario_id=scenario.id,

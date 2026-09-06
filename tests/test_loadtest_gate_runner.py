@@ -108,7 +108,7 @@ def test_gate_runner_executes_fault_then_recovery_for_every_scenario(tmp_path):
         ).run()
     )
 
-    assert client_phases == ["fault", "recovery", "fault", "recovery"]
+    assert client_phases == ["fault", "recovery", "fault", "recovery", "recovery"]
     assert [item.scenario_id for item in result.scenarios] == [
         "model-timeout",
         "database-error",
@@ -116,6 +116,15 @@ def test_gate_runner_executes_fault_then_recovery_for_every_scenario(tmp_path):
     assert result.gate_passed is True
     assert result.failed_checks == 0
     assert all(item.recovery_run is not None for item in result.scenarios)
+    database_checks = [
+        check
+        for check in result.scenarios[1].checks
+        if check.name == "database_recovery_session_count"
+    ]
+    assert len(database_checks) == 1
+    assert database_checks[0].expected == 2
+    assert database_checks[0].actual == 2
+    assert database_checks[0].passed is True
 
 
 def test_gate_runner_continues_after_a_failed_expectation(tmp_path):
