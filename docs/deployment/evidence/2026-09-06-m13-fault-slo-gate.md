@@ -33,10 +33,10 @@ git diff --check
 - Playwright：`4 passed, 293 deselected`。
 - `compileall`、Compose 配置和差异空白检查均通过。LangGraph 上游弃用警告仍
   存在，未作为本里程碑的产品缺陷处理。
-- 独立审查先后定位并修复部分成本漏记、空 YAML 列表绕过、阶段异常中断、报告
-  脱敏、响应消息回显、重复恢复会话、失败样本成本完整性和恢复查询传输错误分类。
-  相应的红绿回归纳入当前测试集；最终复查代理因额度耗尽未返回新的结论，因此
-  在推送前仍需 PR 上的独立人工/代码审查。
+- 两轮独立审查先后定位并修复部分成本漏记、空 YAML 列表绕过、阶段异常中断、
+  报告脱敏、响应消息回显、重复恢复会话、失败样本成本完整性和恢复查询传输错误
+  分类；相应的红绿回归纳入当前测试集。最终重复复查因代理额度耗尽未产生额外
+  报告，以下 GitHub Actions 作为合并前的自动化验证证据。
 
 ## 候选 Docker 网络门禁
 
@@ -64,10 +64,34 @@ python -m qe_platform.loadtest.gate_cli reports/m13-candidate-gate.yaml
   为 `[REDACTED]`。报告保存在被忽略的 `reports/m13-candidate-gate.json` 和
   `reports/m13-candidate-gate.html`，后续 PR/Release 使用同类脱敏资产。
 
-## 交付状态与剩余动作
+## GitHub 合并与 CI
 
-本文件记录的是分支和候选镜像的本地证据，尚不构成发布完成。仍需按仓库交付链：
-push 分支、创建并审查 PR、等待 GitHub Actions、合并 `master`、以合并 SHA 重跑
-门禁并发布预发布版本、用发布镜像隔离复验、备份后升级本机主服务（故障控制关闭）、
-记录部署证据并关闭 Issue #46。真实供应商压测、云端独立服务器和生产鉴权边界仍
-不在本机类生产验收范围内。
+- PR [#47](https://github.com/Neil558719/llm-test-framework/pull/47) 已合并到
+  `master`，合并提交为
+  `29ee1c42f5e963d0bb92cb38f0255ce34bd4dfdf`。
+- 分支 push 和 PR 的 GitHub Actions 均通过：Offline tests（Python 3.12、3.14）、
+  V1 API gate（Python 3.12、3.14）、Load-test contract（Python 3.12、3.14）、
+  **M13 fault and SLA/SLO gate**、Playwright 与 local-production-drill。
+- 合并后的 `master` 复验默认非 UI 回归为 `293 passed, 4 deselected, 171 warnings`；
+  V1 API gate 为 `14/14`，并生成 `reports/m13-master-v1.json/html`。代码未在合并后
+  改动，分支同一源代码的 Playwright 验收为 `4 passed`。
+
+## 发布镜像与本机主服务交付
+
+- 已发布预发布版本 [v0.2.0-alpha.19](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0-alpha.19)，
+  标签指向合并提交 `29ee1c42f5e963d0bb92cb38f0255ce34bd4dfdf`，并附带脱敏的
+  M13 门禁和 V1 报告资产。
+- 使用该精确提交构建 `llmtest-reference-agent:v0.2.0-alpha.19`，在独立容器、独立
+  命名卷和 `127.0.0.1:18046` 复验：七个故障/恢复场景 `7/7` 通过，`0` 个失败检查、
+  `0` 个执行错误，所有恢复样本 `cost_complete=true`，报告与 SQLite
+  `PRAGMA integrity_check` 均通过。
+- 部署前已为本机主服务 SQLite 数据库创建备份，备份完整性为 `ok`。主服务已升级到
+  该发布镜像，运行镜像 revision 与上述合并 SHA 一致且容器 `healthy`；部署后
+  `deploy/smoke.ps1` 的 4 项检查全部通过，SQLite 完整性为 `ok`。主服务故障控制保持
+  关闭，对携带任意故障控制 Header 的请求返回 `403`。
+
+## 验收结论与范围
+
+里程碑 13 已达到本机类生产交付条件：分支、PR、CI、合并、预发布、发布镜像隔离
+复验和主服务部署均有证据。Issue #46 的关闭随本次交付记录合并后的最终主分支核验
+执行。真实供应商压测、云端独立服务器和生产鉴权边界仍不在本机类生产验收范围内。
