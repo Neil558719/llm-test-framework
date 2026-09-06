@@ -15,6 +15,7 @@ from .services.common import ServiceError
 from .services.knowledge_base import KnowledgeBase
 from .services.tickets import TicketService
 from .services.users import UserService
+from .faults import FaultProfile
 
 
 class AgentState(TypedDict):
@@ -29,6 +30,7 @@ class AgentState(TypedDict):
     ticket_status: str
     approval_status: str
     handoff_reason: str
+    fault: FaultProfile | None
 
 
 def _is_ticket_intent(message: str) -> bool:
@@ -70,7 +72,10 @@ def _access_response(
     message = state.get("message", "").strip()
     calls: list[ToolCall] = []
     user_id = state.get("user_id", "test-user")
+    fault = state.get("fault")
     try:
+        if fault is not None:
+            fault.before_service("user")
         user = user_service.get_user(user_id)
     except ServiceError as exc:
         calls.append(ToolCall("query_user", {"user_id": user_id}, status="failed", error=exc.message))
@@ -115,6 +120,8 @@ def _access_response(
         "idempotency_key": f"{state.get('session_id', 'anonymous')}:{user_id}:{software.lower()}",
     }
     try:
+        if fault is not None:
+            fault.before_service("approval")
         approval = approval_service.create_approval(**arguments)
     except ServiceError as exc:
         calls.append(ToolCall("create_approval", arguments, status="failed", error=exc.message))
@@ -137,7 +144,10 @@ def _ticket_response(
     message = state.get("message", "").strip()
     calls: list[ToolCall] = []
     user_id = state.get("user_id", "test-user")
+    fault = state.get("fault")
     try:
+        if fault is not None:
+            fault.before_service("user")
         user = user_service.get_user(user_id)
     except ServiceError as exc:
         calls.append(ToolCall("query_user", {"user_id": user_id}, status="failed", error=exc.message))
@@ -153,6 +163,8 @@ def _ticket_response(
     if not asset_id:
         return {**state, "answer": "请提供设备编号后再创建工单。", "tool_calls": calls, "ticket_status": "asset_required"}
     try:
+        if fault is not None:
+            fault.before_service("asset")
         asset = asset_service.get_asset(asset_id)
     except ServiceError as exc:
         calls.append(ToolCall("query_asset", {"asset_id": asset_id}, status="failed", error=exc.message))
@@ -173,6 +185,8 @@ def _ticket_response(
         "idempotency_key": f"{state.get('session_id', 'anonymous')}:{asset_id}:{category}",
     }
     try:
+        if fault is not None:
+            fault.before_service("ticket")
         ticket = ticket_service.create_ticket(**arguments)
     except ServiceError as exc:
         calls.append(ToolCall("create_ticket", arguments, status="failed", error=exc.message))
@@ -203,7 +217,10 @@ def _respond(
         return _ticket_response(state, user_service, asset_service, ticket_service)
     if not message:
         return {**state, "answer": "请输入需要查询的 IT 问题。", "sources": [], "knowledge_status": "refused"}
+    fault = state.get("fault")
     try:
+        if fault is not None:
+            fault.before_service("knowledge")
         matches = knowledge_base.search(message, limit=1)
     except ServiceError as exc:
         return {

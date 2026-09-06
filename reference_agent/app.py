@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +25,12 @@ from .services.users import UserService
 from .storage import SQLiteStore
 from .runtime import AgentModelConfig, ModelProviderRegistry
 from .runtime.agent import AgentRuntime
+from .faults import (
+    FaultControlError,
+    FaultControlSettings,
+    FaultProfile,
+    InjectedDatabaseError,
+)
 
 
 class ChatRequest(BaseModel):
@@ -46,6 +52,7 @@ def create_app(
     approval_service: ApprovalService | None = None,
     price_table: PriceTable | None = None,
     model_client: Any | None = None,
+    fault_settings: FaultControlSettings | None = None,
 ) -> FastAPI:
     database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
@@ -60,6 +67,7 @@ def create_app(
     app.state.price_table = price_table or PriceTable.from_json(os.getenv("LLM_PRICING_TABLE"))
     app.state.store = store
     app.state.access_drafts = {}
+    app.state.fault_settings = fault_settings or FaultControlSettings.from_env()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -99,9 +107,26 @@ def create_app(
             raise HTTPException(status_code=404, detail="session not found")
         return session
 
-    def _run_chat(request: ChatRequest) -> dict[str, Any]:
+    def _resolve_fault(
+        token: str | None,
+        raw_fault: str | None,
+    ) -> FaultProfile | None:
+        try:
+            return app.state.fault_settings.resolve(token, raw_fault)
+        except FaultControlError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    def _run_chat(
+        request: ChatRequest,
+        fault: FaultProfile | None = None,
+    ) -> dict[str, Any]:
         session_id = request.session_id or str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
+        try:
+            if fault is not None:
+                fault.before_database()
+        except InjectedDatabaseError as exc:
+            raise HTTPException(status_code=503, detail="database temporarily unavailable") from exc
         store.upsert_session(session_id, request.user_id)
         draft = app.state.access_drafts.get(session_id, "")
         effective_message = f"{draft} {request.message}".strip() if draft else request.message
@@ -113,6 +138,7 @@ def create_app(
                 "user_id": request.user_id,
                 "session_id": session_id,
                 "tool_calls": [],
+                "fault": fault,
             }
         )
         if result.get("approval_status") == "needs_information":
@@ -148,15 +174,26 @@ def create_app(
         return envelope.as_dict()
 
     @app.post("/api/chat")
-    def chat(request: ChatRequest) -> dict[str, Any]:
-        return _run_chat(request)
+    def chat(
+        request: ChatRequest,
+        x_qe_test_token: str | None = Header(default=None, alias="X-QE-Test-Token"),
+        x_qe_fault: str | None = Header(default=None, alias="X-QE-Fault"),
+    ) -> dict[str, Any]:
+        return _run_chat(request, _resolve_fault(x_qe_test_token, x_qe_fault))
 
     @app.post("/api/chat/stream")
-    def chat_stream(request: ChatRequest) -> StreamingResponse:
-        response = _run_chat(request)
+    def chat_stream(
+        request: ChatRequest,
+        x_qe_test_token: str | None = Header(default=None, alias="X-QE-Test-Token"),
+        x_qe_fault: str | None = Header(default=None, alias="X-QE-Fault"),
+    ) -> StreamingResponse:
+        fault = _resolve_fault(x_qe_test_token, x_qe_fault)
+        response = _run_chat(request, fault)
 
         def events():
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': response['conversation_id']})}\n\n"
+            if fault is not None and fault.type == "sse_interruption":
+                return
             answer = response["answer"]
             for index in range(0, len(answer), 24):
                 yield f"data: {json.dumps({'type': 'chunk', 'text': answer[index:index + 24]})}\n\n"
