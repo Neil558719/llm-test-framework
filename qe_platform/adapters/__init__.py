@@ -1,5 +1,5 @@
 from .base import ApplicationAdapter, ApplicationAdapterError
-from .dify import DIFY_CHAT_CAPABILITY_MATRIX, DifyAdapterConfig, DifyCapability, DifyCapabilityMatrix
+from .dify import DIFY_CHAT_CAPABILITY_MATRIX, DifyAdapterConfig, DifyCapability, DifyCapabilityMatrix, DifyChatAdapter
 from .reference_agent import ReferenceAgentAdapter
 
 __all__ = [
@@ -9,5 +9,6 @@ __all__ = [
     "DifyAdapterConfig",
     "DifyCapability",
     "DifyCapabilityMatrix",
+    "DifyChatAdapter",
     "ReferenceAgentAdapter",
 ]
