@@ -1,4 +1,4 @@
-# Issue #49 里程碑 14 Dify 兼容性测试分支验收
+# Issue #49 里程碑 14 Dify 兼容性测试交付验收
 
 ## 范围
 
@@ -32,9 +32,36 @@ git diff --check
   片段的地址拒绝、含换行密钥拒绝、无效 2xx 响应保留原始状态码，以及 JSON/HTML
   报告中执行错误和断言消息脱敏。定向复验为 `30 passed, 1 warning`。
 
-## 交付状态
+## GitHub 交付
 
-本文件记录分支本地验收。后续仍需完成 push、PR、GitHub Actions、审查、合并到
-`master`、Release、本机类生产部署及 Issue 跟踪后，才能将里程碑标记为交付完成。
-真实 Dify Chat 环境仅在使用者显式提供正式地址和凭据后运行，不是离线契约门禁的
-前置条件。
+- 分支已推送，PR [#50](https://github.com/Neil558719/llm-test-framework/pull/50)
+  经独立审查后合并到 `master`，合并提交为
+  `2739e8fc2c5db7e2f16a117c03fb581eef9421b9`。
+- PR 的 Offline tests（Python 3.12、3.14）、V1 API gate（Python 3.12、3.14）、
+  Load-test contract（Python 3.12、3.14）、M13 fault and SLA/SLO gate、Dify
+  compatibility contract、Playwright 和 local-production-drill 全部成功。
+- 合并后 `master` 复验默认非 UI `329 passed`、UI `4 passed`、V1 API gate、
+  `compileall`、`docker compose config --quiet` 与 `git diff --check` 均通过。
+- Issue [#49](https://github.com/Neil558719/llm-test-framework/issues/49) 已随 PR
+  合并关闭；预发布 [v0.2.0-alpha.20](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0-alpha.20)
+  指向该合并提交。
+
+## 本机类生产部署
+
+- 升级前以 SQLite online backup 写入 `/data/m14-predeploy-backup.db`，备份完整性
+  为 `ok`。
+- 使用提交 `2739e8fc2c5db7e2f16a117c03fb581eef9421b9` 构建
+  `llmtest-reference-agent:v0.2.0-alpha.20`；容器标签
+  `org.opencontainers.image.revision` 与该完整 SHA 一致。
+- 本机 `llmbackup-reference-agent-1` 在 `127.0.0.1:8000` 完成重建并为 `healthy`；
+  `deploy/smoke.ps1` 的 health、知识问答、工单和权限申请 `4/4` 通过，运行数据库
+  `PRAGMA integrity_check` 为 `ok`。
+- 故障控制保持 `REFERENCE_AGENT_TEST_FAULTS_ENABLED=false` 且没有配置令牌；部署
+  产物 `reports/m14-postdeploy-smoke.json` 是本地忽略文件，不含 Dify 凭据。
+
+## 结论与范围边界
+
+里程碑 14 已达到本机类生产交付条件。真实 Dify Chat 环境仅在使用者显式提供正式
+地址和凭据后运行，不是离线契约门禁的前置条件；其运行结果不应写入版本库。Dify
+Workflow、Completion、文件、多模态、工具调用、流式 TTFT 和稳定的用量/成本/模型
+版本契约仍不在本里程碑范围内；FastGPT 不在本项目范围内。

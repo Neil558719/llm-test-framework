@@ -42,7 +42,8 @@ def test_milestone_status_records_m14_implementation_and_pending_delivery_lifecy
     process = PROCESS.read_text(encoding="utf-8")
 
     row = next(line for line in process.splitlines() if line.startswith("| 14. Dify 适配扩展 |"))
-    assert "实现完成（交付进行中）" in row
+    assert "已完成（本机类生产交付）" in row
     assert "Issue [#49]" in row
     assert "DifyChatAdapter" in row
-    assert "PR、Actions、审查、合并、Release、部署" in row
+    assert "PR [#50]" in row
+    assert "v0.2.0-alpha.20" in row
