@@ -11,9 +11,16 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 
-from .gate_models import GateCheck, GateScenarioResult, GateSuiteConfig, GateSuiteResult
+from .gate_models import (
+    GateCheck,
+    GateExecutionError,
+    GateScenarioResult,
+    GateSuiteConfig,
+    GateSuiteResult,
+)
 from .gates import evaluate_samples, evaluate_thresholds
-from .models import LoadTestConfig, LoadTestRun
+from .metrics import summarize
+from .models import LoadTestConfig, LoadTestRun, SampleResult
 from .runner import LoadTestRunner
 
 
@@ -39,17 +46,45 @@ class GateSuiteRunner:
             client_factory=self.client_factory,
         ).run()
 
+    async def _run_phase(
+        self,
+        config: LoadTestConfig,
+        stage: str,
+    ) -> tuple[LoadTestRun, GateExecutionError | None]:
+        try:
+            return await self._run_load(config), None
+        except Exception as exc:
+            now = _utc_now()
+            error_type = type(exc).__name__
+            sample = SampleResult(
+                success=False,
+                duration_ms=0.0,
+                ttft_ms=None,
+                error_type="execution_error",
+                error_message=f"{error_type}: phase execution failed",
+            )
+            return (
+                LoadTestRun(
+                    config=config,
+                    started_at=now,
+                    finished_at=now,
+                    samples=[sample],
+                    summary=summarize([sample], config, wall_time_ms=0.0),
+                ),
+                GateExecutionError(stage=stage, error_type=error_type),
+            )
+
     async def _verify_database_recovery(
         self,
         config: LoadTestConfig,
         recovery_run: LoadTestRun,
     ) -> GateCheck:
         expected = len(recovery_run.samples)
-        session_ids = [
+        session_ids = {
             sample.conversation_id
             for sample in recovery_run.samples
             if sample.conversation_id
-        ]
+        }
         found = 0
         parsed = urlsplit(config.target_url)
         base_path = parsed.path.rstrip("/")
@@ -104,13 +139,22 @@ class GateSuiteRunner:
                     scenario.fault.as_dict(), separators=(",", ":")
                 ),
             }
-            fault_run = await self._run_load(
-                replace(scenario.load, headers=fault_headers)
+            execution_errors: list[GateExecutionError] = []
+            fault_run, fault_error = await self._run_phase(
+                replace(scenario.load, headers=fault_headers),
+                "fault",
             )
+            if fault_error is not None:
+                execution_errors.append(fault_error)
             checks = evaluate_samples(fault_run.samples, scenario.expect, "fault")
             recovery_run = None
             if scenario.recovery:
-                recovery_run = await self._run_load(scenario.load)
+                recovery_run, recovery_error = await self._run_phase(
+                    scenario.load,
+                    "recovery",
+                )
+                if recovery_error is not None:
+                    execution_errors.append(recovery_error)
                 checks.extend(
                     evaluate_samples(
                         recovery_run.samples,
@@ -125,13 +169,21 @@ class GateSuiteRunner:
                         "recovery",
                     )
                 )
-                if scenario.fault.type == "database_error":
-                    checks.append(
-                        await self._verify_database_recovery(
-                            scenario.load,
-                            recovery_run,
+                if scenario.fault.type == "database_error" and recovery_error is None:
+                    try:
+                        checks.append(
+                            await self._verify_database_recovery(
+                                scenario.load,
+                                recovery_run,
+                            )
                         )
-                    )
+                    except Exception as exc:
+                        execution_errors.append(
+                            GateExecutionError(
+                                stage="recovery_verification",
+                                error_type=type(exc).__name__,
+                            )
+                        )
             results.append(
                 GateScenarioResult(
                     scenario_id=scenario.id,
@@ -139,6 +191,7 @@ class GateSuiteRunner:
                     fault_run=fault_run,
                     recovery_run=recovery_run,
                     checks=checks,
+                    execution_errors=execution_errors,
                 )
             )
         return GateSuiteResult(

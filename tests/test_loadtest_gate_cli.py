@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from qe_platform.loadtest import gate_cli
+from qe_platform.loadtest.gate_models import GateExecutionError
 from test_loadtest_gate_reporting import gate_result
 
 
@@ -100,3 +102,30 @@ def test_gate_cli_returns_one_for_execution_or_report_errors(
     second = capsys.readouterr()
     assert "Gate execution error: disk full" in second.err
     assert "Traceback" not in first.err + second.err
+
+
+def test_gate_cli_returns_one_after_writing_phase_execution_error_report(
+    tmp_path, monkeypatch, capsys
+):
+    result = gate_result(tmp_path, passed=True)
+    scenario = replace(
+        result.scenarios[0],
+        execution_errors=[GateExecutionError("fault", "RuntimeError")],
+    )
+    result = replace(result, scenarios=[scenario])
+    writes = []
+    _Runner.result = result
+    _Runner.error = None
+    monkeypatch.setattr(gate_cli, "load_gate_config", lambda _: result.config)
+    monkeypatch.setattr(gate_cli, "GateSuiteRunner", _Runner)
+    monkeypatch.setattr(
+        gate_cli,
+        "write_gate_reports",
+        lambda value: writes.append(value)
+        or (Path(value.config.json_report), Path(value.config.html_report)),
+    )
+
+    assert gate_cli.main([str(tmp_path / "gate.yaml")]) == 1
+    assert writes == [result]
+    captured = capsys.readouterr()
+    assert "1 phase execution error" in captured.err

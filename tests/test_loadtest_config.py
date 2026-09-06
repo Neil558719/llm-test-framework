@@ -114,3 +114,22 @@ def test_public_config_redacts_test_fault_control_headers():
     }
     assert "top-secret" not in str(public)
     assert "database_error" not in str(public)
+
+
+def test_public_config_redacts_every_header_value():
+    from qe_platform.loadtest.models import LoadTestConfig
+
+    public = LoadTestConfig(
+        target_url="http://test",
+        headers={
+            "Cookie": "session=secret",
+            "X-Auth-Token": "another-secret",
+            "X-Feature-Flag": "internal-cohort",
+        },
+    ).as_public_dict()
+
+    assert public["headers"] == {
+        "Cookie": "[REDACTED]",
+        "X-Auth-Token": "[REDACTED]",
+        "X-Feature-Flag": "[REDACTED]",
+    }

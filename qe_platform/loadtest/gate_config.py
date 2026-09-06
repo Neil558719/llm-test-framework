@@ -71,13 +71,13 @@ def _non_empty_text(value: Any, name: str) -> str:
 
 
 def _thresholds(raw: Any, name: str) -> GateThresholds:
-    value = _mapping(raw or {}, name)
+    value = _mapping({} if raw is None else raw, name)
     _reject_unknown(value, _THRESHOLD_FIELDS, "threshold")
     return GateThresholds(**value)
 
 
 def _expectation(raw: Any, name: str) -> SampleExpectation:
-    value = _mapping(raw or {}, name)
+    value = _mapping({} if raw is None else raw, name)
     _reject_unknown(value, _EXPECTATION_FIELDS, "expectation")
     return SampleExpectation(**value)
 
@@ -92,7 +92,7 @@ def _fault(raw: Any) -> FaultSpec:
 
 
 def _headers(raw: Any) -> dict[str, str]:
-    value = _mapping(raw or {}, "headers")
+    value = _mapping({} if raw is None else raw, "headers")
     if not all(isinstance(item, str) for item in value.values()):
         raise ValueError("headers must be a string mapping")
     reserved = {"x-qe-test-token", "x-qe-fault"}

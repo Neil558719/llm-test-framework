@@ -39,6 +39,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(f"JSON: {json_path}")
     print(f"HTML: {html_path}")
+    if result.execution_error_count:
+        print(
+            f"Gate execution error: {result.execution_error_count} phase execution error(s)",
+            file=sys.stderr,
+        )
+        return 1
     if not result.gate_passed:
         print(
             f"Gate failed: {result.failed_checks} checks failed",

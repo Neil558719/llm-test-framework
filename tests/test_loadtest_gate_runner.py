@@ -13,7 +13,8 @@ from qe_platform.loadtest.gate_models import (
     SampleExpectation,
 )
 from qe_platform.loadtest.gate_runner import GateSuiteRunner
-from qe_platform.loadtest.models import LoadTestConfig
+from qe_platform.loadtest.metrics import summarize
+from qe_platform.loadtest.models import LoadTestConfig, LoadTestRun, SampleResult
 from reference_agent.app import create_app
 from reference_agent.faults import FaultControlSettings
 from reference_agent.services import KnowledgeBase
@@ -185,3 +186,93 @@ def test_gate_runner_rejects_missing_fault_token_before_requests(tmp_path):
 
     with pytest.raises(ValueError, match="M13_TOKEN"):
         asyncio.run(GateSuiteRunner(_suite(tmp_path, [scenario]), environ={}).run())
+
+
+def test_database_recovery_requires_unique_persisted_sessions(tmp_path):
+    app = _app(tmp_path)
+    app.state.store.upsert_session("duplicate", "U1001")
+
+    def client_factory(**kwargs):
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+            **kwargs,
+        )
+
+    load = _load()
+    samples = [
+        SampleResult(True, 10, None, status_code=200, conversation_id="duplicate"),
+        SampleResult(True, 12, None, status_code=200, conversation_id="duplicate"),
+    ]
+    run = LoadTestRun(
+        load,
+        "start",
+        "finish",
+        samples,
+        summarize(samples, load, wall_time_ms=12),
+    )
+    runner = GateSuiteRunner(
+        _suite(tmp_path, []),
+        client_factory=client_factory,
+        environ={"M13_TOKEN": "secret"},
+    )
+
+    check = asyncio.run(runner._verify_database_recovery(load, run))
+
+    assert check.expected == 2
+    assert check.actual == 1
+    assert check.passed is False
+
+
+def test_phase_execution_error_still_runs_recovery_and_remaining_scenarios(tmp_path):
+    app = _app(tmp_path)
+    calls = []
+
+    def client_factory(**kwargs):
+        phase = "fault" if "X-QE-Fault" in kwargs["headers"] else "recovery"
+        calls.append(phase)
+        if len(calls) == 1:
+            raise RuntimeError("client construction failed")
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+            **kwargs,
+        )
+
+    scenarios = [
+        GateScenarioConfig(
+            id="first",
+            load=_load(),
+            fault=FaultSpec("model_timeout"),
+            expect=SampleExpectation(success=True),
+            recovery=True,
+            recovery_expect=SampleExpectation(success=True),
+            thresholds=GateThresholds(max_error_rate=0),
+        ),
+        GateScenarioConfig(
+            id="second",
+            load=_load(),
+            fault=FaultSpec("knowledge_unavailable"),
+            expect=SampleExpectation(knowledge_status="unavailable"),
+            recovery=True,
+            recovery_expect=SampleExpectation(knowledge_status="answered"),
+            thresholds=GateThresholds(max_error_rate=0),
+        ),
+    ]
+
+    result = asyncio.run(
+        GateSuiteRunner(
+            _suite(tmp_path, scenarios),
+            client_factory=client_factory,
+            environ={"M13_TOKEN": "secret"},
+        ).run()
+    )
+
+    assert calls == ["fault", "recovery", "fault", "recovery"]
+    assert len(result.scenarios) == 2
+    assert result.scenarios[0].execution_errors[0].stage == "fault"
+    assert result.scenarios[0].execution_errors[0].error_type == "RuntimeError"
+    assert result.scenarios[0].recovery_run is not None
+    assert result.scenarios[1].gate_passed is True
+    assert result.execution_error_count == 1
+    assert result.gate_passed is False

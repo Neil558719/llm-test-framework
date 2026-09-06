@@ -70,6 +70,17 @@ def write_gate_reports(result: GateSuiteResult) -> tuple[Path, Path]:
 
     scenario_sections = []
     for scenario in result.scenarios:
+        execution_errors = "".join(
+            "<li>"
+            f"{html.escape(error.stage)}: {html.escape(error.error_type)}"
+            "</li>"
+            for error in scenario.execution_errors
+        )
+        execution_section = (
+            f"<h3>Execution errors</h3><ul>{execution_errors}</ul>"
+            if execution_errors
+            else ""
+        )
         checks = "".join(
             "<tr>"
             f"<td>{html.escape(check.stage)}</td>"
@@ -87,6 +98,7 @@ def write_gate_reports(result: GateSuiteResult) -> tuple[Path, Path]:
             "<section>"
             f"<h2>{html.escape(scenario.scenario_id)} · {html.escape(scenario.fault_type)} · "
             f"<span class={'ok' if scenario.gate_passed else 'bad'}>{'PASSED' if scenario.gate_passed else 'FAILED'}</span></h2>"
+            f"{execution_section}"
             f"{_phase('Fault phase', scenario.fault_run)}"
             f"{_phase('Recovery phase', scenario.recovery_run)}"
             "<h3>Gate checks</h3><table><thead><tr><th>Stage</th><th>Check</th>"
@@ -103,7 +115,7 @@ pre{{white-space:pre-wrap;background:#f6f8fa;padding:1rem}}.ok{{color:#087830}}.
 </style></head><body><h1>M13 Quality Gate</h1>
 <p>Suite: <code>{html.escape(result.config.id)}</code></p>
 <p>Started: {html.escape(result.started_at)} · Finished: {html.escape(result.finished_at)}</p>
-<p>Scenarios: {len(result.scenarios)} · Passed: {result.passed_scenarios} · Failed checks: {result.failed_checks} · Gate: <strong class={'ok' if result.gate_passed else 'bad'}>{status}</strong></p>
+<p>Scenarios: {len(result.scenarios)} · Passed: {result.passed_scenarios} · Failed checks: {result.failed_checks} · Execution errors: {result.execution_error_count} · Gate: <strong class={'ok' if result.gate_passed else 'bad'}>{status}</strong></p>
 {''.join(scenario_sections)}</body></html>"""
     html_path.write_text(document, encoding="utf-8")
     return json_path, html_path

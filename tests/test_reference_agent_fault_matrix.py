@@ -72,6 +72,17 @@ def _ticket_body(session_id: str) -> dict[str, str]:
     }
 
 
+def test_chat_response_does_not_echo_the_user_message(tmp_path):
+    client = _client(tmp_path)
+    body = _knowledge_body("no-message-echo")
+
+    response = client.post("/api/chat", json=body)
+
+    assert response.status_code == 200
+    assert response.json()["raw_response"] == {}
+    assert body["message"] not in response.text
+
+
 @pytest.mark.parametrize(
     "fault_type,fallback_reason",
     [("model_timeout", "TimeoutError"), ("model_429", "ModelRateLimitError")],

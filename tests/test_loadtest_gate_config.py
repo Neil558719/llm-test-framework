@@ -208,3 +208,38 @@ def test_gate_config_rejects_missing_or_invalid_required_values(tmp_path):
     ]:
         with pytest.raises(ValueError, match=match):
             load_gate_config(_write(tmp_path, body))
+
+
+@pytest.mark.parametrize(
+    "fragment,match",
+    [
+        ("thresholds: []", "thresholds must be a mapping"),
+        ("defaults:\n  headers: []", "headers must be a mapping"),
+        (
+            "scenarios:\n  - id: timeout\n    message: VPN\n    fault: {type: model_timeout}\n    expect: []",
+            r"scenarios\[0\]\.expect must be a mapping",
+        ),
+    ],
+)
+def test_gate_config_rejects_falsey_non_mapping_nested_values(
+    tmp_path, fragment, match
+):
+    scenarios = "" if fragment.startswith("scenarios:") else """
+scenarios:
+  - id: timeout
+    message: VPN
+    fault: {type: model_timeout}
+    expect: {success: true}
+"""
+    path = _write(
+        tmp_path,
+        f"""id: m13
+target_url: http://localhost:8000
+fault_token_env: M13_TOKEN
+{fragment}
+{scenarios}
+""",
+    )
+
+    with pytest.raises(ValueError, match=match):
+        load_gate_config(path)

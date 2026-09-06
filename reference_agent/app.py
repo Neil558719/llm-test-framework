@@ -152,7 +152,7 @@ def create_app(
             sources=list(result.get("sources", [])),
             tool_calls=list(result.get("tool_calls", [])),
             latency=LatencyMetrics(),
-            raw_response={"message": request.message},
+            raw_response={},
             metadata={**result.get("metadata", {}),
                 "service": "reference-agent",
                 "knowledge_status": result.get("knowledge_status", "refused"),

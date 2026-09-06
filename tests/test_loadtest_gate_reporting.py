@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from qe_platform.loadtest.gate_models import (
     FaultSpec,
     GateCheck,
+    GateExecutionError,
     GateScenarioConfig,
     GateScenarioResult,
     GateSuiteConfig,
@@ -154,3 +156,23 @@ def test_gate_reports_do_not_leak_message_token_or_raw_fault_header(tmp_path):
     assert "query-secret" not in combined
     assert '{"type":"model_timeout"}' not in combined
     assert "[REDACTED]" in combined
+
+
+def test_gate_reports_separate_phase_execution_errors(tmp_path):
+    result = gate_result(tmp_path, passed=True)
+    scenario = replace(
+        result.scenarios[0],
+        execution_errors=[GateExecutionError("fault", "RuntimeError")],
+    )
+    result = replace(result, scenarios=[scenario])
+
+    json_path, html_path = write_gate_reports(result)
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+    assert payload["execution_error_count"] == 1
+    assert payload["scenarios"][0]["execution_errors"] == [
+        {"stage": "fault", "error_type": "RuntimeError"}
+    ]
+    assert "Execution errors" in html
+    assert "RuntimeError" in html

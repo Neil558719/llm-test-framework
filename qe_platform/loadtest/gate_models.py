@@ -126,6 +126,15 @@ class GateCheck:
         }
 
 
+@dataclass(frozen=True)
+class GateExecutionError:
+    stage: str
+    error_type: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {"stage": self.stage, "error_type": self.error_type}
+
+
 _FAULT_TYPES = {
     "model_timeout",
     "model_429",
@@ -243,10 +252,15 @@ class GateScenarioResult:
     fault_run: LoadTestRun
     recovery_run: Optional[LoadTestRun]
     checks: list[GateCheck]
+    execution_errors: list[GateExecutionError] = field(default_factory=list)
 
     @property
     def gate_passed(self) -> bool:
-        return bool(self.checks) and all(check.passed for check in self.checks)
+        return (
+            not self.execution_errors
+            and bool(self.checks)
+            and all(check.passed for check in self.checks)
+        )
 
     @property
     def failed_checks(self) -> int:
@@ -263,6 +277,7 @@ class GateScenarioResult:
                 self.recovery_run.as_dict() if self.recovery_run is not None else None
             ),
             "checks": [check.as_dict() for check in self.checks],
+            "execution_errors": [error.as_dict() for error in self.execution_errors],
         }
 
 
@@ -285,6 +300,10 @@ class GateSuiteResult:
     def passed_scenarios(self) -> int:
         return sum(item.gate_passed for item in self.scenarios)
 
+    @property
+    def execution_error_count(self) -> int:
+        return sum(len(item.execution_errors) for item in self.scenarios)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "config": self.config.as_public_dict(),
@@ -294,6 +313,7 @@ class GateSuiteResult:
             "passed_scenarios": self.passed_scenarios,
             "failed_scenarios": len(self.scenarios) - self.passed_scenarios,
             "failed_checks": self.failed_checks,
+            "execution_error_count": self.execution_error_count,
             "gate_passed": self.gate_passed,
             "scenarios": [scenario.as_dict() for scenario in self.scenarios],
         }

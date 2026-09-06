@@ -5,14 +5,6 @@ from typing import Any, List, Mapping, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-_SENSITIVE_HEADERS = {
-    "authorization",
-    "proxy-authorization",
-    "x-api-key",
-    "api-key",
-    "x-qe-test-token",
-    "x-qe-fault",
-}
 _SENSITIVE_QUERY_PARTS = ("api_key", "apikey", "token", "key", "secret", "password", "signature", "credential")
 
 
@@ -115,7 +107,7 @@ class LoadTestConfig:
             "timeout_seconds": self.timeout_seconds,
             "user_id": self.user_id,
             "message": "[REDACTED]",
-            "headers": {key: "[REDACTED]" if key.lower() in _SENSITIVE_HEADERS else value for key, value in self.headers.items()},
+            "headers": {key: "[REDACTED]" for key in self.headers},
             "json_report": self.json_report,
             "html_report": self.html_report,
         }
