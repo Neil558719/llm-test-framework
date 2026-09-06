@@ -221,9 +221,14 @@ class GateSuiteConfig:
     scenarios: list[GateScenarioConfig]
 
     def as_public_dict(self) -> dict[str, Any]:
+        public_target = (
+            self.scenarios[0].load.as_public_dict()["target_url"]
+            if self.scenarios
+            else "[UNAVAILABLE]"
+        )
         return {
             "id": self.id,
-            "target_url": self.target_url,
+            "target_url": public_target,
             "fault_token_env": self.fault_token_env,
             "reports": {"json": self.json_report, "html": self.html_report},
             "thresholds": self.thresholds.as_dict(),
