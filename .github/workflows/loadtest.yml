@@ -31,3 +31,59 @@ jobs:
       - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
       - name: Run standalone load-test tests
         run: python -m pytest -q tests/test_loadtest_*.py
+
+  m13-quality-gate:
+    name: M13 fault and SLA/SLO gate
+    runs-on: ubuntu-latest
+    env:
+      REFERENCE_AGENT_DATABASE: /tmp/m13-reference-agent.db
+      REFERENCE_AGENT_MODEL_MODE: mock
+      REFERENCE_AGENT_MODEL_PROVIDER: mock
+      REFERENCE_AGENT_MODEL: mock
+      REFERENCE_AGENT_TEST_FAULTS_ENABLED: "true"
+      REFERENCE_AGENT_TEST_FAULT_TOKEN: ci-m13-ephemeral-token
+      LLM_PRICING_TABLE: '{"mock/mock":{"input_per_1k":0,"output_per_1k":0,"currency":"USD","version":"m13-ci"}}'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - name: Start Reference Agent
+        run: |
+          python -m uvicorn reference_agent.deployment:create_deployment_app --factory --host 127.0.0.1 --port 8000 > /tmp/m13-reference-agent.log 2>&1 &
+          echo $! > /tmp/m13-reference-agent.pid
+      - name: Wait for Reference Agent health
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=1) as response:
+                      if response.status == 200:
+                          break
+              except Exception:
+                  if attempt == 29:
+                      raise
+                  time.sleep(1)
+          PY
+      - name: Run milestone 13 quality gate
+        run: python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
+      - name: Show Reference Agent log on failure
+        if: failure()
+        run: cat /tmp/m13-reference-agent.log
+      - name: Upload milestone 13 gate reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: m13-quality-gate-reports
+          path: |
+            reports/m13-gate.json
+            reports/m13-gate.html
+          if-no-files-found: error
+      - name: Stop Reference Agent
+        if: always()
+        run: kill "$(cat /tmp/m13-reference-agent.pid)" || true

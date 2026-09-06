@@ -1,0 +1,128 @@
+id: reference-agent-m13
+target_url: http://127.0.0.1:8000
+fault_token_env: REFERENCE_AGENT_TEST_FAULT_TOKEN
+reports:
+  json: reports/m13-gate.json
+  html: reports/m13-gate.html
+defaults:
+  protocol: http
+  requests: 3
+  concurrency: 2
+  warmup_requests: 0
+  timeout_seconds: 5
+  user_id: U1001
+  message: "VPN 故障，设备编号 PC-1001，请创建工单"
+thresholds:
+  max_error_rate: 0
+  max_429_rate: 0
+  max_stream_interruption_rate: 0
+  max_latency_p95_ms: 1500
+  min_throughput_rps: 0.5
+  max_cost_total: 0
+  max_cost_per_success: 0
+scenarios:
+  - id: model-timeout
+    message: "如何重置公司邮箱密码？"
+    fault:
+      type: model_timeout
+    expect:
+      success: true
+      status_code: 200
+      fallback_reason: TimeoutError
+      knowledge_status: answered
+    recovery_expect:
+      success: true
+      status_code: 200
+      knowledge_status: answered
+      source_count: 1
+
+  - id: model-rate-limit
+    message: "如何重置公司邮箱密码？"
+    fault:
+      type: model_429
+    expect:
+      success: true
+      status_code: 200
+      fallback_reason: ModelRateLimitError
+      knowledge_status: answered
+    recovery_expect:
+      success: true
+      status_code: 200
+      knowledge_status: answered
+      source_count: 1
+
+  - id: downstream-ticket-5xx
+    fault:
+      type: downstream_5xx
+      target: ticket
+      status_code: 500
+    expect:
+      success: true
+      status_code: 200
+      ticket_status: unavailable
+      min_failed_tools: 1
+    recovery_expect:
+      success: true
+      status_code: 200
+      ticket_status: created
+
+  - id: slow-asset-tool
+    fault:
+      type: tool_slow_response
+      target: asset
+      delay_seconds: 0.05
+    expect:
+      success: true
+      status_code: 200
+      ticket_status: created
+      min_duration_ms: 45
+    recovery_expect:
+      success: true
+      status_code: 200
+      ticket_status: created
+
+  - id: knowledge-unavailable
+    message: "如何重置公司邮箱密码？"
+    fault:
+      type: knowledge_unavailable
+    expect:
+      success: true
+      status_code: 200
+      knowledge_status: unavailable
+      source_count: 0
+    recovery_expect:
+      success: true
+      status_code: 200
+      knowledge_status: answered
+      source_count: 1
+
+  - id: sse-interruption
+    protocol: sse
+    message: "如何重置公司邮箱密码？"
+    thresholds:
+      max_ttft_p95_ms: 1000
+    fault:
+      type: sse_interruption
+    expect:
+      success: false
+      status_code: 200
+      error_type: stream_interrupted
+    recovery_expect:
+      success: true
+      status_code: 200
+      knowledge_status: answered
+      source_count: 1
+
+  - id: database-error
+    message: "如何重置公司邮箱密码？"
+    fault:
+      type: database_error
+    expect:
+      success: false
+      status_code: 503
+      error_type: http_error
+    recovery_expect:
+      success: true
+      status_code: 200
+      knowledge_status: answered
+      source_count: 1
