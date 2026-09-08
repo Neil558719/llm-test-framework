@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+from typing import Any, Mapping
+
+
+_FORBIDDEN_EXACT = {"message", "answer", "authorization", "apikey", "token", "arguments", "result", "rawrequest", "rawresponse"}
+_METADATA_KEYS = frozenset({"environment", "request_id", "release", "region", "tenant"})
+
+
+def fingerprint(value: str, hash_key: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("fingerprint value must be nonempty")
+    if not isinstance(hash_key, str) or not hash_key:
+        raise ValueError("hash_key must be nonempty")
+    return hmac.new(hash_key.encode("utf-8"), value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _normalized_key(key: str) -> str:
+    return "".join(char for char in key.lower() if char.isalnum())
+
+
+def _forbidden_key(key: str) -> bool:
+    normalized = _normalized_key(key)
+    if normalized in _FORBIDDEN_EXACT:
+        return True
+    return normalized.startswith(("message", "answer", "authorization", "apikey", "token", "arguments", "result", "rawrequest", "rawresponse")) and not normalized.endswith(("fingerprint", "length"))
+
+
+def assert_sanitized_payload(value: Any) -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError("payload keys must be strings")
+            normalized = _normalized_key(key)
+            if _forbidden_key(key):
+                raise ValueError(f"forbidden field: {key}")
+            assert_sanitized_payload(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            assert_sanitized_payload(item)
+
+
+def sanitize_metadata(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("metadata must be a mapping")
+    assert_sanitized_payload(value)
+    unknown = sorted(set(value) - _METADATA_KEYS)
+    if unknown:
+        raise ValueError(f"metadata fields are not whitelisted: {', '.join(unknown)}")
+    if not all(isinstance(key, str) and isinstance(item, (str, int, float, bool, type(None))) for key, item in value.items()):
+        raise ValueError("metadata values must be scalar")
+    return dict(value)
