@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Mapping
 
 from .redaction import assert_sanitized_payload, fingerprint, sanitize_metadata
-
-
-_VERSION_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
-_UNSAFE_VERSION_PARTS = ("answer", "message", "secret", "token", "authorization", "apikey", "raw", "request", "response")
 
 
 def _nonempty(name: str, value: str) -> None:
@@ -38,14 +33,6 @@ def _mapping(name: str, value: Mapping[str, Any], allowed: set[str]) -> Mapping[
     if unknown:
         raise ValueError(f"unknown {name} fields: {', '.join(unknown)}")
     return MappingProxyType(dict(value))
-
-
-def _version_identifier(name: str, value: Any) -> None:
-    if not isinstance(value, str) or not _VERSION_IDENTIFIER.fullmatch(value):
-        raise ValueError(f"model_version.{name} must be an opaque version identifier")
-    normalized = "".join(char for char in value.lower() if char.isalnum())
-    if any(part in normalized for part in _UNSAFE_VERSION_PARTS):
-        raise ValueError(f"model_version.{name} must not contain sensitive content")
 
 
 def _utc(value: datetime) -> datetime:
@@ -111,7 +98,7 @@ class TelemetryTrace:
                     raise ValueError(f"cost.{name} must be a string")
         model_version = _mapping("model_version", self.model_version, {"provider", "model", "prompt", "knowledge_base", "tools", "prompt_version", "knowledge_base_version", "tool_schema_version"})
         for name, value in model_version.items():
-            _version_identifier(name, value)
+            _fingerprint(f"model_version.{name}", value)
         latency = _mapping("latency", self.latency, {"total_ms", "ttft_ms", "status"})
         for name, value in latency.items():
             if name in {"total_ms", "ttft_ms"}:
@@ -152,10 +139,13 @@ def build_trace_event(trace_id: str, application: str, user_id: str, session_id:
         if not isinstance(tool, Mapping):
             raise ValueError("tool call must be a mapping")
         summaries.append(ToolSummary(str(tool.get("name", "")), str(tool.get("status", ""))))
+    if not isinstance(model_version, Mapping) or not all(isinstance(key, str) and isinstance(value, str) for key, value in model_version.items()):
+        raise ValueError("model_version must be a string mapping")
+    version_fingerprints = {key: fingerprint(value, hash_key) for key, value in model_version.items()}
     return TelemetryTrace(
         trace_id, application, datetime.now(timezone.utc), fingerprint(request_text, hash_key), fingerprint(answer_text, hash_key),
         len(request_text), len(answer_text), fingerprint(user_id, hash_key), fingerprint(session_id, hash_key), tuple(summaries),
-        sanitize_metadata(metadata), dict(usage), None if cost is None else dict(cost), dict(model_version), dict(latency),
+        sanitize_metadata(metadata), dict(usage), None if cost is None else dict(cost), version_fingerprints, dict(latency),
     )
 
 

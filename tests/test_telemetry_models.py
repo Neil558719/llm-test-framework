@@ -114,8 +114,27 @@ def test_feedback_source_and_metrics_version_schemas_are_strict():
     {"model": "client_secret"},
     {"knowledge_base": "private answer"},
 ])
-def test_model_version_values_are_opaque_safe_identifiers(model_version):
-    with pytest.raises(ValueError):
-        build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version=model_version, latency={"total_ms": 1, "status": "succeeded"})
+def test_build_trace_fingerprints_version_values(model_version):
+    trace = build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version=model_version, latency={"total_ms": 1, "status": "succeeded"})
+    assert all(value not in json.dumps(trace.as_dict()) for value in model_version.values())
     trace = build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={"prompt": "prompt-v1", "knowledge_base": "kb/2026.09", "tools": "tools-v1"}, latency={"total_ms": 1, "status": "succeeded"})
-    assert trace.as_dict()["model_version"]["prompt"] == "prompt-v1"
+    assert trace.as_dict()["model_version"]["prompt"] == "0091c7626b0d39e32e6e98b8e1e01db149cdaf33b84b6986f5ea896325ec0dba"
+
+
+@pytest.mark.parametrize("version_value", [
+    "U1001",
+    "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJVMTAwMSJ9.signature",
+    "password-hunter2",
+    "private-free-text",
+])
+def test_trace_fingerprints_all_raw_version_values(version_value):
+    trace = build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={"model": version_value}, latency={"total_ms": 1, "status": "succeeded"})
+    serialized = json.dumps(trace.as_dict())
+    assert version_value not in serialized
+    assert trace.as_dict()["model_version"]["model"] != version_value
+    assert len(trace.as_dict()["model_version"]["model"]) == 64
+
+
+def test_direct_trace_rejects_raw_version_values():
+    with pytest.raises(ValueError):
+        TelemetryTrace("trace-1", "service-desk", datetime.now(timezone.utc), REQUEST_HASH, ANSWER_HASH, 1, 1, REPORTER_HASH, REPORTER_HASH, model_version={"prompt": "prompt-v1"})
