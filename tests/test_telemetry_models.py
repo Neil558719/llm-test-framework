@@ -107,3 +107,15 @@ def test_feedback_source_and_metrics_version_schemas_are_strict():
         build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={"provider": []}, latency={"total_ms": 1, "status": "succeeded"})
     with pytest.raises(ValueError):
         build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={}, latency={"status": [], "total_ms": 1})
+
+
+@pytest.mark.parametrize("model_version", [
+    {"prompt": "private system prompt with client_secret=shh"},
+    {"model": "client_secret"},
+    {"knowledge_base": "private answer"},
+])
+def test_model_version_values_are_opaque_safe_identifiers(model_version):
+    with pytest.raises(ValueError):
+        build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version=model_version, latency={"total_ms": 1, "status": "succeeded"})
+    trace = build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={"prompt": "prompt-v1", "knowledge_base": "kb/2026.09", "tools": "tools-v1"}, latency={"total_ms": 1, "status": "succeeded"})
+    assert trace.as_dict()["model_version"]["prompt"] == "prompt-v1"
