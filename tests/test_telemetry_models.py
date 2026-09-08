@@ -1,4 +1,5 @@
 import json
+from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
 
 import pytest
@@ -138,3 +139,33 @@ def test_trace_fingerprints_all_raw_version_values(version_value):
 def test_direct_trace_rejects_raw_version_values():
     with pytest.raises(ValueError):
         TelemetryTrace("trace-1", "service-desk", datetime.now(timezone.utc), REQUEST_HASH, ANSWER_HASH, 1, 1, REPORTER_HASH, REPORTER_HASH, model_version={"prompt": "prompt-v1"})
+
+
+@pytest.mark.parametrize("raw_version", ["A" * 64, "a" * 64, REQUEST_HASH])
+def test_direct_trace_rejects_hex_strings_without_fingerprint_provenance(raw_version):
+    with pytest.raises(ValueError, match="fingerprint"):
+        trace = TelemetryTrace(
+            "trace-1", "service-desk", datetime.now(timezone.utc), REQUEST_HASH,
+            ANSWER_HASH, 1, 1, REPORTER_HASH, REPORTER_HASH,
+            model_version={"prompt": raw_version},
+        )
+        json.dumps(trace.as_dict())
+
+
+def test_version_fingerprint_hashes_input_and_serializes_only_digest():
+    from qe_platform.telemetry import VersionFingerprint
+
+    version = VersionFingerprint("prompt-v1", HASH_KEY)
+    assert version.digest == "0091c7626b0d39e32e6e98b8e1e01db149cdaf33b84b6986f5ea896325ec0dba"
+    with pytest.raises(FrozenInstanceError):
+        version.digest = "A" * 64
+    versions = {"prompt": version}
+    trace = TelemetryTrace(
+        "trace-1", "service-desk", datetime.now(timezone.utc), REQUEST_HASH,
+        ANSWER_HASH, 1, 1, REPORTER_HASH, REPORTER_HASH, model_version=versions,
+    )
+    versions["prompt"] = "A" * 64
+    assert json.loads(json.dumps(trace.as_dict()))["model_version"] == {"prompt": version.digest}
+    assert "prompt-v1" not in repr(version)
+    assert HASH_KEY not in repr(version)
+    assert VersionFingerprint("A" * 64, HASH_KEY).digest != "A" * 64

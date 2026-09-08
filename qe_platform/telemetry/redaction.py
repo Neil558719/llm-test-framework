@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 
@@ -22,6 +23,22 @@ def fingerprint(value: str, hash_key: str) -> str:
     if not isinstance(hash_key, str) or not hash_key:
         raise ValueError("hash_key must be nonempty")
     return hmac.new(hash_key.encode("utf-8"), value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class VersionFingerprint:
+    """A version digest produced by hashing, never by accepting a bare digest.
+
+    Incoming labels are always hashed, even when they resemble a digest.
+    Neither the raw label nor the key is retained on the object. Controlled
+    hydration of persisted trace JSON belongs to the storage boundary, not
+    this public ingestion contract.
+    """
+
+    digest: str
+
+    def __init__(self, value: str, hash_key: str) -> None:
+        object.__setattr__(self, "digest", fingerprint(value, hash_key))
 
 
 def _normalized_key(key: str) -> str:

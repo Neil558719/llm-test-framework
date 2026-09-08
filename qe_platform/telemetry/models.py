@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from .redaction import assert_sanitized_payload, fingerprint, sanitize_metadata
+from .redaction import VersionFingerprint, assert_sanitized_payload, fingerprint, sanitize_metadata
 
 
 def _nonempty(name: str, value: str) -> None:
@@ -73,7 +73,7 @@ class TelemetryTrace:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     usage: Mapping[str, int] = field(default_factory=dict)
     cost: Mapping[str, Any] | None = None
-    model_version: Mapping[str, str] = field(default_factory=dict)
+    model_version: Mapping[str, VersionFingerprint] = field(default_factory=dict)
     latency: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -98,7 +98,8 @@ class TelemetryTrace:
                     raise ValueError(f"cost.{name} must be a string")
         model_version = _mapping("model_version", self.model_version, {"provider", "model", "prompt", "knowledge_base", "tools", "prompt_version", "knowledge_base_version", "tool_schema_version"})
         for name, value in model_version.items():
-            _fingerprint(f"model_version.{name}", value)
+            if type(value) is not VersionFingerprint:
+                raise ValueError(f"model_version.{name} requires a provenance-bearing fingerprint")
         latency = _mapping("latency", self.latency, {"total_ms", "ttft_ms", "status"})
         for name, value in latency.items():
             if name in {"total_ms", "ttft_ms"}:
@@ -125,7 +126,7 @@ class TelemetryTrace:
             "source": {"user_fingerprint": self.user_fingerprint, "session_fingerprint": self.session_fingerprint},
             "tool_calls": [tool.as_dict() for tool in self.tool_calls], "metadata": dict(self.metadata),
             "usage": dict(self.usage), "cost": None if self.cost is None else dict(self.cost),
-            "model_version": dict(self.model_version), "latency": dict(self.latency),
+            "model_version": {key: value.digest for key, value in self.model_version.items()}, "latency": dict(self.latency),
         }
 
 
@@ -141,7 +142,7 @@ def build_trace_event(trace_id: str, application: str, user_id: str, session_id:
         summaries.append(ToolSummary(str(tool.get("name", "")), str(tool.get("status", ""))))
     if not isinstance(model_version, Mapping) or not all(isinstance(key, str) and isinstance(value, str) for key, value in model_version.items()):
         raise ValueError("model_version must be a string mapping")
-    version_fingerprints = {key: fingerprint(value, hash_key) for key, value in model_version.items()}
+    version_fingerprints = {key: VersionFingerprint(value, hash_key) for key, value in model_version.items()}
     return TelemetryTrace(
         trace_id, application, datetime.now(timezone.utc), fingerprint(request_text, hash_key), fingerprint(answer_text, hash_key),
         len(request_text), len(answer_text), fingerprint(user_id, hash_key), fingerprint(session_id, hash_key), tuple(summaries),
