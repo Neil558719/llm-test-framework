@@ -154,10 +154,25 @@ def build_trace_event(trace_id: str, application: str, user_id: str, session_id:
 class TelemetryQuery:
     application: str = ""
     trace_id: str = ""
+    limit: int = 100
+    offset: int = 0
 
     def __post_init__(self) -> None:
         if not self.application and not self.trace_id:
             raise ValueError("a telemetry query needs a filter")
+        if isinstance(self.limit, bool) or not isinstance(self.limit, int) or not 1 <= self.limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        if isinstance(self.offset, bool) or not isinstance(self.offset, int) or self.offset < 0:
+            raise ValueError("offset must be a nonnegative integer")
 
-    def as_dict(self) -> dict[str, str]:
-        return {key: value for key, value in {"application": self.application, "trace_id": self.trace_id}.items() if value}
+    def as_dict(self) -> dict[str, str | int]:
+        result: dict[str, str | int] = {
+            key: value
+            for key, value in {"application": self.application, "trace_id": self.trace_id}.items()
+            if value
+        }
+        if self.limit != 100:
+            result["limit"] = self.limit
+        if self.offset:
+            result["offset"] = self.offset
+        return result

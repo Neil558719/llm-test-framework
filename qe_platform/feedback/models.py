@@ -7,7 +7,7 @@ from enum import Enum
 from qe_platform.telemetry.redaction import fingerprint
 
 
-_SOURCES = frozenset({"user", "human_reviewer", "system"})
+_SOURCES = frozenset({"user", "ui", "human_reviewer", "system"})
 
 
 def _fingerprint_value(value: str) -> bool:
@@ -73,15 +73,25 @@ class FeedbackRecord:
 class FeedbackQuery:
     trace_id: str = ""
     category: FeedbackKind | None = None
+    limit: int = 100
+    offset: int = 0
 
     def __post_init__(self) -> None:
         if not self.trace_id and self.category is None:
             raise ValueError("a feedback query needs a filter")
         if self.category is not None and not isinstance(self.category, FeedbackKind):
             raise ValueError("category must be a FeedbackKind")
+        if isinstance(self.limit, bool) or not isinstance(self.limit, int) or not 1 <= self.limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        if isinstance(self.offset, bool) or not isinstance(self.offset, int) or self.offset < 0:
+            raise ValueError("offset must be a nonnegative integer")
 
-    def as_dict(self) -> dict[str, str]:
-        result = {"trace_id": self.trace_id} if self.trace_id else {}
+    def as_dict(self) -> dict[str, str | int]:
+        result: dict[str, str | int] = {"trace_id": self.trace_id} if self.trace_id else {}
         if self.category is not None:
             result["category"] = self.category.value
+        if self.limit != 100:
+            result["limit"] = self.limit
+        if self.offset:
+            result["offset"] = self.offset
         return result
