@@ -7,6 +7,13 @@ from enum import Enum
 from qe_platform.telemetry.redaction import fingerprint
 
 
+_SOURCES = frozenset({"user", "human_reviewer", "system"})
+
+
+def _fingerprint_value(value: str) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value.lower())
+
+
 class FeedbackKind(str, Enum):
     CORRECT = "correct"
     INACCURATE = "inaccurate"
@@ -28,8 +35,8 @@ class FeedbackInput:
             raise ValueError("category must be a FeedbackKind")
         if not isinstance(self.reporter_id, str) or not self.reporter_id:
             raise ValueError("reporter_id must be nonempty")
-        if not isinstance(self.source, str) or not self.source:
-            raise ValueError("source must be nonempty")
+        if self.source not in _SOURCES:
+            raise ValueError("source must be an approved feedback source")
 
 
 @dataclass(frozen=True)
@@ -49,7 +56,13 @@ class FeedbackRecord:
     def __post_init__(self) -> None:
         if not all(isinstance(value, str) and value for value in (self.feedback_id, self.trace_id, self.reporter_fingerprint, self.source)):
             raise ValueError("feedback identifiers and source must be nonempty")
-        if self.created_at.tzinfo is None or self.created_at.utcoffset() != timezone.utc.utcoffset(self.created_at):
+        if not _fingerprint_value(self.reporter_fingerprint):
+            raise ValueError("reporter_fingerprint must be a SHA-256 hexadecimal fingerprint")
+        if not isinstance(self.category, FeedbackKind):
+            raise ValueError("category must be a FeedbackKind")
+        if self.source not in _SOURCES:
+            raise ValueError("source must be an approved feedback source")
+        if not isinstance(self.created_at, datetime) or self.created_at.tzinfo is None or self.created_at.utcoffset() != timezone.utc.utcoffset(self.created_at):
             raise ValueError("created_at must be UTC")
 
     def as_dict(self) -> dict[str, str]:

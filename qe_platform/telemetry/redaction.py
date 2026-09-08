@@ -5,7 +5,14 @@ import hmac
 from typing import Any, Mapping
 
 
-_FORBIDDEN_EXACT = {"message", "answer", "authorization", "apikey", "token", "arguments", "result", "rawrequest", "rawresponse"}
+_FORBIDDEN_PARTS = ("message", "answer", "authorization", "apikey", "token", "arguments", "result", "rawrequest", "rawresponse", "auth", "secret")
+_SAFE_SERIALIZED_KEYS = frozenset({
+    "traceid", "application", "timestamp", "requestfingerprint", "answerfingerprint", "requestlength", "answerlength",
+    "source", "userfingerprint", "sessionfingerprint", "reporterfingerprint", "toolcalls", "name", "status", "metadata",
+    "usage", "prompttokens", "completiontokens", "totaltokens", "cost", "input", "output", "total", "inputcost",
+    "outputcost", "totalcost", "currency", "priceversion", "modelversion", "provider", "model", "prompt", "knowledgebase",
+    "tools", "promptversion", "knowledgebaseversion", "toolschemaversion", "latency", "totalms", "ttftms", "feedbackid", "category", "createdat",
+})
 _METADATA_KEYS = frozenset({"environment", "request_id", "release", "region", "tenant"})
 
 
@@ -23,9 +30,7 @@ def _normalized_key(key: str) -> str:
 
 def _forbidden_key(key: str) -> bool:
     normalized = _normalized_key(key)
-    if normalized in _FORBIDDEN_EXACT:
-        return True
-    return normalized.startswith(("message", "answer", "authorization", "apikey", "token", "arguments", "result", "rawrequest", "rawresponse")) and not normalized.endswith(("fingerprint", "length"))
+    return normalized not in _SAFE_SERIALIZED_KEYS and any(part in normalized for part in _FORBIDDEN_PARTS)
 
 
 def assert_sanitized_payload(value: Any) -> None:
@@ -33,7 +38,6 @@ def assert_sanitized_payload(value: Any) -> None:
         for key, item in value.items():
             if not isinstance(key, str):
                 raise ValueError("payload keys must be strings")
-            normalized = _normalized_key(key)
             if _forbidden_key(key):
                 raise ValueError(f"forbidden field: {key}")
             assert_sanitized_payload(item)

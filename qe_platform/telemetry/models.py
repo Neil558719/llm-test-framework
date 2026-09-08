@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from types import MappingProxyType
 from typing import Any, Mapping
 
 from .redaction import assert_sanitized_payload, fingerprint, sanitize_metadata
@@ -17,6 +18,21 @@ def _number(name: str, value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
         raise ValueError(f"{name} must be a finite nonnegative number")
     return float(value)
+
+
+def _fingerprint(name: str, value: str) -> None:
+    _nonempty(name, value)
+    if len(value) != 64 or any(char not in "0123456789abcdef" for char in value.lower()):
+        raise ValueError(f"{name} must be a SHA-256 hexadecimal fingerprint")
+
+
+def _mapping(name: str, value: Mapping[str, Any], allowed: set[str]) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or not all(isinstance(key, str) for key in value):
+        raise ValueError(f"{name} must be a string-keyed mapping")
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ValueError(f"unknown {name} fields: {', '.join(unknown)}")
+    return MappingProxyType(dict(value))
 
 
 def _utc(value: datetime) -> datetime:
@@ -61,21 +77,44 @@ class TelemetryTrace:
     latency: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        for name in ("trace_id", "application", "request_fingerprint", "answer_fingerprint", "user_fingerprint", "session_fingerprint"):
+        for name in ("trace_id", "application"):
             _nonempty(name, getattr(self, name))
+        for name in ("request_fingerprint", "answer_fingerprint", "user_fingerprint", "session_fingerprint"):
+            _fingerprint(name, getattr(self, name))
         _utc(self.timestamp)
         for name in ("request_length", "answer_length"):
             if isinstance(getattr(self, name), bool) or not isinstance(getattr(self, name), int) or getattr(self, name) < 0:
                 raise ValueError(f"{name} must be a nonnegative integer")
-        for name, value in self.usage.items():
+        usage = _mapping("usage", self.usage, {"prompt_tokens", "completion_tokens", "total_tokens"})
+        for name, value in usage.items():
             _number(f"usage.{name}", value)
+        cost = None
         if self.cost is not None:
-            for name, value in self.cost.items():
-                if name in {"input", "output", "total"}:
+            cost = _mapping("cost", self.cost, {"input", "output", "total", "input_cost", "output_cost", "total_cost", "currency", "price_version"})
+            for name, value in cost.items():
+                if name in {"input", "output", "total", "input_cost", "output_cost", "total_cost"}:
                     _number(f"cost.{name}", value)
-        for name, value in self.latency.items():
-            if name.endswith("_ms"):
+                elif not isinstance(value, str):
+                    raise ValueError(f"cost.{name} must be a string")
+        model_version = _mapping("model_version", self.model_version, {"provider", "model", "prompt", "knowledge_base", "tools", "prompt_version", "knowledge_base_version", "tool_schema_version"})
+        if not all(isinstance(value, str) for value in model_version.values()):
+            raise ValueError("model_version values must be strings")
+        latency = _mapping("latency", self.latency, {"total_ms", "ttft_ms", "status"})
+        for name, value in latency.items():
+            if name in {"total_ms", "ttft_ms"}:
                 _number(f"latency.{name}", value)
+            elif not isinstance(value, str) or not value:
+                raise ValueError("latency.status must be nonempty")
+        metadata = MappingProxyType(sanitize_metadata(self.metadata))
+        tools = tuple(self.tool_calls)
+        if not all(isinstance(tool, ToolSummary) for tool in tools):
+            raise ValueError("tool_calls must contain ToolSummary values")
+        object.__setattr__(self, "usage", usage)
+        object.__setattr__(self, "cost", cost)
+        object.__setattr__(self, "model_version", model_version)
+        object.__setattr__(self, "latency", latency)
+        object.__setattr__(self, "metadata", metadata)
+        object.__setattr__(self, "tool_calls", tools)
         assert_sanitized_payload(self.as_dict())
 
     def as_dict(self) -> dict[str, Any]:

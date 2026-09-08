@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, FeedbackRecord
-from qe_platform.telemetry import TelemetryQuery, ToolSummary, assert_sanitized_payload, build_trace_event
+from qe_platform.telemetry import TelemetryQuery, TelemetryTrace, ToolSummary, assert_sanitized_payload, build_trace_event
 
 
 HASH_KEY = "test-key"
@@ -73,3 +73,37 @@ def test_models_reject_invalid_timestamps_numbers_and_payloads():
         build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={"prompt_tokens": -1}, cost=None, model_version={}, latency={"total_ms": 1, "status": "succeeded"})
     with pytest.raises(ValueError):
         build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost={"total": float("inf")}, model_version={}, latency={"total_ms": 1, "status": "succeeded"})
+
+
+def test_direct_models_reject_plaintext_fingerprints_and_invalid_feedback_timestamp():
+    with pytest.raises(ValueError):
+        TelemetryTrace("trace-1", "service-desk", datetime.now(timezone.utc), "private request", ANSWER_HASH, 1, 1, REPORTER_HASH, REPORTER_HASH)
+    with pytest.raises(ValueError):
+        FeedbackRecord("feedback-1", "trace-1", FeedbackKind.INACCURATE, REPORTER_HASH, "user", "2026-09-08")
+    with pytest.raises(ValueError):
+        FeedbackRecord("feedback-1", "trace-1", FeedbackKind.INACCURATE, "U1001", "user", datetime.now(timezone.utc))
+    with pytest.raises(ValueError):
+        FeedbackRecord("feedback-1", "trace-1", "not-a-kind", REPORTER_HASH, "user", datetime.now(timezone.utc))
+
+
+def test_trace_snapshots_mappings_and_rejects_obvious_sensitive_variants():
+    usage = {"prompt_tokens": 3}
+    trace = build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage=usage, cost=None, model_version={}, latency={"total_ms": 1, "status": "succeeded"})
+    usage["prompt_tokens"] = -1
+    assert trace.as_dict()["usage"] == {"prompt_tokens": 3}
+    for key in ("user_message", "final_answer", "access_token", "tool_result", "auth_header", "client_secret"):
+        with pytest.raises(ValueError, match="forbidden"):
+            assert_sanitized_payload({"outer": {key: "secret"}})
+
+
+def test_feedback_source_and_metrics_version_schemas_are_strict():
+    with pytest.raises(ValueError):
+        FeedbackInput(FeedbackKind.CORRECT, "U1001", "free text source")
+    with pytest.raises(ValueError):
+        build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={"unknown": 1}, cost=None, model_version={}, latency={"total_ms": 1, "status": "succeeded"})
+    with pytest.raises(ValueError):
+        build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost={"input_cost": float("inf")}, model_version={}, latency={"total_ms": 1, "status": "succeeded"})
+    with pytest.raises(ValueError):
+        build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={"provider": []}, latency={"total_ms": 1, "status": "succeeded"})
+    with pytest.raises(ValueError):
+        build_trace_event("trace-1", "service-desk", "U1001", "s1", "x", "y", HASH_KEY, tool_calls=[], metadata={}, usage={}, cost=None, model_version={}, latency={"status": [], "total_ms": 1})
