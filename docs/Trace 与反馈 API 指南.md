@@ -50,7 +50,6 @@ curl -X POST "$QE_TELEMETRY_ENDPOINT" \
     "answer_fingerprint": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
     "request_length": 12,
     "answer_length": 8,
-    "user_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
     "source": {"user_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111", "session_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222"},
     "tool_calls": [{"name": "query_user", "status": "succeeded"}],
     "metadata": {}, "usage": {}, "cost": null,

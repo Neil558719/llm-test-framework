@@ -62,6 +62,13 @@ def test_m15_guide_uses_environment_only_secret_examples():
     assert "Bearer " not in guide
 
 
+def test_m15_trace_example_uses_nested_source_shape():
+    guide = GUIDE.read_text(encoding="utf-8")
+    example = guide.split("```bash", 1)[1].split("```", 1)[0]
+    assert '"source": {"user_fingerprint"' in example
+    assert '    "user_fingerprint":' not in example
+
+
 def test_readme_links_to_trace_feedback_guide_and_keeps_fastgpt_out_of_m15():
     readme = README.read_text(encoding="utf-8")
 
