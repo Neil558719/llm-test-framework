@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping, Protocol
 from urllib.parse import unquote, urlparse
 
+import yaml
+
 from qe_platform.feedback import (
     FeedbackInput,
     FeedbackKind,
@@ -22,6 +24,8 @@ from qe_platform.feedback import (
     ReviewPriority,
     ReviewStatus,
 )
+import qe_platform.feedback.promotion as _promotion
+from qe_platform.scenarios import load_scenario_text
 from qe_platform.telemetry import TelemetryQuery, TelemetryTrace, ToolSummary, VersionFingerprint
 from qe_platform.telemetry.redaction import assert_sanitized_payload
 
@@ -446,6 +450,17 @@ class SQLiteTelemetryRepository:
             ).fetchone()
             if source is None:
                 raise KeyError("feedback not found")
+            source = self._connection.execute(
+                """
+                SELECT feedback.feedback_id, feedback.trace_id
+                FROM telemetry_feedback AS feedback
+                JOIN telemetry_traces AS trace ON trace.trace_id = feedback.trace_id
+                WHERE feedback.feedback_id = ? AND trace.timestamp > ?
+                """,
+                (feedback_id, self._cutoff(None)),
+            ).fetchone()
+            if source is None:
+                raise KeyError("feedback not found")
             existing = self._connection.execute(
                 "SELECT review_id, created_at FROM telemetry_reviews WHERE feedback_id = ?",
                 (feedback_id,),
@@ -584,7 +599,8 @@ class SQLiteTelemetryRepository:
                 return _hydrate_promotion(existing)
             source = self._connection.execute(
                 """
-                SELECT review.review_id, review.feedback_id, review.trace_id
+                SELECT review.review_id, review.feedback_id, review.trace_id,
+                       review.status, feedback.category
                 FROM telemetry_reviews AS review
                 JOIN telemetry_feedback AS feedback ON feedback.feedback_id = review.feedback_id
                 WHERE review.review_id = ?
@@ -593,6 +609,18 @@ class SQLiteTelemetryRepository:
             ).fetchone()
             if source is None:
                 raise KeyError("review not found")
+            if source[3] != ReviewStatus.CONFIRMED.value:
+                raise ValueError("review must be confirmed before promotion")
+            if source[4] == FeedbackKind.CORRECT.value:
+                raise ValueError("only low-quality feedback can be promoted")
+            try:
+                scenario_data = yaml.safe_load(scenario_yaml)
+                _promotion._validate_scenario_safety(scenario_data)
+                loaded = load_scenario_text(scenario_yaml, source="<promotion>")
+            except (TypeError, yaml.YAMLError, ValueError) as exc:
+                raise ValueError(f"invalid promotion scenario: {exc}") from exc
+            if len(loaded) != 1 or loaded[0].id != scenario_id:
+                raise ValueError("invalid promotion scenario: scenario id mismatch")
             record = PromotionRecord(
                 uuid.uuid4().hex if promotion_id is None else promotion_id,
                 source[0],

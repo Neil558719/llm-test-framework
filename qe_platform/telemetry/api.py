@@ -211,8 +211,6 @@ def create_telemetry_app(
         limit: str = "100",
         offset: str = "0",
     ) -> Response:
-        if not feedback_id and not trace_id:
-            bad_request()
         try:
             reviews = repo.list_reviews(
                 feedback_id=feedback_id,

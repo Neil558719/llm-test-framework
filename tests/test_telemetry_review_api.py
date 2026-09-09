@@ -61,6 +61,9 @@ def test_review_and_promotion_api_returns_safe_idempotent_yaml(tmp_path):
     listed = client.get("/api/reviews", params={"trace_id": "trace-1", "status": "confirmed"})
     assert listed.status_code == 200
     assert [item["review_id"] for item in listed.json()["reviews"]] == [review["review_id"]]
+    status_only = client.get("/api/reviews", params={"status": "confirmed"})
+    assert status_only.status_code == 200
+    assert [item["review_id"] for item in status_only.json()["reviews"]] == [review["review_id"]]
 
 
 def test_promotion_api_rejects_correct_feedback_and_sensitive_or_invalid_drafts(tmp_path):
