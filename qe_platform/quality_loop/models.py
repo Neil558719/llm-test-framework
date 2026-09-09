@@ -9,7 +9,7 @@ from qe_platform.telemetry.redaction import assert_sanitized_payload
 
 
 def _text(value: Any, name: str, *, required: bool = True) -> str:
-    if not isinstance(value, str) or (required and not value) or "\n" in value or "\r" in value or "\x00" in value:
+    if not isinstance(value, str) or (required and not value) or any(ord(char) < 32 or ord(char) == 127 for char in value):
         raise ValueError(f"{name} must be a safe nonempty string" if required else f"{name} must be a safe string")
     return value
 
@@ -71,6 +71,7 @@ class OfflineRun:
     def __post_init__(self) -> None:
         for name in ("run_id", "application", "release_id", "version", "environment", "source_label"):
             _text(getattr(self, name), name)
+        assert_sanitized_payload(self.source_label)
         start = _utc(self.started_at, "started_at")
         finish = _utc(self.finished_at, "finished_at")
         if finish < start:
@@ -242,11 +243,22 @@ def _scenario_values(payload: Mapping[str, Any]) -> tuple[list[Mapping[str, Any]
 def parse_run_report(payload: Mapping[str, Any], source_label: str) -> OfflineRun:
     if not isinstance(payload, Mapping):
         raise ValueError("run report must be a mapping")
-    assert_sanitized_payload(payload)
     required = ("run_id", "started_at", "finished_at", "application", "release_id", "version", "environment", "total", "passed", "failed", "gate_passed", "scenarios")
     if any(key not in payload for key in required):
         raise ValueError("run report is missing required fields")
+    # RunReport scenarios deliberately include rich execution details (responses,
+    # tool arguments, and assertions).  Validate and persist only the aggregate
+    # contract while ignoring those known rich fields entirely.
+    rich_fields = frozenset({
+        "steps", "tool_calls", "final_assertions", "quality_checks", "source",
+        "scenario_name", "session_id", "failed_assertions", "business_state_differences",
+        "model_versions", "started_at", "finished_at",
+    })
+    top_level = {key: value for key, value in payload.items() if key != "scenarios"}
+    assert_sanitized_payload(top_level)
     rows, scenario_ids = _scenario_values(payload)
+    for item in rows:
+        assert_sanitized_payload({key: value for key, value in item.items() if key not in rich_fields})
     total = _count(payload["total"], "total")
     passed = _count(payload["passed"], "passed")
     failed = _count(payload["failed"], "failed")

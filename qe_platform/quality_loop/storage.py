@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from qe_platform.storage.telemetry import _sqlite_path
+
 from .models import OfflineRun, QualityLink, ReleaseValidation, parse_run_report
 
 
@@ -31,7 +33,7 @@ class SQLiteQualityRepository:
             raise ValueError("retention_days must be a positive integer")
         self.retention_days = retention_days
         self._lock = threading.RLock()
-        self._connection = sqlite3.connect(str(database), check_same_thread=False, isolation_level=None)
+        self._connection = sqlite3.connect(str(_sqlite_path(database)), check_same_thread=False, isolation_level=None)
         with self._lock:
             self._connection.execute("PRAGMA foreign_keys=ON")
             self._connection.executescript(
@@ -118,10 +120,17 @@ class SQLiteQualityRepository:
         value["checks"] = tuple(ReleaseCheck(**item) for item in value["checks"])
         return ReleaseValidation(**value)
 
-    def import_run(self, report: dict[str, Any], *, source_label: str) -> OfflineRun:
+    def import_run(self, report: dict[str, Any], *, source_label: str, now: datetime | None = None) -> OfflineRun:
+        # Run the payload safety check before path-shape validation so a label
+        # containing credentials cannot be used to probe storage errors.
+        from qe_platform.telemetry.redaction import assert_sanitized_payload
+
+        assert_sanitized_payload(source_label)
         if "/" in source_label or "\\" in source_label or ":" in source_label:
             raise ValueError("source_label must not be an absolute path")
         run = parse_run_report(report, source_label)
+        if run.started_at <= self._cutoff(now):
+            raise ValueError("offline run is expired")
         payload = json.dumps(run.as_dict(), ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         with self._transaction():
             existing = self._connection.execute(

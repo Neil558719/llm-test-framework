@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from qe_platform.quality_loop.models import ReleaseGatePolicy, parse_run_report
@@ -75,6 +77,14 @@ def test_parse_run_report_calculates_counts_and_stable_scenario_ids():
     assert run.total_tokens == 20
     assert run.total_cost == pytest.approx(0.2)
     assert run.source_label == "fixture"
+
+
+def test_parse_run_report_accepts_generated_rich_report_but_stores_only_aggregates():
+    payload = _report_payload()
+    payload["scenarios"][0]["steps"] = [{"response": {"answer": "raw answer must not persist"}, "user": "raw question"}]
+    payload["scenarios"][0]["tool_calls"] = [{"name": "create_ticket", "arguments": {"secret": "private"}}]
+    run = parse_run_report(payload, source_label="fixture")
+    assert "raw answer" not in json.dumps(run.as_dict())
 
 
 @pytest.mark.parametrize(

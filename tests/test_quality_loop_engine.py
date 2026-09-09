@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from qe_platform.feedback import FeedbackInput, FeedbackKind, ReviewAttribution, ReviewPriority, ReviewStatus
-from qe_platform.quality_loop.engine import build_quality_links, build_trends, validate_release
+from qe_platform.quality_loop.engine import build_quality_links, build_trends, quality_summary, validate_release
 from qe_platform.quality_loop.models import ReleaseGatePolicy
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
 from qe_platform.storage import SQLiteTelemetryRepository
@@ -153,3 +153,67 @@ def test_validate_release_enforces_optional_application_and_release_identity(tmp
     )
     assert result.passed is False
     assert any(item.name == "candidate_application" and not item.passed for item in result.checks)
+
+
+def test_trend_p95_does_not_merge_offline_summary_with_online_samples(tmp_path):
+    quality, _, _ = _setup_database(tmp_path)
+    quality.import_run(
+        _report_payload(
+            run_id="offline-same-day",
+            release_id="alpha-23",
+            version="new",
+            started_at="2026-08-29T01:00:00Z",
+            finished_at="2026-08-29T01:00:02Z",
+            scenarios=[
+                {
+                    "scenario_id": "ticket-create-vpn",
+                    "passed": True,
+                    "complete": True,
+                    "steps": [],
+                    "usage": {"total_tokens": 1},
+                    "cost": {"total": 0.01, "currency": "USD"},
+                    "latency_ms": 1000,
+                },
+                {
+                    "scenario_id": "vpn-recovery-regression",
+                    "passed": True,
+                    "complete": True,
+                    "steps": [],
+                    "usage": {"total_tokens": 1},
+                    "cost": {"total": 0.01, "currency": "USD"},
+                    "latency_ms": 1000,
+                },
+            ],
+        ),
+        source_label="fixture",
+    )
+    quality.online_rows = lambda **_: [{
+        "trace_id": "online-sample",
+        "application": "reference-agent",
+        "timestamp": "2026-08-29T00:30:00.000000Z",
+        "version": "new",
+        "latency_ms": 12.5,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "feedback_count": 0,
+        "confirmed_low_quality_count": 0,
+    }]
+    points = build_trends(quality, version="new", now=utc("2026-09-01T00:00:00+00:00"))
+    point = next(item for item in points if item.bucket == "2026-08-29")
+    assert point.p95_latency_ms == 12.5
+
+
+def test_quality_summary_returns_validation_and_safe_associations(tmp_path):
+    quality, baseline, candidate = _setup_database(tmp_path)
+    validate_release(
+        quality,
+        baseline.run_id,
+        candidate.run_id,
+        ReleaseGatePolicy(max_low_quality_rate_increase=1.0),
+        now=utc("2026-09-01T00:00:00+00:00"),
+        validation_id="summary-validation",
+    )
+    summary = quality_summary(quality, "summary-validation", now=utc("2026-09-01T00:00:00+00:00"))
+    assert summary["validation"]["validation_id"] == "summary-validation"
+    assert summary["candidate"]["run_id"] == candidate.run_id
+    assert summary["links"][0]["scenario_id"] == "vpn-recovery-regression"

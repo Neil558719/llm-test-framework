@@ -55,7 +55,8 @@ def build_trends(
             "offline_run_count": 0,
             "offline_passed": 0,
             "offline_total": 0,
-            "latencies": [],
+            "online_latencies": [],
+            "offline_p95s": [],
             "total_tokens": 0,
             "total_cost": 0.0,
         }
@@ -78,7 +79,7 @@ def build_trends(
         group["feedback_count"] += row["feedback_count"]
         group["confirmed_low_quality_count"] += row["confirmed_low_quality_count"]
         if row["latency_ms"] > 0:
-            group["latencies"].append(row["latency_ms"])
+            group["online_latencies"].append(row["latency_ms"])
         group["total_tokens"] += row["total_tokens"]
         group["total_cost"] += row["total_cost"]
 
@@ -91,7 +92,7 @@ def build_trends(
         group["offline_passed"] += run.passed
         group["offline_total"] += run.total
         if run.p95_latency_ms is not None:
-            group["latencies"].append(run.p95_latency_ms)
+            group["offline_p95s"].append(run.p95_latency_ms)
         group["total_tokens"] += run.total_tokens
         group["total_cost"] += run.total_cost
 
@@ -110,7 +111,15 @@ def build_trends(
                 low_quality_rate=(group["confirmed_low_quality_count"] / feedback) if feedback else None,
                 offline_run_count=group["offline_run_count"],
                 offline_pass_rate=(group["offline_passed"] / offline_total) if offline_total else None,
-                p95_latency_ms=_percentile(group["latencies"], 0.95),
+                # Raw online samples can be combined into a percentile.  An
+                # offline p95 is already a summary, so never mix it into the
+                # online sample distribution; expose it only when it is the
+                # sole latency source for the bucket.
+                p95_latency_ms=(
+                    _percentile(group["online_latencies"], 0.95)
+                    if group["online_latencies"]
+                    else (group["offline_p95s"][0] if len(group["offline_p95s"]) == 1 else None)
+                ),
                 total_tokens=group["total_tokens"],
                 total_cost=group["total_cost"],
             )
@@ -229,3 +238,34 @@ def validate_release(
         (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
     )
     return repository.save_validation(result)
+
+
+def quality_summary(
+    repository: SQLiteQualityRepository,
+    validation_id: str,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Return a safe, navigable release result and its explicit associations."""
+    validation = repository.get_validation(validation_id)
+    if validation is None:
+        raise KeyError("release validation not found")
+    baseline = repository.get_run(validation.baseline_run_id, now=now)
+    candidate = repository.get_run(validation.candidate_run_id, now=now)
+    if baseline is None or candidate is None:
+        raise KeyError("release validation references an expired or missing run")
+    return {
+        "validation": validation.as_dict(),
+        "baseline": baseline.as_dict(),
+        "candidate": candidate.as_dict(),
+        "links": [item.as_dict() for item in repository.list_links(offline_run_id=candidate.run_id, now=now)],
+        "trends": [
+            item.as_dict()
+            for item in build_trends(
+                repository,
+                application=candidate.application,
+                version=candidate.version,
+                now=now,
+            )
+        ],
+    }

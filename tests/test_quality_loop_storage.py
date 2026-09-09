@@ -8,7 +8,7 @@ import pytest
 from qe_platform.feedback import FeedbackInput, FeedbackKind, ReviewAttribution, ReviewPriority, ReviewStatus
 from qe_platform.quality_loop.models import ReleaseCheck, ReleaseGatePolicy, ReleaseValidation
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
-from qe_platform.storage import SQLiteTelemetryRepository
+from qe_platform.storage import SQLiteTelemetryRepository, create_telemetry_repository
 from tests.test_quality_loop_models import _report_payload
 from tests.test_telemetry_storage import trace_at, utc
 
@@ -40,6 +40,20 @@ def test_offline_run_import_is_idempotent_and_filters_sensitive_payload(tmp_path
 
     with pytest.raises(ValueError, match="forbidden|sensitive"):
         repository.import_run(_report_payload(scenarios=[{"scenario_id": "s", "answer": "raw answer"}]), source_label="fixture")
+
+    with pytest.raises(ValueError, match="expired"):
+        repository.import_run(
+            _report_payload(
+                run_id="expired-run",
+                started_at="2026-07-01T00:00:00Z",
+                finished_at="2026-07-01T00:00:02Z",
+            ),
+            source_label="fixture",
+            now=utc("2026-09-01T00:00:00+00:00"),
+        )
+
+    with pytest.raises(ValueError, match="sensitive"):
+        repository.import_run(_report_payload(run_id="sensitive-label"), source_label="Authorization: Bearer secret")
 
 
 def test_link_requires_matching_unexpired_promotion_and_scenario(tmp_path):
@@ -97,3 +111,11 @@ def test_storage_rejects_invalid_validation_id(tmp_path):
     repository = SQLiteQualityRepository(tmp_path / "telemetry.db")
     with pytest.raises(ValueError):
         repository.get_validation("")
+
+
+def test_quality_repository_uses_the_same_file_for_sqlite_uri(tmp_path):
+    uri = f"sqlite:///{(tmp_path / 'uri.db').as_posix()}"
+    telemetry = create_telemetry_repository(uri, hash_key="test-key")
+    telemetry.upsert_trace(trace_at("2026-08-29T00:00:00+00:00"))
+    quality = SQLiteQualityRepository(uri)
+    assert quality.online_rows(now=utc("2026-09-01T00:00:00+00:00"))[0]["trace_id"] == "trace-1"
