@@ -30,10 +30,10 @@ def test_m16_guide_documents_structured_review_and_promotion_boundary():
     assert "FastGPT" not in guide
 
 
-def test_readme_links_to_m16_guide_without_claiming_m17():
+def test_readme_links_to_m16_and_m17_guides():
     readme = README.read_text(encoding="utf-8")
     assert "docs/人工复核与回归晋级指南.md" in readme
-    assert "趋势与线上离线发布验证仍属于 M17" in readme
+    assert "docs/趋势、线上离线关联与发布验证指南.md" in readme
 
 
 def test_ci_runs_m16_contract_with_ephemeral_configuration():
@@ -54,10 +54,10 @@ def test_ci_runs_m16_contract_with_ephemeral_configuration():
     assert "FastGPT" not in commands
 
 
-def test_status_table_records_m16_scope_and_keeps_m17_unstarted():
+def test_status_table_records_m16_scope_and_tracks_m17_state():
     process = PROCESS.read_text(encoding="utf-8")
     row = next(line for line in process.splitlines() if line.startswith("| 16. 人工复核与回归晋级 |"))
     assert "交付进行中" in row or "已完成" in row
     assert "复核" in row and "YAML" in row and "离线" in row
     m17 = next(line for line in process.splitlines() if line.startswith("| 17. 趋势、线上离线关联与发布验证 |"))
-    assert "未开始" in m17
+    assert any(value in m17 for value in ("未开始", "进行中", "已完成"))
