@@ -90,4 +90,9 @@ def test_review_api_rejects_extra_fields_and_missing_records(tmp_path):
         json={"reviewer_id": "r", "status": "confirmed", "attribution": "model", "priority": "low", "note": "free text"},
     )
     assert response.status_code == 400
+    invalid = client.post(
+        "/api/feedback/missing/review",
+        json={"reviewer_id": "r", "status": "invalid", "attribution": "model", "priority": "low"},
+    )
+    assert invalid.status_code == 400
     assert client.get("/api/reviews/missing").status_code == 404

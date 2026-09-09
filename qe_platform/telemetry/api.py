@@ -193,6 +193,8 @@ def create_telemetry_app(
                 parse_review_attribution(payload["attribution"]),
                 parse_review_priority(payload["priority"]),
             )
+        except HTTPException:
+            raise
         except KeyError:
             raise HTTPException(status_code=404, detail="feedback not found")
         except ValueError:
