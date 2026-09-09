@@ -12,6 +12,8 @@ from qe_platform.feedback import (
 )
 from qe_platform.feedback.promotion import promote_review
 from qe_platform.scenarios import load_scenario_text
+from qe_platform.workflow_runner import ScenarioRunner
+from llmtest import ResponseEnvelope
 
 
 def review_for(category=FeedbackKind.INACCURATE):
@@ -50,6 +52,14 @@ def test_promote_review_returns_yaml_that_round_trips_through_existing_loader():
     assert loaded[0].id == "promoted-1"
     assert loaded[0].conversation[0].user == "VPN is unavailable"
     assert "feedback-1" not in record.scenario_yaml
+
+    class StubAdapter:
+        def send(self, user, *, user_id, session_id):
+            return ResponseEnvelope(answer="ticket created")
+
+    result = ScenarioRunner(lambda setup: StubAdapter()).run(loaded[0])
+    assert result.passed is True
+    assert result.as_dict()["scenario_id"] == "promoted-1"
 
 
 def test_promote_review_rejects_correct_feedback_or_unconfirmed_review():
