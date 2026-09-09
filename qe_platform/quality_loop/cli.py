@@ -92,6 +92,16 @@ def main(argv: list[str] | None = None) -> int:
         result = validate_release(repository, args.baseline, args.candidate, policy)
         payload = result.as_dict()
         payload["links"] = [item.as_dict() for item in build_quality_links(repository, offline_run_id=args.candidate)]
+        baseline = repository.get_run(args.baseline)
+        candidate = repository.get_run(args.candidate)
+        if baseline is not None:
+            payload["baseline"] = baseline.as_dict()
+        if candidate is not None:
+            payload["candidate"] = candidate.as_dict()
+            payload["trends"] = [
+                item.as_dict()
+                for item in build_trends(repository, application=candidate.application, version=candidate.version)
+            ]
         write_quality_json(payload, args.json_path)
         write_quality_html(payload, args.html_path)
         return 0 if result.passed else 1
