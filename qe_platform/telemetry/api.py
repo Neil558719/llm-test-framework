@@ -8,7 +8,7 @@ from typing import Any, Mapping
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
-from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery
+from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, ReviewAttribution, ReviewPriority, ReviewStatus, promote_review
 from qe_platform.storage import TelemetryRepository, create_telemetry_repository
 from qe_platform.storage.telemetry import _hydrate_trace
 from qe_platform.telemetry import TelemetryQuery, TelemetryTrace
@@ -63,6 +63,24 @@ def create_telemetry_app(
             return None
         try:
             return FeedbackKind(value)
+        except ValueError:
+            bad_request()
+
+    def parse_review_status(value: str) -> ReviewStatus:
+        try:
+            return ReviewStatus(value)
+        except ValueError:
+            bad_request()
+
+    def parse_review_attribution(value: str) -> ReviewAttribution:
+        try:
+            return ReviewAttribution(value)
+        except ValueError:
+            bad_request()
+
+    def parse_review_priority(value: str) -> ReviewPriority:
+        try:
+            return ReviewPriority(value)
         except ValueError:
             bad_request()
 
@@ -158,5 +176,115 @@ def create_telemetry_app(
             return JSONResponse({"feedback": [record.as_dict() for record in repo.list_feedback(query, now=datetime.now(timezone.utc))]})
         except Exception:
             return Response(status_code=500)
+
+    @app.post("/api/feedback/{feedback_id}/review")
+    async def add_review(feedback_id: str, request: Request) -> Response:
+        payload = await read_mapping(request)
+        if set(payload) != {"reviewer_id", "status", "attribution", "priority"}:
+            bad_request()
+        if not all(isinstance(payload[key], str) for key in payload):
+            bad_request()
+        try:
+            existing = repo.list_reviews(feedback_id=feedback_id, now=datetime.now(timezone.utc))
+            review = repo.upsert_review(
+                feedback_id,
+                payload["reviewer_id"],
+                parse_review_status(payload["status"]),
+                parse_review_attribution(payload["attribution"]),
+                parse_review_priority(payload["priority"]),
+            )
+        except HTTPException:
+            raise
+        except KeyError:
+            raise HTTPException(status_code=404, detail="feedback not found")
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse(review.as_dict(), status_code=200 if existing else 201)
+
+    @app.get("/api/reviews")
+    def list_reviews(
+        feedback_id: str = "",
+        trace_id: str = "",
+        status: str = "",
+        limit: str = "100",
+        offset: str = "0",
+    ) -> Response:
+        try:
+            reviews = repo.list_reviews(
+                feedback_id=feedback_id,
+                trace_id=trace_id,
+                status=parse_review_status(status) if status else None,
+                limit=parse_int(limit, minimum=1, maximum=100),
+                offset=parse_int(offset, minimum=0),
+                now=datetime.now(timezone.utc),
+            )
+        except HTTPException:
+            raise
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse({"reviews": [review.as_dict() for review in reviews]})
+
+    @app.get("/api/reviews/{review_id}")
+    def get_review(review_id: str) -> Response:
+        try:
+            review = repo.get_review(review_id, now=datetime.now(timezone.utc))
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        if review is None:
+            raise HTTPException(status_code=404, detail="review not found")
+        payload = review.as_dict()
+        try:
+            promotion = repo.get_promotion_for_review(review.review_id, now=datetime.now(timezone.utc))
+        except Exception:
+            return Response(status_code=500)
+        if promotion is not None:
+            payload["promotion_id"] = promotion.promotion_id
+            payload["scenario_id"] = promotion.scenario_id
+        return JSONResponse(payload)
+
+    @app.post("/api/reviews/{review_id}/promote")
+    async def promote(review_id: str, request: Request) -> Response:
+        payload = await read_mapping(request)
+        if set(payload) != {"scenario"} or not isinstance(payload["scenario"], Mapping):
+            bad_request()
+        try:
+            review = repo.get_review(review_id, now=datetime.now(timezone.utc))
+            if review is None:
+                raise HTTPException(status_code=404, detail="review not found")
+            feedback = repo.get_feedback(review.feedback_id, now=datetime.now(timezone.utc))
+            if feedback is None:
+                raise HTTPException(status_code=404, detail="feedback not found")
+            generated = promote_review(review, feedback, payload["scenario"])
+            stored = repo.create_promotion(
+                review.review_id,
+                generated.scenario_id,
+                generated.scenario_yaml,
+                promotion_id=generated.promotion_id,
+            )
+        except HTTPException:
+            raise
+        except (KeyError, ValueError):
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse(stored.as_dict(), status_code=201 if stored.promotion_id == generated.promotion_id else 200)
+
+    @app.get("/api/promotions/{promotion_id}")
+    def get_promotion(promotion_id: str) -> Response:
+        try:
+            promotion = repo.get_promotion(promotion_id, now=datetime.now(timezone.utc))
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        if promotion is None:
+            raise HTTPException(status_code=404, detail="promotion not found")
+        return JSONResponse(promotion.as_dict())
 
     return app
