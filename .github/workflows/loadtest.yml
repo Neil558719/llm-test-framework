@@ -118,3 +118,21 @@ jobs:
       - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
       - name: Run offline telemetry contract
         run: python -m pytest -q tests/test_telemetry_models.py tests/test_telemetry_storage.py tests/test_telemetry_api.py tests/test_telemetry_cli.py tests/test_reference_agent_telemetry.py tests/test_reference_agent_deployment_config.py tests/test_m15_docs.py
+
+  m16-review-promotion-contract:
+    name: M16 review and promotion contract
+    runs-on: ubuntu-latest
+    env:
+      QE_TELEMETRY_DATABASE: /tmp/m16-telemetry.db
+      QE_TELEMETRY_HASH_KEY: m16-ci-ephemeral-hash-key
+      QE_TELEMETRY_INGEST_TOKEN: m16-ci-ephemeral-ingest-token
+      QE_TELEMETRY_RETENTION_DAYS: "30"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - name: Run offline review and promotion contract
+        run: python -m pytest -q tests/test_feedback_review_models.py tests/test_feedback_promotion.py tests/test_telemetry_review_storage.py tests/test_telemetry_review_api.py tests/test_m16_docs.py
