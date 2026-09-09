@@ -121,14 +121,11 @@ class SQLiteQualityRepository:
         return ReleaseValidation(**value)
 
     def import_run(self, report: dict[str, Any], *, source_label: str, now: datetime | None = None) -> OfflineRun:
-        # Run the payload safety check before path-shape validation so a label
-        # containing credentials cannot be used to probe storage errors.
-        from qe_platform.telemetry.redaction import assert_sanitized_payload
-
-        assert_sanitized_payload(source_label)
+        # Parse first so type, control-character, and sensitive-value checks
+        # produce a consistent ValueError before path-shape validation.
+        run = parse_run_report(report, source_label)
         if "/" in source_label or "\\" in source_label or ":" in source_label:
             raise ValueError("source_label must not be an absolute path")
-        run = parse_run_report(report, source_label)
         if run.started_at <= self._cutoff(now):
             raise ValueError("offline run is expired")
         payload = json.dumps(run.as_dict(), ensure_ascii=True, separators=(",", ":"), sort_keys=True)
