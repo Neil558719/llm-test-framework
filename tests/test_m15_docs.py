@@ -111,17 +111,18 @@ def test_ci_runs_m15_telemetry_contract_offline_with_ephemeral_configuration():
     assert "FastGPT" not in commands
 
 
-def test_milestone_status_records_m15_acceptance_and_pending_lifecycle():
+def test_milestone_status_records_m15_delivery_evidence_and_remaining_boundaries():
     process = PROCESS.read_text(encoding="utf-8")
 
     row = next(line for line in process.splitlines() if line.startswith("| 15. Trace 存储与反馈 API |"))
-    assert "实现完成（交付进行中）" in row
+    assert "已完成（本机类生产交付）" in row
     assert "qe_platform/telemetry" in row
     assert "qe_platform/storage" in row
     assert "qe_platform/feedback" in row
     assert "reference_agent/app.py" in row
     assert "tests/test_m15_docs.py" in row
     assert "本地验收" in row
-    for pending in ("Push", "Pull Request", "GitHub Actions", "代码审查", "合并", "Release", "部署", "issue tracking"):
-        assert pending in row
-    assert "发布条件未满足" in row
+    assert "#53" in row and "v0.2.0-alpha.21" in row
+    assert "Smoke `4/4`" in row and "SQLite 完整性 `ok`" in row
+    assert "#52" in row and "已关闭" in row
+    assert "共享环境读/反馈鉴权" in row
