@@ -116,10 +116,9 @@ def test_milestone_status_records_m15_delivery_evidence_and_remaining_boundaries
 
     row = next(line for line in process.splitlines() if line.startswith("| 15. Trace 存储与反馈 API |"))
     assert "已完成（本机类生产交付）" in row
-    assert "qe_platform/telemetry" in row
-    assert "qe_platform/storage" in row
-    assert "qe_platform/feedback" in row
-    assert "reference_agent/app.py" in row
+    assert "脱敏 Trace/反馈模型" in row
+    assert "SQLite Trace/反馈仓储" in row
+    assert "Reference Agent" in row
     assert "tests/test_m15_docs.py" in row
     assert "本地验收" in row
     assert "#53" in row and "v0.2.0-alpha.21" in row
