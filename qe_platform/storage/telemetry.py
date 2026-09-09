@@ -11,7 +11,17 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping, Protocol
 from urllib.parse import unquote, urlparse
 
-from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, FeedbackRecord
+from qe_platform.feedback import (
+    FeedbackInput,
+    FeedbackKind,
+    FeedbackQuery,
+    FeedbackRecord,
+    FeedbackReview,
+    PromotionRecord,
+    ReviewAttribution,
+    ReviewPriority,
+    ReviewStatus,
+)
 from qe_platform.telemetry import TelemetryQuery, TelemetryTrace, ToolSummary, VersionFingerprint
 from qe_platform.telemetry.redaction import assert_sanitized_payload
 
@@ -46,6 +56,32 @@ class TelemetryRepository(Protocol):
     def add_feedback(self, value: FeedbackInput, trace_id: str) -> FeedbackRecord: ...
 
     def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None) -> list[FeedbackRecord]: ...
+
+    def upsert_review(
+        self,
+        feedback_id: str,
+        reviewer_id: str,
+        status: ReviewStatus | str,
+        attribution: ReviewAttribution | str,
+        priority: ReviewPriority | str,
+    ) -> FeedbackReview: ...
+
+    def get_review(self, review_id: str, *, now: datetime | None = None) -> FeedbackReview | None: ...
+
+    def list_reviews(
+        self,
+        *,
+        feedback_id: str = "",
+        trace_id: str = "",
+        status: ReviewStatus | str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        now: datetime | None = None,
+    ) -> list[FeedbackReview]: ...
+
+    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str) -> PromotionRecord: ...
+
+    def get_promotion(self, promotion_id: str, *, now: datetime | None = None) -> PromotionRecord | None: ...
 
     def prune_expired(self, *, now: datetime) -> int: ...
 
@@ -90,6 +126,32 @@ class _StoredTelemetryTrace(TelemetryTrace):
         super().__post_init__()
         if isinstance(self.feedback_count, bool) or not isinstance(self.feedback_count, int) or self.feedback_count < 0:
             raise ValueError("feedback_count must be a nonnegative integer")
+
+
+def _hydrate_review(row: tuple[Any, ...]) -> FeedbackReview:
+    return FeedbackReview(
+        review_id=row[0],
+        feedback_id=row[1],
+        trace_id=row[2],
+        reviewer_fingerprint=row[3],
+        status=ReviewStatus(row[4]),
+        attribution=ReviewAttribution(row[5]),
+        priority=ReviewPriority(row[6]),
+        created_at=_parse_timestamp(row[7]),
+        updated_at=_parse_timestamp(row[8]),
+    )
+
+
+def _hydrate_promotion(row: tuple[Any, ...]) -> PromotionRecord:
+    return PromotionRecord(
+        promotion_id=row[0],
+        review_id=row[1],
+        feedback_id=row[2],
+        trace_id=row[3],
+        scenario_id=row[4],
+        scenario_yaml=row[5],
+        created_at=_parse_timestamp(row[6]),
+    )
 
 
 def _hydrate_trace(payload_text: str, feedback_count: int = 0) -> _StoredTelemetryTrace:
@@ -160,6 +222,30 @@ class SQLiteTelemetryRepository:
                 );
                 CREATE INDEX IF NOT EXISTS idx_telemetry_feedback_timestamp_id
                     ON telemetry_feedback(created_at DESC, feedback_id DESC);
+                CREATE TABLE IF NOT EXISTS telemetry_reviews (
+                    review_id TEXT PRIMARY KEY,
+                    feedback_id TEXT NOT NULL UNIQUE REFERENCES telemetry_feedback(feedback_id) ON DELETE CASCADE,
+                    trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE,
+                    reviewer_fingerprint TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    attribution TEXT NOT NULL,
+                    priority TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_telemetry_reviews_updated_id
+                    ON telemetry_reviews(updated_at DESC, review_id DESC);
+                CREATE TABLE IF NOT EXISTS telemetry_promotions (
+                    promotion_id TEXT PRIMARY KEY,
+                    review_id TEXT NOT NULL UNIQUE REFERENCES telemetry_reviews(review_id) ON DELETE CASCADE,
+                    feedback_id TEXT NOT NULL REFERENCES telemetry_feedback(feedback_id) ON DELETE CASCADE,
+                    trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE,
+                    scenario_id TEXT NOT NULL,
+                    scenario_yaml TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_telemetry_promotions_created_id
+                    ON telemetry_promotions(created_at DESC, promotion_id DESC);
                 """
             )
 
@@ -315,6 +401,216 @@ class SQLiteTelemetryRepository:
             )
             for row in rows
         ]
+
+    def upsert_review(
+        self,
+        feedback_id: str,
+        reviewer_id: str,
+        status: ReviewStatus | str,
+        attribution: ReviewAttribution | str,
+        priority: ReviewPriority | str,
+    ) -> FeedbackReview:
+        if not isinstance(feedback_id, str) or not feedback_id:
+            raise ValueError("feedback_id must be nonempty")
+        with self._transaction():
+            source = self._connection.execute(
+                "SELECT feedback_id, trace_id FROM telemetry_feedback WHERE feedback_id = ?",
+                (feedback_id,),
+            ).fetchone()
+            if source is None:
+                raise KeyError("feedback not found")
+            existing = self._connection.execute(
+                "SELECT review_id, created_at FROM telemetry_reviews WHERE feedback_id = ?",
+                (feedback_id,),
+            ).fetchone()
+            review_id = existing[0] if existing is not None else uuid.uuid4().hex
+            created_at = _parse_timestamp(existing[1]) if existing is not None else datetime.now(timezone.utc)
+            review = FeedbackReview.from_input(
+                review_id,
+                source[0],
+                source[1],
+                reviewer_id,
+                status,
+                attribution,
+                priority,
+                self._hash_key,
+                created_at=created_at,
+            )
+            updated_at = datetime.now(timezone.utc)
+            self._connection.execute(
+                """
+                INSERT INTO telemetry_reviews(
+                    review_id, feedback_id, trace_id, reviewer_fingerprint, status,
+                    attribution, priority, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(feedback_id) DO UPDATE SET
+                    reviewer_fingerprint=excluded.reviewer_fingerprint,
+                    status=excluded.status,
+                    attribution=excluded.attribution,
+                    priority=excluded.priority,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    review.review_id,
+                    review.feedback_id,
+                    review.trace_id,
+                    review.reviewer_fingerprint,
+                    review.status.value,
+                    review.attribution.value,
+                    review.priority.value,
+                    _timestamp(review.created_at),
+                    _timestamp(updated_at),
+                ),
+            )
+            return FeedbackReview(
+                review.review_id,
+                review.feedback_id,
+                review.trace_id,
+                review.reviewer_fingerprint,
+                review.status,
+                review.attribution,
+                review.priority,
+                review.created_at,
+                updated_at,
+            )
+
+    def get_review(self, review_id: str, *, now: datetime | None = None) -> FeedbackReview | None:
+        if not isinstance(review_id, str) or not review_id:
+            raise ValueError("review_id must be nonempty")
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT review.review_id, review.feedback_id, review.trace_id,
+                       review.reviewer_fingerprint, review.status, review.attribution,
+                       review.priority, review.created_at, review.updated_at
+                FROM telemetry_reviews AS review
+                JOIN telemetry_traces AS trace ON trace.trace_id = review.trace_id
+                WHERE review.review_id = ? AND trace.timestamp > ?
+                """,
+                (review_id, self._cutoff(now)),
+            ).fetchone()
+        return None if row is None else _hydrate_review(row)
+
+    def list_reviews(
+        self,
+        *,
+        feedback_id: str = "",
+        trace_id: str = "",
+        status: ReviewStatus | str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        now: datetime | None = None,
+    ) -> list[FeedbackReview]:
+        if isinstance(status, str):
+            status = ReviewStatus(status)
+        if status is not None and not isinstance(status, ReviewStatus):
+            raise ValueError("status must be a ReviewStatus")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            raise ValueError("offset must be a nonnegative integer")
+        filters = ["trace.timestamp > ?"]
+        parameters: list[Any] = [self._cutoff(now)]
+        if feedback_id:
+            filters.append("review.feedback_id = ?")
+            parameters.append(feedback_id)
+        if trace_id:
+            filters.append("review.trace_id = ?")
+            parameters.append(trace_id)
+        if status is not None:
+            filters.append("review.status = ?")
+            parameters.append(status.value)
+        parameters.extend((limit, offset))
+        with self._lock:
+            rows = self._connection.execute(
+                f"""
+                SELECT review.review_id, review.feedback_id, review.trace_id,
+                       review.reviewer_fingerprint, review.status, review.attribution,
+                       review.priority, review.created_at, review.updated_at
+                FROM telemetry_reviews AS review
+                JOIN telemetry_traces AS trace ON trace.trace_id = review.trace_id
+                WHERE {' AND '.join(filters)}
+                ORDER BY review.updated_at DESC, review.review_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                parameters,
+            ).fetchall()
+        return [_hydrate_review(row) for row in rows]
+
+    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str) -> PromotionRecord:
+        if not isinstance(review_id, str) or not review_id:
+            raise ValueError("review_id must be nonempty")
+        if not isinstance(scenario_id, str) or not scenario_id:
+            raise ValueError("scenario_id must be nonempty")
+        if not isinstance(scenario_yaml, str) or not scenario_yaml:
+            raise ValueError("scenario_yaml must be nonempty")
+        with self._transaction():
+            existing = self._connection.execute(
+                """
+                SELECT promotion_id, review_id, feedback_id, trace_id,
+                       scenario_id, scenario_yaml, created_at
+                FROM telemetry_promotions WHERE review_id = ?
+                """,
+                (review_id,),
+            ).fetchone()
+            if existing is not None:
+                return _hydrate_promotion(existing)
+            source = self._connection.execute(
+                """
+                SELECT review.review_id, review.feedback_id, review.trace_id
+                FROM telemetry_reviews AS review
+                JOIN telemetry_feedback AS feedback ON feedback.feedback_id = review.feedback_id
+                WHERE review.review_id = ?
+                """,
+                (review_id,),
+            ).fetchone()
+            if source is None:
+                raise KeyError("review not found")
+            record = PromotionRecord(
+                uuid.uuid4().hex,
+                source[0],
+                source[1],
+                source[2],
+                scenario_id,
+                scenario_yaml,
+                datetime.now(timezone.utc),
+            )
+            payload = record.as_dict()
+            self._connection.execute(
+                """
+                INSERT INTO telemetry_promotions(
+                    promotion_id, review_id, feedback_id, trace_id,
+                    scenario_id, scenario_yaml, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    payload["promotion_id"],
+                    payload["review_id"],
+                    payload["feedback_id"],
+                    payload["trace_id"],
+                    payload["scenario_id"],
+                    payload["scenario_yaml"],
+                    payload["created_at"],
+                ),
+            )
+            return record
+
+    def get_promotion(self, promotion_id: str, *, now: datetime | None = None) -> PromotionRecord | None:
+        if not isinstance(promotion_id, str) or not promotion_id:
+            raise ValueError("promotion_id must be nonempty")
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT promotion.promotion_id, promotion.review_id, promotion.feedback_id,
+                       promotion.trace_id, promotion.scenario_id, promotion.scenario_yaml,
+                       promotion.created_at
+                FROM telemetry_promotions AS promotion
+                JOIN telemetry_traces AS trace ON trace.trace_id = promotion.trace_id
+                WHERE promotion.promotion_id = ? AND trace.timestamp > ?
+                """,
+                (promotion_id, self._cutoff(now)),
+            ).fetchone()
+        return None if row is None else _hydrate_promotion(row)
 
     def prune_expired(self, *, now: datetime) -> int:
         with self._transaction():
