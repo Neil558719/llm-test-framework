@@ -57,6 +57,8 @@ class TelemetryRepository(Protocol):
 
     def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None) -> list[FeedbackRecord]: ...
 
+    def get_feedback(self, feedback_id: str, *, now: datetime | None = None) -> FeedbackRecord | None: ...
+
     def upsert_review(
         self,
         feedback_id: str,
@@ -79,7 +81,7 @@ class TelemetryRepository(Protocol):
         now: datetime | None = None,
     ) -> list[FeedbackReview]: ...
 
-    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str) -> PromotionRecord: ...
+    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None) -> PromotionRecord: ...
 
     def get_promotion(self, promotion_id: str, *, now: datetime | None = None) -> PromotionRecord | None: ...
 
@@ -402,6 +404,29 @@ class SQLiteTelemetryRepository:
             for row in rows
         ]
 
+    def get_feedback(self, feedback_id: str, *, now: datetime | None = None) -> FeedbackRecord | None:
+        if not isinstance(feedback_id, str) or not feedback_id:
+            raise ValueError("feedback_id must be nonempty")
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT feedback.feedback_id, feedback.trace_id, feedback.category,
+                       feedback.reporter_fingerprint, feedback.source, feedback.created_at
+                FROM telemetry_feedback AS feedback
+                JOIN telemetry_traces AS trace ON trace.trace_id = feedback.trace_id
+                WHERE feedback.feedback_id = ? AND trace.timestamp > ?
+                """,
+                (feedback_id, self._cutoff(now)),
+            ).fetchone()
+        return None if row is None else FeedbackRecord(
+            feedback_id=row[0],
+            trace_id=row[1],
+            category=FeedbackKind(row[2]),
+            reporter_fingerprint=row[3],
+            source=row[4],
+            created_at=_parse_timestamp(row[5]),
+        )
+
     def upsert_review(
         self,
         feedback_id: str,
@@ -537,7 +562,7 @@ class SQLiteTelemetryRepository:
             ).fetchall()
         return [_hydrate_review(row) for row in rows]
 
-    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str) -> PromotionRecord:
+    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None) -> PromotionRecord:
         if not isinstance(review_id, str) or not review_id:
             raise ValueError("review_id must be nonempty")
         if not isinstance(scenario_id, str) or not scenario_id:
@@ -567,7 +592,7 @@ class SQLiteTelemetryRepository:
             if source is None:
                 raise KeyError("review not found")
             record = PromotionRecord(
-                uuid.uuid4().hex,
+                uuid.uuid4().hex if promotion_id is None else promotion_id,
                 source[0],
                 source[1],
                 source[2],
