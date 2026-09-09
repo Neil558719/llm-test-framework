@@ -169,6 +169,20 @@ def validate_release(
     )
     checks = (
         ReleaseCheck(
+            "candidate_application",
+            candidate.application,
+            policy.application or candidate.application,
+            not policy.application or candidate.application == policy.application,
+            "candidate application matches policy" if not policy.application or candidate.application == policy.application else "candidate application differs from policy",
+        ),
+        ReleaseCheck(
+            "candidate_release_id",
+            candidate.release_id,
+            policy.release_id or candidate.release_id,
+            not policy.release_id or candidate.release_id == policy.release_id,
+            "candidate release ID matches policy" if not policy.release_id or candidate.release_id == policy.release_id else "candidate release ID differs from policy",
+        ),
+        ReleaseCheck(
             "candidate_complete",
             candidate.gate_passed,
             policy.require_complete,

@@ -51,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     validation.add_argument("--max-candidate-failure-rate", type=float, default=0.0)
     validation.add_argument("--max-pass-rate-drop", type=float, default=0.0)
     validation.add_argument("--max-low-quality-rate-increase", type=float, default=0.0)
+    validation.add_argument("--application", default="")
+    validation.add_argument("--release-id", default="")
     validation.add_argument("--allow-incomplete", dest="require_complete", action="store_false")
     validation.set_defaults(require_complete=True)
     return parser
@@ -84,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
             max_pass_rate_drop=args.max_pass_rate_drop,
             max_low_quality_rate_increase=args.max_low_quality_rate_increase,
             require_complete=args.require_complete,
+            application=args.application,
+            release_id=args.release_id,
         )
         result = validate_release(repository, args.baseline, args.candidate, policy)
         payload = result.as_dict()

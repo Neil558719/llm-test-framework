@@ -155,12 +155,16 @@ class ReleaseGatePolicy:
     max_pass_rate_drop: float = 0.0
     max_low_quality_rate_increase: float = 0.0
     require_complete: bool = True
+    application: str = ""
+    release_id: str = ""
 
     def __post_init__(self) -> None:
         for name in ("max_candidate_failure_rate", "max_pass_rate_drop", "max_low_quality_rate_increase"):
             _rate(getattr(self, name), name)
         if not isinstance(self.require_complete, bool):
             raise ValueError("require_complete must be boolean")
+        _text(self.application, "application", required=False)
+        _text(self.release_id, "release_id", required=False)
 
     def as_dict(self) -> dict[str, Any]:
         return {name: getattr(self, name) for name in self.__dataclass_fields__}

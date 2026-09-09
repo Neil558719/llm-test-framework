@@ -401,6 +401,7 @@ def create_telemetry_app(
         allowed = {
             "baseline_run_id", "candidate_run_id", "validation_id", "max_candidate_failure_rate",
             "max_pass_rate_drop", "max_low_quality_rate_increase", "require_complete",
+            "application", "release_id",
         }
         if set(payload) - allowed or not {"baseline_run_id", "candidate_run_id"} <= set(payload):
             bad_request()
@@ -412,6 +413,8 @@ def create_telemetry_app(
                 max_pass_rate_drop=parse_float(payload.get("max_pass_rate_drop", 0.0), "max_pass_rate_drop"),
                 max_low_quality_rate_increase=parse_float(payload.get("max_low_quality_rate_increase", 0.0), "max_low_quality_rate_increase"),
                 require_complete=payload.get("require_complete", True),
+                application=payload.get("application", ""),
+                release_id=payload.get("release_id", ""),
             )
             result = validate_release(
                 quality_repo,

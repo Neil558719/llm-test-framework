@@ -139,3 +139,17 @@ def test_validate_release_rejects_unknown_runs(tmp_path):
         assert "run" in str(exc)
     else:
         raise AssertionError("missing candidate run was accepted")
+
+
+def test_validate_release_enforces_optional_application_and_release_identity(tmp_path):
+    quality, baseline, candidate = _setup_database(tmp_path)
+    result = validate_release(
+        quality,
+        baseline.run_id,
+        candidate.run_id,
+        ReleaseGatePolicy(application="other-agent", release_id="alpha-23"),
+        now=utc("2026-09-01T00:00:00+00:00"),
+        validation_id="validation-identity",
+    )
+    assert result.passed is False
+    assert any(item.name == "candidate_application" and not item.passed for item in result.checks)
