@@ -454,7 +454,7 @@ python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
 
 完整 API、CLI、隐私边界、当前读/反馈鉴权限制、PostgreSQL 边界和 M16/M17 排除项见 [`docs/Trace 与反馈 API 指南.md`](docs/Trace%20与反馈%20API%20指南.md)。
 
-里程碑 16 的结构化人工复核、脱敏 YAML 场景晋级和离线执行见 [`docs/人工复核与回归晋级指南.md`](docs/人工复核与回归晋级指南.md)。趋势与线上离线发布验证仍属于 M17。
+里程碑 16 的结构化人工复核、脱敏 YAML 场景晋级和离线执行见 [`docs/人工复核与回归晋级指南.md`](docs/人工复核与回归晋级指南.md)；里程碑 17 的趋势、线上离线关联和发布验证见 [`docs/趋势、线上离线关联与发布验证指南.md`](docs/%E8%B6%8B%E5%8A%BF%E3%80%81%E7%BA%BF%E4%B8%8A%E7%A6%BB%E7%BA%BF%E5%85%B3%E8%81%94%E4%B8%8E%E5%8F%91%E5%B8%83%E9%AA%8C%E8%AF%81%E6%8C%87%E5%8D%97.md)。
 
 ## 报告看板
 

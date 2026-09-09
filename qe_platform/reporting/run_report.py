@@ -16,6 +16,10 @@ class RunReport:
     started_at: str
     finished_at: str
     scenarios: list[dict[str, Any]] = field(default_factory=list)
+    application: str = ""
+    release_id: str = ""
+    version: str = ""
+    environment: str = "offline"
 
     @property
     def total(self) -> int:
@@ -54,7 +58,22 @@ class RunReport:
                 "price_version": versions.pop() if len(versions) == 1 else "MIXED"}
 
     def as_dict(self) -> dict[str, Any]:
-        return {"run_id": self.run_id, "started_at": self.started_at, "finished_at": self.finished_at, "total": self.total, "passed": self.passed, "failed": self.failed, "gate_passed": self.gate_passed, "usage": self.usage, "cost": self.cost, "scenarios": self.scenarios}
+        return {
+            "run_id": self.run_id,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "application": self.application,
+            "release_id": self.release_id,
+            "version": self.version,
+            "environment": self.environment,
+            "total": self.total,
+            "passed": self.passed,
+            "failed": self.failed,
+            "gate_passed": self.gate_passed,
+            "usage": self.usage,
+            "cost": self.cost,
+            "scenarios": self.scenarios,
+        }
 
 
 def _scenario_payload(result: ScenarioRunResult) -> dict[str, Any]:
@@ -64,11 +83,28 @@ def _scenario_payload(result: ScenarioRunResult) -> dict[str, Any]:
     return payload
 
 
-def build_run_report(results: Iterable[ScenarioRunResult], *, run_id: str | None = None) -> RunReport:
+def build_run_report(
+    results: Iterable[ScenarioRunResult],
+    *,
+    run_id: str | None = None,
+    application: str = "",
+    release_id: str = "",
+    version: str = "",
+    environment: str = "offline",
+) -> RunReport:
     values = list(results)
     started = min((item.started_at for item in values), default="")
     finished = max((item.finished_at for item in values), default="")
-    return RunReport(run_id or str(uuid.uuid4()), started, finished, [_scenario_payload(item) for item in values])
+    return RunReport(
+        run_id or str(uuid.uuid4()),
+        started,
+        finished,
+        [_scenario_payload(item) for item in values],
+        application=application,
+        release_id=release_id,
+        version=version,
+        environment=environment,
+    )
 
 
 def write_json(report: RunReport, path: str | Path) -> Path:

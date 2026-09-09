@@ -51,6 +51,7 @@ llmtest-load = "qe_platform.loadtest.cli:main"
 llmtest-gate = "qe_platform.loadtest.gate_cli:main"
 dify-compat-gate = "qe_platform.dify_gate:main"
 telemetry-prune = "qe_platform.telemetry.cli:main"
+quality-loop = "qe_platform.quality_loop.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["llmtest*", "qe_platform*", "reference_agent*"]
