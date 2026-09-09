@@ -20,8 +20,9 @@ def test_m17_ci_contract_is_offline_and_ephemeral():
     assert "https://" not in workflow.split("m17-quality-loop-contract", 1)[1].split("\n  ", 1)[0]
 
 
-def test_m17_status_stays_in_progress_before_delivery_closeout():
+def test_m17_status_records_delivery_closeout():
     process = (ROOT / "docs" / "AI应用全链路质量平台开发流程.md").read_text(encoding="utf-8")
     row = next(line for line in process.splitlines() if line.startswith("| 17. 趋势、线上离线关联与发布验证 |"))
-    assert "未开始" in row or "进行中" in row
+    assert "已完成" in row
+    assert "本机类生产交付" in row
     assert "Issue #58" in row or "Issue [#58]" in row
