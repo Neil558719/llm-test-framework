@@ -240,7 +240,15 @@ def create_telemetry_app(
             return Response(status_code=500)
         if review is None:
             raise HTTPException(status_code=404, detail="review not found")
-        return JSONResponse(review.as_dict())
+        payload = review.as_dict()
+        try:
+            promotion = repo.get_promotion_for_review(review.review_id, now=datetime.now(timezone.utc))
+        except Exception:
+            return Response(status_code=500)
+        if promotion is not None:
+            payload["promotion_id"] = promotion.promotion_id
+            payload["scenario_id"] = promotion.scenario_id
+        return JSONResponse(payload)
 
     @app.post("/api/reviews/{review_id}/promote")
     async def promote(review_id: str, request: Request) -> Response:

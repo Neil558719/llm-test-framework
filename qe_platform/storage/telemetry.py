@@ -85,6 +85,8 @@ class TelemetryRepository(Protocol):
 
     def get_promotion(self, promotion_id: str, *, now: datetime | None = None) -> PromotionRecord | None: ...
 
+    def get_promotion_for_review(self, review_id: str, *, now: datetime | None = None) -> PromotionRecord | None: ...
+
     def prune_expired(self, *, now: datetime) -> int: ...
 
 
@@ -634,6 +636,23 @@ class SQLiteTelemetryRepository:
                 WHERE promotion.promotion_id = ? AND trace.timestamp > ?
                 """,
                 (promotion_id, self._cutoff(now)),
+            ).fetchone()
+        return None if row is None else _hydrate_promotion(row)
+
+    def get_promotion_for_review(self, review_id: str, *, now: datetime | None = None) -> PromotionRecord | None:
+        if not isinstance(review_id, str) or not review_id:
+            raise ValueError("review_id must be nonempty")
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT promotion.promotion_id, promotion.review_id, promotion.feedback_id,
+                       promotion.trace_id, promotion.scenario_id, promotion.scenario_yaml,
+                       promotion.created_at
+                FROM telemetry_promotions AS promotion
+                JOIN telemetry_traces AS trace ON trace.trace_id = promotion.trace_id
+                WHERE promotion.review_id = ? AND trace.timestamp > ?
+                """,
+                (review_id, self._cutoff(now)),
             ).fetchone()
         return None if row is None else _hydrate_promotion(row)
 

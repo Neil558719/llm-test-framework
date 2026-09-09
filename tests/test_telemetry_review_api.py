@@ -56,6 +56,7 @@ def test_review_and_promotion_api_returns_safe_idempotent_yaml(tmp_path):
     assert repeated_promotion.status_code == 200
     assert repeated_promotion.json()["promotion_id"] == payload["promotion_id"]
     assert client.get(f"/api/promotions/{payload['promotion_id']}").json()["scenario_yaml"] == payload["scenario_yaml"]
+    assert client.get(f"/api/reviews/{review['review_id']}").json()["promotion_id"] == payload["promotion_id"]
 
     listed = client.get("/api/reviews", params={"trace_id": "trace-1", "status": "confirmed"})
     assert listed.status_code == 200
