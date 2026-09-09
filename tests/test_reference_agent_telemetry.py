@@ -5,6 +5,8 @@ import json
 from fastapi.testclient import TestClient
 
 from qe_platform.telemetry.sink import TelemetrySink
+from qe_platform.telemetry.sink import HttpTelemetrySink
+from qe_platform.telemetry import build_trace_event
 from reference_agent.app import create_app
 from reference_agent.services import AssetService, TicketService, UserService
 
@@ -23,6 +25,24 @@ class FailingTelemetrySink(TelemetrySink):
 
     def emit(self, event) -> None:
         raise RuntimeError("sink unavailable with secret should stay internal")
+
+
+def test_http_sink_returns_without_waiting_for_slow_network(monkeypatch):
+    import time
+
+    def slow_send(*args, **kwargs):
+        time.sleep(0.4)
+
+    monkeypatch.setattr("urllib.request.urlopen", slow_send)
+    event = build_trace_event(
+        "trace-slow", "reference-agent", "user", "session", "request", "answer", "hash",
+        tool_calls=[], metadata={"environment": "test"}, usage={}, cost=None,
+        model_version={}, latency={"status": "succeeded"},
+    )
+    sink = HttpTelemetrySink("http://telemetry.local/api/traces", "token", "hash", timeout=1)
+    started = time.monotonic()
+    sink.emit(event)
+    assert time.monotonic() - started < 0.2
 
 
 def test_chat_emits_one_sanitized_trace_event_after_response_envelope_exists():

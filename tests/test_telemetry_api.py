@@ -88,6 +88,10 @@ def test_trace_filters_bounds_and_malformed_payloads_are_safe(tmp_path):
     assert response.status_code == 400
     assert "secret" not in response.text
 
+    value_leak = safe_payload("trace-value-leak")
+    value_leak["metadata"] = {"environment": "Bearer secret-token private request"}
+    assert client.post("/api/traces", headers=headers, json=value_leak).status_code == 400
+
 
 def test_feedback_accepts_only_declared_categories_and_safe_fields(tmp_path):
     client = client_for(tmp_path)

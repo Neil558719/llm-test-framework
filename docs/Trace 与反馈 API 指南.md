@@ -51,15 +51,17 @@ curl -X POST "$QE_TELEMETRY_ENDPOINT" \
     "request_length": 12,
     "answer_length": 8,
     "user_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
-    "session_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222",
-    "tool_calls": [{"name": "query_user", "status": "succeeded"}]
+    "source": {"user_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111", "session_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222"},
+    "tool_calls": [{"name": "query_user", "status": "succeeded"}],
+    "metadata": {}, "usage": {}, "cost": null,
+    "model_version": {}, "latency": {"status": "succeeded"}
   }'
 ```
 
 反馈写入只保存固定类别、报告人指纹和来源，不保存自由文本：
 
 ```bash
-curl -X POST "$QE_TELEMETRY_FEEDBACK_ENDPOINT" \
+curl -X POST "$QE_TELEMETRY_ENDPOINT/trace-example/feedback" \
   -H "Content-Type: application/json" \
   -d '{"category":"inaccurate","reporter_id":"local-reviewer","source":"ui"}'
 ```

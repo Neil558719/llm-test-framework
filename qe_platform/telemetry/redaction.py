@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 
 _FORBIDDEN_PARTS = ("message", "answer", "authorization", "apikey", "token", "arguments", "result", "rawrequest", "rawresponse", "auth", "secret")
+_FORBIDDEN_VALUE_PARTS = ("bearer", "secret", "private", "request", "response", "exception", "authorization", "api key", "token")
 _SAFE_SERIALIZED_KEYS = frozenset({
     "traceid", "application", "timestamp", "requestfingerprint", "answerfingerprint", "requestlength", "answerlength",
     "source", "userfingerprint", "sessionfingerprint", "reporterfingerprint", "toolcalls", "name", "status", "metadata",
@@ -58,6 +59,10 @@ def assert_sanitized_payload(value: Any) -> None:
             if _forbidden_key(key):
                 raise ValueError(f"forbidden field: {key}")
             assert_sanitized_payload(item)
+    elif isinstance(value, str):
+        normalized = value.lower()
+        if any(part in normalized for part in _FORBIDDEN_VALUE_PARTS):
+            raise ValueError("forbidden sensitive value")
     elif isinstance(value, (list, tuple)):
         for item in value:
             assert_sanitized_payload(item)

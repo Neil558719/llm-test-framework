@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
+import threading
 from typing import Any
 
 from .models import TelemetryTrace
@@ -40,6 +41,9 @@ class HttpTelemetrySink(TelemetrySink):
         self.timeout = timeout
 
     def emit(self, event: TelemetryTrace) -> None:
+        threading.Thread(target=self._send, args=(event,), daemon=True).start()
+
+    def _send(self, event: TelemetryTrace) -> None:
         try:
             payload = json.dumps(event.as_dict(), ensure_ascii=False).encode("utf-8")
             request = urllib.request.Request(
