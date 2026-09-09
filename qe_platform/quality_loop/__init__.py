@@ -7,6 +7,7 @@ from .models import (
     TrendPoint,
     parse_run_report,
 )
+from .storage import SQLiteQualityRepository
 
 __all__ = [
     "OfflineRun",
@@ -16,4 +17,5 @@ __all__ = [
     "ReleaseValidation",
     "TrendPoint",
     "parse_run_report",
+    "SQLiteQualityRepository",
 ]
