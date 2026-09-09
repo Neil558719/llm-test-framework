@@ -448,6 +448,12 @@ python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
 > 被测侧环境变量前缀 `LLM_APP_`（`LLM_APP_MODEL`/`LLM_APP_PROVIDER`/`LLM_APP_BASE_URL`/`LLM_APP_API_KEY`）；
 > 裁判侧 `LLM_*`（`LLM_MODEL`/`LLM_PROVIDER`/`LLM_TEST_MODE`/`LLM_API_KEY`）。
 
+## Trace 与反馈 API
+
+里程碑 15 提供脱敏 Trace 持久化、固定七类反馈、30 天默认保留策略、`telemetry-prune` 清理命令，以及 Reference Agent 的可选非阻塞遥测上报。运行配置只通过 `QE_TELEMETRY_DATABASE`、`QE_TELEMETRY_HASH_KEY`、`QE_TELEMETRY_INGEST_TOKEN`、`QE_TELEMETRY_RETENTION_DAYS` 和 `QE_TELEMETRY_ENDPOINT` 环境变量传递；示例和 CI 均使用本地临时文件与占位值，不把令牌或真实业务数据放入命令行。
+
+完整 API、CLI、隐私边界、当前读/反馈鉴权限制、PostgreSQL 边界和 M16/M17 排除项见 [`docs/Trace 与反馈 API 指南.md`](docs/Trace%20与反馈%20API%20指南.md)。
+
 ## 报告看板
 
 - **hero 指标**：通过率、准确率（LLM-as-Judge 平均）、幻觉率、平均响应延迟

@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 
 from llmtest import LatencyMetrics, ResponseEnvelope, ModelVersion, CostMetrics, TokenUsage
 from llmtest.cost import PriceTable
+from qe_platform.telemetry import build_trace_event
+from qe_platform.telemetry.sink import TelemetrySink, telemetry_sink_from_environment
 
 from .graph import build_graph
 from .services.assets import AssetService
@@ -53,6 +55,8 @@ def create_app(
     price_table: PriceTable | None = None,
     model_client: Any | None = None,
     fault_settings: FaultControlSettings | None = None,
+    *,
+    telemetry_sink: TelemetrySink | None = None,
 ) -> FastAPI:
     database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
@@ -68,6 +72,7 @@ def create_app(
     app.state.store = store
     app.state.access_drafts = {}
     app.state.fault_settings = fault_settings or FaultControlSettings.from_env()
+    app.state.telemetry_sink = telemetry_sink or telemetry_sink_from_environment()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -171,7 +176,49 @@ def create_app(
         )
         if envelope.usage and envelope.model_version:
             envelope.cost = app.state.price_table.calculate(envelope.usage, provider=app.state.model_config.provider, model=envelope.model_version.model)
-        return envelope.as_dict()
+        response = envelope.as_dict()
+        _emit_telemetry(request, effective_message, envelope)
+        return response
+
+    def _emit_telemetry(
+        request: ChatRequest,
+        effective_message: str,
+        envelope: ResponseEnvelope,
+    ) -> None:
+        sink = app.state.telemetry_sink
+        if not getattr(sink, "enabled", True):
+            return
+        try:
+            usage = envelope.usage.as_dict() if envelope.usage else {}
+            cost = envelope.cost.as_dict() if envelope.cost else None
+            model_version = {
+                key: value
+                for key, value in (envelope.model_version.as_dict() if envelope.model_version else {}).items()
+                if value
+            }
+            latency = {"status": "succeeded"}
+            if envelope.latency:
+                latency["total_ms"] = envelope.latency.total_ms
+                if envelope.latency.ttft_ms is not None:
+                    latency["ttft_ms"] = envelope.latency.ttft_ms
+            event = build_trace_event(
+                envelope.trace_id,
+                "reference-agent",
+                request.user_id,
+                envelope.conversation_id,
+                effective_message,
+                envelope.answer,
+                sink.hash_key,
+                tool_calls=[{"name": call.name, "status": call.status} for call in envelope.tool_calls],
+                metadata={"environment": "reference-agent"},
+                usage=usage,
+                cost=cost,
+                model_version=model_version,
+                latency=latency,
+            )
+            sink.emit(event)
+        except Exception:
+            return
 
     @app.post("/api/chat")
     def chat(
