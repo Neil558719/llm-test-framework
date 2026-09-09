@@ -5,10 +5,13 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, ReviewAttribution, ReviewPriority, ReviewStatus, promote_review
+from qe_platform.quality_loop.engine import build_quality_links, build_trends, validate_release
+from qe_platform.quality_loop.models import ReleaseGatePolicy
+from qe_platform.quality_loop.storage import SQLiteQualityRepository
 from qe_platform.storage import TelemetryRepository, create_telemetry_repository
 from qe_platform.storage.telemetry import _hydrate_trace
 from qe_platform.telemetry import TelemetryQuery, TelemetryTrace
@@ -18,11 +21,16 @@ from qe_platform.telemetry.settings import TelemetrySettings
 def create_telemetry_app(
     settings: TelemetrySettings,
     repository: TelemetryRepository | None = None,
+    quality_repository: SQLiteQualityRepository | None = None,
 ) -> FastAPI:
     repo = repository or create_telemetry_repository(
         settings.database,
         retention_days=settings.retention_days,
         hash_key=settings.hash_key,
+    )
+    quality_repo = quality_repository or SQLiteQualityRepository(
+        settings.database,
+        retention_days=settings.retention_days,
     )
     app = FastAPI(title="QE Telemetry API")
 
@@ -83,6 +91,20 @@ def create_telemetry_app(
             return ReviewPriority(value)
         except ValueError:
             bad_request()
+
+    def parse_datetime(value: str) -> datetime:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            bad_request()
+        if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+            bad_request()
+        return parsed.astimezone(timezone.utc)
+
+    def parse_float(value: Any, name: str) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{name} must be a number")
+        return float(value)
 
     @app.get("/api/traces")
     def list_traces(
@@ -286,5 +308,138 @@ def create_telemetry_app(
         if promotion is None:
             raise HTTPException(status_code=404, detail="promotion not found")
         return JSONResponse(promotion.as_dict())
+
+    @app.get("/api/quality/trends")
+    def quality_trends(
+        application: str = "",
+        version: str = "",
+        from_timestamp: str = Query(default="", alias="from"),
+        to_timestamp: str = Query(default="", alias="to"),
+    ) -> Response:
+        try:
+            start = parse_datetime(from_timestamp) if from_timestamp else None
+            end = parse_datetime(to_timestamp) if to_timestamp else None
+            points = build_trends(quality_repo, application=application, version=version, start=start, end=end)
+            links = build_quality_links(quality_repo)
+        except HTTPException:
+            raise
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse({"trends": [item.as_dict() for item in points], "links": [item.as_dict() for item in links]})
+
+    @app.get("/api/quality/links")
+    def quality_links(offline_run_id: str = "", promotion_id: str = "") -> Response:
+        try:
+            values = build_quality_links(quality_repo, offline_run_id=offline_run_id, promotion_id=promotion_id)
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse({"links": [item.as_dict() for item in values]})
+
+    @app.post("/api/quality/offline-runs")
+    async def import_quality_run(
+        request: Request,
+        x_qe_telemetry_token: str | None = Header(default=None, alias="X-QE-Telemetry-Token"),
+    ) -> Response:
+        require_token(x_qe_telemetry_token)
+        payload = dict(await read_mapping(request))
+        source_label = payload.pop("source_label", "api-report")
+        if not isinstance(source_label, str):
+            bad_request()
+        try:
+            existing = quality_repo.get_run(payload.get("run_id", ""), now=datetime.now(timezone.utc)) if isinstance(payload.get("run_id"), str) else None
+            run = quality_repo.import_run(payload, source_label=source_label)
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse(run.as_dict(), status_code=200 if existing is not None else 201)
+
+    @app.post("/api/quality/links")
+    async def create_quality_link(
+        request: Request,
+        x_qe_telemetry_token: str | None = Header(default=None, alias="X-QE-Telemetry-Token"),
+    ) -> Response:
+        require_token(x_qe_telemetry_token)
+        payload = await read_mapping(request)
+        if set(payload) - {"promotion_id", "offline_run_id", "scenario_id"} or not {"promotion_id", "offline_run_id"} <= set(payload):
+            bad_request()
+        if not all(isinstance(payload[key], str) for key in ("promotion_id", "offline_run_id")):
+            bad_request()
+        if "scenario_id" in payload and not isinstance(payload["scenario_id"], str):
+            bad_request()
+        try:
+            existing = quality_repo.list_links(
+                promotion_id=payload["promotion_id"],
+                offline_run_id=payload["offline_run_id"],
+                now=datetime.now(timezone.utc),
+            )
+            link = quality_repo.create_link(
+                payload["promotion_id"],
+                payload["offline_run_id"],
+                scenario_id=payload.get("scenario_id"),
+                now=datetime.now(timezone.utc),
+            )
+        except KeyError:
+            raise HTTPException(status_code=404, detail="quality link source not found")
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        return JSONResponse(link.as_dict(), status_code=200 if existing else 201)
+
+    @app.post("/api/quality/release-validations")
+    async def create_quality_validation(
+        request: Request,
+        x_qe_telemetry_token: str | None = Header(default=None, alias="X-QE-Telemetry-Token"),
+    ) -> Response:
+        require_token(x_qe_telemetry_token)
+        payload = await read_mapping(request)
+        allowed = {
+            "baseline_run_id", "candidate_run_id", "validation_id", "max_candidate_failure_rate",
+            "max_pass_rate_drop", "max_low_quality_rate_increase", "require_complete",
+        }
+        if set(payload) - allowed or not {"baseline_run_id", "candidate_run_id"} <= set(payload):
+            bad_request()
+        if not all(isinstance(payload[key], str) and payload[key] for key in ("baseline_run_id", "candidate_run_id")):
+            bad_request()
+        try:
+            policy = ReleaseGatePolicy(
+                max_candidate_failure_rate=parse_float(payload.get("max_candidate_failure_rate", 0.0), "max_candidate_failure_rate"),
+                max_pass_rate_drop=parse_float(payload.get("max_pass_rate_drop", 0.0), "max_pass_rate_drop"),
+                max_low_quality_rate_increase=parse_float(payload.get("max_low_quality_rate_increase", 0.0), "max_low_quality_rate_increase"),
+                require_complete=payload.get("require_complete", True),
+            )
+            result = validate_release(
+                quality_repo,
+                payload["baseline_run_id"],
+                payload["candidate_run_id"],
+                policy,
+                validation_id=payload.get("validation_id"),
+            )
+        except KeyError:
+            raise HTTPException(status_code=404, detail="quality run not found")
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        if not result.passed:
+            return JSONResponse(result.as_dict(), status_code=422)
+        return JSONResponse(result.as_dict(), status_code=201)
+
+    @app.get("/api/quality/release-validations/{validation_id}")
+    def get_quality_validation(validation_id: str) -> Response:
+        try:
+            value = quality_repo.get_validation(validation_id)
+        except ValueError:
+            bad_request()
+        except Exception:
+            return Response(status_code=500)
+        if value is None:
+            raise HTTPException(status_code=404, detail="quality validation not found")
+        return JSONResponse(value.as_dict())
 
     return app
