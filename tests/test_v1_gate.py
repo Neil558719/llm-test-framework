@@ -21,3 +21,21 @@ def test_v1_gate_can_fail_for_a_subset_with_a_bad_scenario_id(tmp_path):
     assert code == 1
     payload = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
     assert payload["gate_passed"] is False
+
+
+def test_v1_gate_can_attach_release_metadata_for_quality_loop(tmp_path):
+    code = run_gate(
+        asset_dir=ASSETS,
+        json_path=tmp_path / "run.json",
+        html_path=tmp_path / "run.html",
+        application="reference-agent",
+        release_id="alpha-23",
+        version="candidate",
+        environment="offline",
+    )
+    assert code == 0
+    payload = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+    assert payload["application"] == "reference-agent"
+    assert payload["release_id"] == "alpha-23"
+    assert payload["version"] == "candidate"
+    assert payload["environment"] == "offline"
