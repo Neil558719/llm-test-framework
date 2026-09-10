@@ -2,6 +2,10 @@
 
 本手册用于把已验证的本机构建迁移到独立 Linux 服务器。每次操作都在受控窗口中执行，并将 JSON 报告、Compose 状态、镜像 digest、数据库 schema 版本和备份 SHA-256 归档到部署工单。不要把 Cookie、Bearer token、OIDC 返回内容、模型密钥或业务请求写入工单和版本库。
 
+## 当前验收边界
+
+2026-09-10 已完成离线生产加固契约、完整非 UI 回归、UI 回归、Python 静态编译、diff 空白检查和带临时占位值的 Compose 静态配置。Docker Desktop Linux daemon 当前不可连接，因此本机尚无容器启动、迁移、备份、恢复、Smoke、rollback、镜像 digest、`schema_meta` 版本或备份 SHA-256 的实际报告。GitHub Issue、push、Pull Request、Actions、独立审查、合并、Release 与服务器部署同样仍待执行；详细本地证据见 `docs/deployment/evidence/2026-09-10-production-hardening.md`。
+
 ## 前置条件
 
 - 固定候选镜像和 registry digest，准备 `REFERENCE_AGENT_IMAGE` 与 `REFERENCE_AGENT_IMAGE_DIGEST`。
@@ -83,3 +87,5 @@ To roll back, select a pre-verified compatible image/digest, start it with the p
 ## Evidence and server-dependent completion
 
 Record the exact command, exit status, image digest, `schema_meta` versions, backup SHA-256, readiness response, Smoke report and rollback report. The local contract and drill do not prove public DNS, TLS termination, real IdP reachability, monitoring delivery or live provider behavior. Those checks remain pending until an independent server and approved production credentials are supplied.
+
+Do not create a Release or mark this hardening work production-ready until the branch has an Issue, push, Pull Request, passing Actions, independent review, merge to `master`, merged-master verification, and the server drill evidence described above.
