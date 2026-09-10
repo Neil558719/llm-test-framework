@@ -8,10 +8,10 @@ ARG BUILD_REV=source
 COPY . /app
 RUN python -m pip install --no-cache-dir .[real]
 
-RUN useradd --create-home --uid 10001 appuser \
+RUN useradd --create-home --user-group --uid 10001 appuser \
     && mkdir -p /data \
     && chown -R appuser:appuser /app /data
-USER appuser
+USER 10001:10001
 LABEL org.opencontainers.image.revision=$BUILD_REV
 
 EXPOSE 8000

@@ -34,6 +34,14 @@ def test_dockerfile_installs_real_client_extras_for_configured_model_runtime():
     assert "pip install --no-cache-dir .[real]" in dockerfile
 
 
+def test_local_compose_remains_a_safe_loopback_default_when_production_overlay_is_opt_in():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    service = compose["services"]["reference-agent"]
+
+    assert service["ports"] == ['127.0.0.1:${REFERENCE_AGENT_PORT:-8000}:8000']
+    assert "docker-compose.production.yml" not in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+
 def test_model_config_reload_script_recreates_container_and_waits_for_health():
     script = (ROOT / "deploy" / "reload-model-config.ps1").read_text(encoding="utf-8")
     assert "--force-recreate" in script
