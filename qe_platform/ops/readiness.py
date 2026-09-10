@@ -18,6 +18,10 @@ class ReadinessResult:
 
 
 def _probe(value: Any) -> bool:
+    if callable(value):
+        return value() is True
+    if isinstance(value, bool):
+        return value
     connection = getattr(value, "_connection", None)
     if connection is not None:
         connection.execute("SELECT 1").fetchone()
@@ -50,6 +54,6 @@ def readiness(repository_bundle: Mapping[str, Any]) -> ReadinessResult:
             return ReadinessResult(False, {"configuration": "unavailable"})
         try:
             checks[name] = "ok" if _probe(repository) else "unavailable"
-        except (OSError, sqlite3.Error):
+        except (OSError, sqlite3.Error, ValueError):
             checks[name] = "unavailable"
     return ReadinessResult(all(value == "ok" for value in checks.values()), checks)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import tempfile
 from dataclasses import dataclass
@@ -55,6 +56,16 @@ def _manifest_path(path: Path) -> Path:
     return path.with_suffix(path.suffix + ".manifest.json")
 
 
+def _pending_path(path: Path) -> Path:
+    return path.with_suffix(path.suffix + ".publish-pending")
+
+
+def _temporary_path(target: Path, suffix: str) -> Path:
+    descriptor, name = tempfile.mkstemp(prefix=target.name + ".", suffix=suffix, dir=target.parent)
+    os.close(descriptor)
+    return Path(name)
+
+
 def backup_database(source: Path, target: Path) -> BackupResult:
     """Create an online SQLite backup and atomically publish its manifest."""
     source = Path(source)
@@ -62,10 +73,16 @@ def backup_database(source: Path, target: Path) -> BackupResult:
     if not source.is_file():
         raise ValueError("backup source database is unavailable")
     target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=target.name + ".", suffix=".tmp", dir=target.parent)
-    os.close(descriptor)
-    temporary = Path(temporary_name)
+    pending = _pending_path(target)
+    if pending.exists():
+        raise RuntimeError("backup publication requires recovery")
+    temporary = _temporary_path(target, ".tmp")
     manifest_temporary: Path | None = None
+    previous_database: Path | None = None
+    previous_manifest: Path | None = None
+    pending_temporary: Path | None = None
+    published = False
+    recovered = False
     try:
         source_connection = sqlite3.connect("file:" + source.resolve().as_posix() + "?mode=ro", uri=True)
         destination_connection = sqlite3.connect(str(temporary))
@@ -78,17 +95,49 @@ def backup_database(source: Path, target: Path) -> BackupResult:
             raise RuntimeError("backup integrity check failed")
         versions = schema_versions(temporary)
         checksum = _sha256(temporary)
-        descriptor, manifest_name = tempfile.mkstemp(prefix=target.name + ".", suffix=".manifest.tmp", dir=target.parent)
-        os.close(descriptor)
-        manifest_temporary = Path(manifest_name)
+        manifest_temporary = _temporary_path(target, ".manifest.tmp")
         manifest_temporary.write_text(
             json.dumps({"schema_versions": versions, "sha256": checksum}, sort_keys=True), encoding="utf-8"
         )
-        os.replace(temporary, target)
-        os.replace(manifest_temporary, _manifest_path(target))
+        manifest = _manifest_path(target)
+        if target.is_file() and manifest.is_file():
+            previous_database = _temporary_path(target, ".previous.db")
+            previous_manifest = _temporary_path(target, ".previous.manifest")
+            shutil.copyfile(target, previous_database)
+            shutil.copyfile(manifest, previous_manifest)
+        pending_temporary = _temporary_path(target, ".pending.tmp")
+        pending_temporary.write_text('{"state":"publishing"}', encoding="utf-8")
+        os.replace(pending_temporary, pending)
+        pending_temporary = None
+        try:
+            os.replace(temporary, target)
+            os.replace(manifest_temporary, manifest)
+            published = True
+        except OSError as exc:
+            try:
+                if previous_database is not None and previous_manifest is not None:
+                    os.replace(previous_database, target)
+                    previous_database = None
+                    os.replace(previous_manifest, manifest)
+                    previous_manifest = None
+                else:
+                    target.unlink(missing_ok=True)
+                    manifest.unlink(missing_ok=True)
+                recovered = True
+            except OSError as recovery_error:
+                raise RuntimeError("backup publication requires recovery") from recovery_error
+            raise RuntimeError("backup publication failed") from exc
         return BackupResult(target, checksum, versions, True)
     finally:
+        if (published or recovered) and pending.exists():
+            pending.unlink()
         if temporary.exists():
             temporary.unlink()
         if manifest_temporary is not None and manifest_temporary.exists():
             manifest_temporary.unlink()
+        if pending_temporary is not None and pending_temporary.exists():
+            pending_temporary.unlink()
+        if previous_database is not None and previous_database.exists():
+            previous_database.unlink()
+        if previous_manifest is not None and previous_manifest.exists():
+            previous_manifest.unlink()

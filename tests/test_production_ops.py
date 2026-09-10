@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
 import pytest
 
+import qe_platform.ops.backup as backup_module
 from qe_platform.ops.backup import backup_database
 from qe_platform.ops.restore import RestoreError, restore_database
 
@@ -88,3 +90,51 @@ def test_restore_validates_backup_and_replaces_target_atomically(tmp_path):
     assert result.integrity_ok is True
     with sqlite3.connect(target) as connection:
         assert connection.execute("SELECT value FROM records").fetchone()[0] == "kept"
+
+
+def test_restore_rejects_non_quiescent_target_before_replacing_it(tmp_path):
+    source = tmp_path / "source.db"
+    target = tmp_path / "target.db"
+    backup = tmp_path / "backup.db"
+    _database(source)
+    _database(target)
+    with sqlite3.connect(target) as connection:
+        connection.execute("UPDATE records SET value = 'old'")
+    backup_database(source, backup)
+    Path(str(target) + "-wal").write_bytes(b"active database sidecar")
+
+    with pytest.raises(RestoreError, match="quiescent"):
+        restore_database(backup, target, {"reference_agent": 1})
+
+    with sqlite3.connect(target) as connection:
+        assert connection.execute("SELECT value FROM records").fetchone()[0] == "old"
+
+
+def test_backup_publish_failure_restores_previous_database_manifest_pair(tmp_path, monkeypatch):
+    source = tmp_path / "source.db"
+    target = tmp_path / "backup.db"
+    _database(source)
+    backup_database(source, target)
+    original_database = target.read_bytes()
+    original_manifest = target.with_suffix(target.suffix + ".manifest.json").read_bytes()
+    with sqlite3.connect(source) as connection:
+        connection.execute("INSERT INTO records(value) VALUES ('new')")
+
+    real_replace = backup_module.os.replace
+
+    failed = False
+
+    def fail_manifest_publish(current, destination):
+        nonlocal failed
+        if Path(destination) == target.with_suffix(target.suffix + ".manifest.json") and not failed:
+            failed = True
+            raise OSError("simulated manifest publish failure")
+        return real_replace(current, destination)
+
+    monkeypatch.setattr(backup_module.os, "replace", fail_manifest_publish)
+
+    with pytest.raises(RuntimeError, match="publication"):
+        backup_database(source, target)
+
+    assert target.read_bytes() == original_database
+    assert target.with_suffix(target.suffix + ".manifest.json").read_bytes() == original_manifest

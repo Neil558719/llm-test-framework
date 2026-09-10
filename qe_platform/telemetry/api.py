@@ -67,7 +67,11 @@ def create_telemetry_app(
 
     @app.get("/api/health/ready")
     def health_ready() -> Response:
-        result = readiness({"database": repo})
+        result = readiness({
+            "configuration": lambda: bool(settings.database and settings.hash_key and settings.ingest_token),
+            "telemetry": repo,
+            "quality": quality_repo,
+        })
         payload = {"status": "ready" if result.ready else "not_ready", "service": "qe-telemetry", "checks": dict(result.checks)}
         return JSONResponse(payload, status_code=200 if result.ready else 503)
 

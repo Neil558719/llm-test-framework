@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from qe_platform.auth.dependencies import AuthRuntime
 from qe_platform.ops.metrics import MetricsRegistry
 from qe_platform.ops.readiness import readiness
+from qe_platform.quality_loop.storage import SQLiteQualityRepository
 from qe_platform.telemetry.api import create_telemetry_app
 from qe_platform.telemetry.settings import TelemetrySettings
 from reference_agent.app import create_app
@@ -52,3 +53,22 @@ def test_telemetry_metrics_are_admin_protected_and_secret_free(tmp_path):
     assert response.headers["content-type"].startswith("application/json")
     assert "hash-key-should-not-leak" not in response.text
     assert "ingest-token-should-not-leak" not in response.text
+
+
+def test_telemetry_readiness_fails_when_quality_repository_is_unavailable(tmp_path):
+    quality_repository = SQLiteQualityRepository(tmp_path / "quality.db")
+    quality_repository.close()
+    app = create_telemetry_app(
+        TelemetrySettings(str(tmp_path / "telemetry.db"), "hash", "ingest"),
+        quality_repository=quality_repository,
+        auth_runtime=AuthRuntime.disabled(environment="development"),
+    )
+
+    response = TestClient(app).get("/api/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "service": "qe-telemetry",
+        "checks": {"configuration": "ok", "telemetry": "ok", "quality": "unavailable"},
+    }

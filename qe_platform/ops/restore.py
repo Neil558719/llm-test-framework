@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from .backup import _integrity_check, _manifest_path, schema_versions
+from .backup import _integrity_check, _manifest_path, _pending_path, schema_versions
 
 
 class RestoreError(RuntimeError):
@@ -36,6 +36,8 @@ def _sha256(path: Path) -> str:
 
 
 def _load_manifest(backup: Path) -> tuple[str, dict[str, int]]:
+    if _pending_path(backup).exists():
+        raise RestoreError("backup publication requires recovery")
     try:
         payload = json.loads(_manifest_path(backup).read_text(encoding="utf-8"))
         checksum = payload["sha256"]
@@ -83,6 +85,8 @@ def restore_database(backup: Path, target: Path, expected_versions: Mapping[str,
     if actual_versions != manifest_versions:
         raise RestoreError("backup schema metadata does not match")
     _validate_compatibility(actual_versions, expected_versions)
+    if any(Path(str(target) + suffix).exists() for suffix in ("-wal", "-shm")):
+        raise RestoreError("target database is not quiescent")
     target.parent.mkdir(parents=True, exist_ok=True)
     descriptor, staging_name = tempfile.mkstemp(prefix=target.name + ".", suffix=".restore", dir=target.parent)
     os.close(descriptor)
@@ -92,11 +96,6 @@ def restore_database(backup: Path, target: Path, expected_versions: Mapping[str,
         if not _integrity_check(staging) or schema_versions(staging) != actual_versions:
             raise RestoreError("backup integrity check failed")
         os.replace(staging, target)
-        # A previous WAL belongs to the database that was just replaced. It
-        # must not be replayed into the restored main database on next open.
-        for sidecar in (Path(str(target) + "-wal"), Path(str(target) + "-shm")):
-            if sidecar.exists():
-                sidecar.unlink()
     finally:
         if staging.exists():
             staging.unlink()
