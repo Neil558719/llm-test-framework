@@ -134,6 +134,7 @@ class AuthRuntime:
         return principal
 
     def require_csrf(self, request: Request, authorization: str | None = None, csrf_token: str | None = None) -> None:
+        authorization = authorization or request.headers.get("Authorization")
         if self.development_mode or (isinstance(authorization, str) and authorization.startswith("Bearer ")):
             return
         if self.session_store is None:

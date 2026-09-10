@@ -456,6 +456,10 @@ python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
 
 里程碑 16 的结构化人工复核、脱敏 YAML 场景晋级和离线执行见 [`docs/人工复核与回归晋级指南.md`](docs/人工复核与回归晋级指南.md)；里程碑 17 的趋势、线上离线关联和发布验证见 [`docs/趋势、线上离线关联与发布验证指南.md`](docs/%E8%B6%8B%E5%8A%BF%E3%80%81%E7%BA%BF%E4%B8%8A%E7%A6%BB%E7%BA%BF%E5%85%B3%E8%81%94%E4%B8%8E%E5%8F%91%E5%B8%83%E9%AA%8C%E8%AF%81%E6%8C%87%E5%8D%97.md)。
 
+## 生产加固与服务器迁移
+
+生产模式使用通用 OIDC（浏览器授权码 + PKCE 与 API Bearer token）、四类角色、独立会话 SQLite、版本化业务 SQLite、在线备份/恢复、就绪探针和无敏感字段指标。生产 Compose 只接受 Docker secret 文件与不可变镜像 digest；本地开发仍使用显式的 `QE_ENVIRONMENT=development`。运行顺序和 Windows/Linux 命令在 [`docs/deployment/production-readiness-runbook.md`](docs/deployment/production-readiness-runbook.md) 中。当前验收只使用临时 SQLite、生成的测试密钥和本机容器；真实 IdP、HTTPS 域名、独立服务器与公网 Smoke 需在服务器提供后执行。
+
 ## 报告看板
 
 - **hero 指标**：通过率、准确率（LLM-as-Judge 平均）、幻觉率、平均响应延迟
