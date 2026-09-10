@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from llmtest import LatencyMetrics, ResponseEnvelope, ModelVersion, CostMetrics, TokenUsage
@@ -19,6 +19,7 @@ from llmtest.cost import PriceTable
 from qe_platform.telemetry import build_trace_event
 from qe_platform.telemetry.sink import TelemetrySink, telemetry_sink_from_environment
 from qe_platform.auth.dependencies import AuthRuntime, install_auth_routes
+from qe_platform.ops import MetricsRegistry, readiness
 
 from .graph import build_graph
 from .services.assets import AssetService
@@ -87,10 +88,26 @@ def create_app(
     app.state.fault_settings = fault_settings or FaultControlSettings.from_env()
     app.state.telemetry_sink = telemetry_sink or telemetry_sink_from_environment()
     app.state.auth_runtime = auth_runtime or AuthRuntime.from_environment()
+    app.state.metrics = MetricsRegistry()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "reference-agent"}
+
+    @app.get("/api/health/live")
+    def health_live() -> dict[str, str]:
+        return {"status": "ok", "service": "reference-agent"}
+
+    @app.get("/api/health/ready")
+    def health_ready() -> JSONResponse:
+        result = readiness({"database": store})
+        payload = {"status": "ready" if result.ready else "not_ready", "service": "reference-agent", "checks": dict(result.checks)}
+        return JSONResponse(payload, status_code=200 if result.ready else 503)
+
+    @app.get("/api/metrics")
+    def metrics(request: Request) -> dict[str, Any]:
+        app.state.auth_runtime.require(request, "admin")
+        return app.state.metrics.snapshot()
 
     @app.get("/api/model-profiles")
     def model_profiles() -> dict[str, Any]:
