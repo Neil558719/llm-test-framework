@@ -24,6 +24,8 @@ from qe_platform.feedback import (
     ReviewPriority,
     ReviewStatus,
 )
+from qe_platform.storage.migrations import Migration, MigrationRunner
+from qe_platform.storage.sqlite_runtime import configure_sqlite
 import qe_platform.feedback.promotion as _promotion
 from qe_platform.scenarios import load_scenario_text
 from qe_platform.telemetry import TelemetryQuery, TelemetryTrace, ToolSummary, VersionFingerprint
@@ -209,53 +211,8 @@ class SQLiteTelemetryRepository:
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(str(database), check_same_thread=False, isolation_level=None)
         with self._lock:
-            self._connection.execute("PRAGMA foreign_keys=ON")
-            self._connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS telemetry_traces (
-                    trace_id TEXT PRIMARY KEY,
-                    application TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_telemetry_traces_timestamp_id
-                    ON telemetry_traces(timestamp DESC, trace_id DESC);
-                CREATE TABLE IF NOT EXISTS telemetry_feedback (
-                    feedback_id TEXT PRIMARY KEY,
-                    trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE,
-                    category TEXT NOT NULL,
-                    reporter_fingerprint TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_telemetry_feedback_timestamp_id
-                    ON telemetry_feedback(created_at DESC, feedback_id DESC);
-                CREATE TABLE IF NOT EXISTS telemetry_reviews (
-                    review_id TEXT PRIMARY KEY,
-                    feedback_id TEXT NOT NULL UNIQUE REFERENCES telemetry_feedback(feedback_id) ON DELETE CASCADE,
-                    trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE,
-                    reviewer_fingerprint TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    attribution TEXT NOT NULL,
-                    priority TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_telemetry_reviews_updated_id
-                    ON telemetry_reviews(updated_at DESC, review_id DESC);
-                CREATE TABLE IF NOT EXISTS telemetry_promotions (
-                    promotion_id TEXT PRIMARY KEY,
-                    review_id TEXT NOT NULL UNIQUE REFERENCES telemetry_reviews(review_id) ON DELETE CASCADE,
-                    feedback_id TEXT NOT NULL REFERENCES telemetry_feedback(feedback_id) ON DELETE CASCADE,
-                    trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE,
-                    scenario_id TEXT NOT NULL,
-                    scenario_yaml TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_telemetry_promotions_created_id
-                    ON telemetry_promotions(created_at DESC, promotion_id DESC);
-                """
-            )
+            configure_sqlite(self._connection)
+            MigrationRunner(self._connection, "telemetry", _TELEMETRY_MIGRATIONS).apply()
 
     @contextmanager
     def _transaction(self) -> Iterator[None]:
@@ -691,6 +648,24 @@ class SQLiteTelemetryRepository:
                 (self._cutoff(now),),
             )
         return cursor.rowcount
+
+
+def _create_telemetry_tables(connection: sqlite3.Connection) -> None:
+    statements = (
+        "CREATE TABLE IF NOT EXISTS telemetry_traces (trace_id TEXT PRIMARY KEY, application TEXT NOT NULL, timestamp TEXT NOT NULL, payload TEXT NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_telemetry_traces_timestamp_id ON telemetry_traces(timestamp DESC, trace_id DESC)",
+        "CREATE TABLE IF NOT EXISTS telemetry_feedback (feedback_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE, category TEXT NOT NULL, reporter_fingerprint TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_telemetry_feedback_timestamp_id ON telemetry_feedback(created_at DESC, feedback_id DESC)",
+        "CREATE TABLE IF NOT EXISTS telemetry_reviews (review_id TEXT PRIMARY KEY, feedback_id TEXT NOT NULL UNIQUE REFERENCES telemetry_feedback(feedback_id) ON DELETE CASCADE, trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE, reviewer_fingerprint TEXT NOT NULL, status TEXT NOT NULL, attribution TEXT NOT NULL, priority TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_telemetry_reviews_updated_id ON telemetry_reviews(updated_at DESC, review_id DESC)",
+        "CREATE TABLE IF NOT EXISTS telemetry_promotions (promotion_id TEXT PRIMARY KEY, review_id TEXT NOT NULL UNIQUE REFERENCES telemetry_reviews(review_id) ON DELETE CASCADE, feedback_id TEXT NOT NULL REFERENCES telemetry_feedback(feedback_id) ON DELETE CASCADE, trace_id TEXT NOT NULL REFERENCES telemetry_traces(trace_id) ON DELETE CASCADE, scenario_id TEXT NOT NULL, scenario_yaml TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_telemetry_promotions_created_id ON telemetry_promotions(created_at DESC, promotion_id DESC)",
+    )
+    for statement in statements:
+        connection.execute(statement)
+
+
+_TELEMETRY_MIGRATIONS = (Migration(1, _create_telemetry_tables),)
 
 
 class PostgreSQLTelemetryRepository:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 import os
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,14 @@ class LoginRequest(BaseModel):
     user_id: str = Field(min_length=1)
 
 
+def _access_draft_marker(message: str) -> str:
+    """Persist only the recognized software marker, never the request text."""
+    for software in ("Admin Console", "VPN", "Slack", "Chrome", "生产数据库"):
+        if re.search(re.escape(software), message, flags=re.IGNORECASE):
+            return f"申请权限 {software}"
+    return "申请权限"
+
+
 def create_app(
     database: str | None = None,
     knowledge_base: KnowledgeBase | None = None,
@@ -63,6 +72,8 @@ def create_app(
     database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
     store = SQLiteStore(database)
+    ticket_service = ticket_service or TicketService(repository=store)
+    approval_service = approval_service or ApprovalService(repository=store)
     graph = build_graph(knowledge_base, user_service, asset_service, ticket_service, approval_service)
     registry = ModelProviderRegistry.with_defaults()
     app.state.model_registry = registry
@@ -138,7 +149,7 @@ def create_app(
         except InjectedDatabaseError as exc:
             raise HTTPException(status_code=503, detail="database temporarily unavailable") from exc
         store.upsert_session(session_id, request.user_id)
-        draft = app.state.access_drafts.get(session_id, "")
+        draft = store.get_access_draft(session_id)
         effective_message = f"{draft} {request.message}".strip() if draft else request.message
         result = app.state.runtime.invoke(
             {
@@ -152,9 +163,9 @@ def create_app(
             }
         )
         if result.get("approval_status") == "needs_information":
-            app.state.access_drafts[session_id] = effective_message
+            store.upsert_access_draft(session_id, _access_draft_marker(effective_message))
         else:
-            app.state.access_drafts.pop(session_id, None)
+            store.delete_access_draft(session_id)
         envelope = ResponseEnvelope(
             answer=str(result["answer"]),
             conversation_id=session_id,
