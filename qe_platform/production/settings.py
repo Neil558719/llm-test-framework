@@ -26,11 +26,17 @@ def _required_string(values: Mapping[str, str], name: str, *, production: bool) 
 def _url(value: str, name: str, *, production: bool) -> str:
     if not value:
         return ""
-    parsed = urlsplit(value.strip())
+    try:
+        parsed = urlsplit(value.strip())
+        hostname = parsed.hostname
+        parsed.port
+    except ValueError as exc:
+        raise ValueError("%s must be an absolute %s URL" % (name, "HTTPS" if production else "HTTP")) from exc
     allowed_schemes = {"https"} if production else {"http", "https"}
     if (
         parsed.scheme not in allowed_schemes
         or not parsed.netloc
+        or not hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.query

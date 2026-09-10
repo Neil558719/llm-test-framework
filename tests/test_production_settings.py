@@ -128,3 +128,30 @@ def test_production_urls_reject_userinfo_and_do_not_publish_it(tmp_path, name):
         ProductionSettings.from_environment(values)
     assert "private-user" not in str(excinfo.value)
     assert "private-password" not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://:443/without-host",
+        "https://id.example.test:not-a-port/path",
+    ),
+)
+def test_production_urls_reject_missing_hosts_and_invalid_ports(tmp_path, url):
+    values = {
+        "QE_ENVIRONMENT": "production",
+        "REFERENCE_AGENT_DATABASE": str(tmp_path / "reference.db"),
+        "QE_TELEMETRY_DATABASE": str(tmp_path / "telemetry.db"),
+        "QE_AUTH_DATABASE": str(tmp_path / "auth.db"),
+        "OIDC_ISSUER": url,
+        "OIDC_AUDIENCE": "quality-platform",
+        "OIDC_CLIENT_ID": "quality-web",
+        "OIDC_REDIRECT_URI": "https://quality.example.test/auth/callback",
+        "AUTH_SESSION_SECRET": "session-secret",
+        "QE_TELEMETRY_HASH_KEY": "hash-key",
+        "QE_TELEMETRY_INGEST_TOKEN": "ingest-token",
+    }
+
+    with pytest.raises(ValueError, match="OIDC_ISSUER") as excinfo:
+        ProductionSettings.from_environment(values)
+    assert url not in str(excinfo.value)
