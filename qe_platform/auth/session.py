@@ -40,9 +40,18 @@ class AuthorizationAttempt:
 class SessionStore:
     """Separate SQLite storage containing only opaque, minimally needed state."""
 
-    def __init__(self, database: str | Path, clock: Callable[[], datetime] | None = None) -> None:
+    def __init__(
+        self,
+        database: str | Path,
+        clock: Callable[[], datetime] | None = None,
+        *,
+        session_secret: str | bytes = "development-session-secret",
+    ) -> None:
         self.database = str(database)
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._session_secret = session_secret.encode("utf-8") if isinstance(session_secret, str) else session_secret
+        if not isinstance(self._session_secret, bytes) or not self._session_secret:
+            raise ValueError("session secret must be nonempty")
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -55,7 +64,7 @@ class SessionStore:
         with self._connect() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS auth_sessions (
-                    session_id TEXT PRIMARY KEY,
+                    session_hash TEXT PRIMARY KEY,
                     subject TEXT NOT NULL,
                     roles_json TEXT NOT NULL,
                     expires_at TEXT NOT NULL,
@@ -95,8 +104,8 @@ class SessionStore:
         record = AuthSession(identifier, subject, clean_roles, expiry, digest)
         with self._connect() as connection:
             connection.execute(
-                "INSERT INTO auth_sessions (session_id, subject, roles_json, expires_at, csrf_hash, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)",
-                (record.session_id, record.subject, json.dumps(sorted(record.roles)), record.expires_at.isoformat(), record.csrf_hash),
+                "INSERT INTO auth_sessions (session_hash, subject, roles_json, expires_at, csrf_hash, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)",
+                (self._session_hash(record.session_id), record.subject, json.dumps(sorted(record.roles)), record.expires_at.isoformat(), record.csrf_hash),
             )
         return record
 
@@ -105,8 +114,8 @@ class SessionStore:
             return None
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT session_id, subject, roles_json, expires_at, csrf_hash FROM auth_sessions WHERE session_id = ? AND revoked_at IS NULL",
-                (session_id,),
+                "SELECT subject, roles_json, expires_at, csrf_hash FROM auth_sessions WHERE session_hash = ? AND revoked_at IS NULL",
+                (self._session_hash(session_id),),
             ).fetchone()
         if row is None:
             return None
@@ -117,11 +126,11 @@ class SessionStore:
             return None
         if _utc(expiry) <= _utc(self._clock()):
             return None
-        return AuthSession(row["session_id"], row["subject"], roles, _utc(expiry), row["csrf_hash"])
+        return AuthSession(session_id, row["subject"], roles, _utc(expiry), row["csrf_hash"])
 
     def revoke(self, session_id: str) -> None:
         with self._connect() as connection:
-            connection.execute("UPDATE auth_sessions SET revoked_at = ? WHERE session_id = ?", (_utc(self._clock()).isoformat(), session_id))
+            connection.execute("UPDATE auth_sessions SET revoked_at = ? WHERE session_hash = ?", (_utc(self._clock()).isoformat(), self._session_hash(session_id)))
 
     def delete_expired(self) -> int:
         now = _utc(self._clock()).isoformat()
@@ -135,6 +144,11 @@ class SessionStore:
         if not isinstance(token, str) or not token:
             return False
         return hmac.compare_digest(hashlib.sha256(token.encode("utf-8")).hexdigest(), session.csrf_hash)
+
+    def _session_hash(self, session_id: str) -> str:
+        if not isinstance(session_id, str) or not session_id:
+            return ""
+        return hmac.new(self._session_secret, session_id.encode("utf-8"), hashlib.sha256).hexdigest()
 
     def create_authorization_attempt(self, redirect_target: str, *, lifetime: timedelta = timedelta(minutes=10)) -> AuthorizationAttempt:
         now = _utc(self._clock())

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Any, Callable, Mapping, Protocol
 from urllib.parse import urlencode
@@ -37,19 +37,24 @@ class OidcVerifier:
         clock: Callable[[], datetime] | None = None,
         *,
         role_mapper: RoleMapper | None = None,
+        jwks_cache_ttl: timedelta = timedelta(minutes=5),
     ) -> None:
         self._metadata_client = metadata_client
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._role_mapper = role_mapper or RoleMapper()
+        if jwks_cache_ttl <= timedelta(0):
+            raise ValueError("JWKS cache TTL must be positive")
+        self._jwks_cache_ttl = jwks_cache_ttl
         self._jwks: Mapping[str, Any] | None = None
+        self._jwks_expires_at: datetime | None = None
 
     def verify_access_token(self, token: str) -> AuthenticatedPrincipal:
         return self._verify(token)
 
-    def verify_id_token(self, token: str, nonce: str) -> AuthenticatedPrincipal:
-        return self._verify(token, nonce=nonce)
+    def verify_id_token(self, token: str, nonce: str, *, audience: str) -> AuthenticatedPrincipal:
+        return self._verify(token, nonce=nonce, audience=audience)
 
-    def _verify(self, token: str, *, nonce: str | None = None) -> AuthenticatedPrincipal:
+    def _verify(self, token: str, *, nonce: str | None = None, audience: str | None = None) -> AuthenticatedPrincipal:
         if not isinstance(token, str) or not token:
             raise OidcVerificationError()
         try:
@@ -64,7 +69,7 @@ class OidcVerifier:
                 token,
                 key,
                 algorithms=list(allowed),
-                audience=self._metadata_client.audience,
+                audience=audience or self._metadata_client.audience,
                 issuer=self._metadata_client.issuer,
                 options={"verify_exp": False, "require": ["sub", "exp", "iss", "aud"]},
             )
@@ -82,9 +87,9 @@ class OidcVerifier:
             return AuthenticatedPrincipal(subject, self._role_mapper.roles_from_claims(claims))
         except OidcVerificationError:
             raise
-        except Exception as exc:
+        except Exception:
             # Do not propagate decoder, key, or metadata text to API callers.
-            raise OidcVerificationError() from exc
+            raise OidcVerificationError() from None
 
     def _key_for(self, kid: str) -> Any:
         key = self._find_key(self._cached_jwks(False), kid)
@@ -95,12 +100,19 @@ class OidcVerifier:
         return jwt.PyJWK.from_dict(dict(key)).key
 
     def _cached_jwks(self, force_refresh: bool) -> Mapping[str, Any]:
-        if force_refresh or self._jwks is None:
-            value = self._metadata_client.get_jwks(force_refresh=force_refresh)
+        now = self._now()
+        expired = self._jwks_expires_at is not None and now >= self._jwks_expires_at
+        if force_refresh or self._jwks is None or self._jwks_expires_at is None or expired:
+            value = self._metadata_client.get_jwks(force_refresh=force_refresh or expired)
             if not isinstance(value, Mapping):
                 raise OidcVerificationError()
             self._jwks = value
+            self._jwks_expires_at = now + self._jwks_cache_ttl
         return self._jwks
+
+    def _now(self) -> datetime:
+        now = self._clock()
+        return now.replace(tzinfo=timezone.utc) if now.tzinfo is None else now.astimezone(timezone.utc)
 
     @staticmethod
     def _find_key(jwks: Mapping[str, Any], kid: str) -> Mapping[str, Any] | None:

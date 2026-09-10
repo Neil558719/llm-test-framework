@@ -86,3 +86,64 @@ def test_role_mapper_drops_unknown_roles_and_session_rows_never_store_raw_csrf(t
     assert "csrf-raw-value" not in (tmp_path / "auth.db").read_bytes().decode("latin1")
     store.revoke(created.session_id)
     assert store.get(created.session_id) is None
+
+
+def test_id_token_uses_client_id_audience_and_expired_jwks_refresh_rejects_same_kid_old_key():
+    now = [NOW]
+    old_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    new_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    def jwks_for(key):
+        value = jwt.algorithms.RSAAlgorithm.to_jwk(key.public_key(), as_dict=True)
+        value.update({"kid": "rotating", "alg": "RS256"})
+        return {"keys": [value]}
+
+    class RotatingMetadata:
+        issuer = "https://issuer.example.test"
+        audience = "api-audience"
+        allowed_algorithms = ("RS256",)
+        jwks = jwks_for(old_key)
+        refreshes = []
+
+        def get_jwks(self, *, force_refresh=False):
+            self.refreshes.append(force_refresh)
+            return self.jwks
+
+    metadata = RotatingMetadata()
+    verifier = OidcVerifier(metadata, lambda: now[0], jwks_cache_ttl=timedelta(seconds=30))
+    id_token = jwt.encode(
+        {"sub": "alice", "iss": metadata.issuer, "aud": "browser-client", "exp": int((NOW + timedelta(minutes=5)).timestamp()), "nonce": "n"},
+        old_key, algorithm="RS256", headers={"kid": "rotating"},
+    )
+    assert verifier.verify_id_token(id_token, "n", audience="browser-client").subject == "alice"
+    with pytest.raises(OidcVerificationError):
+        verifier.verify_id_token(id_token, "n", audience="api-audience")
+
+    now[0] += timedelta(seconds=31)
+    metadata.jwks = jwks_for(new_key)
+    with pytest.raises(OidcVerificationError):
+        verifier.verify_id_token(id_token, "n", audience="browser-client")
+    assert metadata.refreshes == [False, True]
+
+
+def test_session_database_never_contains_raw_cookie_identifier_and_suppresses_metadata_causes(tmp_path):
+    raw_cookie = "raw-session-cookie-never-persisted"
+    store = SessionStore(tmp_path / "auth.db", clock=lambda: NOW, session_secret="server-secret")
+    store.create("alice", {"viewer"}, session_id=raw_cookie, csrf_token="csrf")
+    assert store.get(raw_cookie) is not None
+    assert raw_cookie not in (tmp_path / "auth.db").read_bytes().decode("latin1")
+    store.revoke(raw_cookie)
+    assert store.get(raw_cookie) is None
+
+    class FailingMetadata:
+        issuer = "https://issuer.example.test"
+        audience = "api-audience"
+        allowed_algorithms = ("RS256",)
+
+        def get_jwks(self, *, force_refresh=False):
+            raise RuntimeError("upstream-sentinel-secret")
+
+    with pytest.raises(OidcVerificationError) as failure:
+        OidcVerifier(FailingMetadata(), lambda: NOW).verify_access_token("eyJraWQiOiJrIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJhIn0.signature")
+    assert failure.value.__cause__ is None
+    assert "sentinel" not in str(failure.value)

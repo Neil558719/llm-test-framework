@@ -50,6 +50,7 @@ class AuthRuntime:
     ) -> None:
         self.session_store = session_store
         self.cookie_name = cookie_name
+        self.csrf_cookie_name = cookie_name + "_csrf"
         self.environment = environment
         self.verifier = verifier
         self.cookie_secure = cookie_secure
@@ -86,7 +87,7 @@ class AuthRuntime:
             jwks_url=settings.oidc_jwks_url,
         )
         return cls(
-            session_store=SessionStore(settings.auth_database),
+            session_store=SessionStore(settings.auth_database, session_secret=settings.auth_session_secret),
             cookie_name=settings.auth_cookie_name,
             environment=settings.environment,
             verifier=OidcVerifier(metadata, role_mapper=RoleMapper(settings.oidc_roles_claim, parsed)),
@@ -95,6 +96,11 @@ class AuthRuntime:
             metadata_client=metadata,
             redirect_uri=settings.oidc_redirect_uri,
             client_id=settings.oidc_client_id,
+            redirect_allowlist=tuple(
+                value.strip()
+                for value in os.getenv("OIDC_REDIRECT_ALLOWLIST", "").split(",")
+                if value.strip()
+            ),
         )
 
     @property
@@ -146,7 +152,10 @@ class AuthRuntime:
             _forbidden()
         attempt = self.session_store.create_authorization_attempt(target)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(attempt.code_verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
-        endpoint = getattr(self.metadata_client, "authorization_endpoint", "")
+        try:
+            endpoint = getattr(self.metadata_client, "authorization_endpoint", "")
+        except Exception:
+            raise HTTPException(status_code=401, detail="unauthorized") from None
         if not isinstance(endpoint, str) or not endpoint.startswith("https://"):
             _unauthorized()
         return endpoint + ("&" if "?" in endpoint else "?") + urlencode(
@@ -172,9 +181,9 @@ class AuthRuntime:
         try:
             tokens = exchange(code=code, code_verifier=attempt.code_verifier, redirect_uri=self.redirect_uri)
             id_token = tokens.get("id_token") if isinstance(tokens, Mapping) else None
-            principal = self.verifier.verify_id_token(id_token, attempt.nonce) if self.verifier is not None else None
+            principal = self.verifier.verify_id_token(id_token, attempt.nonce, audience=self.client_id) if self.verifier is not None else None
         except Exception:
-            _unauthorized()
+            raise HTTPException(status_code=401, detail="unauthorized") from None
         if principal is None:
             _unauthorized()
         # The raw token exists only long enough to bootstrap the browser. The
@@ -238,15 +247,25 @@ def install_auth_routes(app, runtime: AuthRuntime) -> None:
             samesite=runtime.cookie_samesite,
             path="/",
         )
-        # JavaScript can read this non-secret anti-forgery bootstrap value once;
-        # only its hash is persisted. It is never placed in the authenticated cookie.
-        response.headers["X-CSRF-Token"] = csrf_token
+        # This separate SameSite cookie is readable by same-origin browser code;
+        # only its hash is stored, while the authenticated cookie stays HttpOnly.
+        response.set_cookie(
+            runtime.csrf_cookie_name,
+            csrf_token,
+            httponly=False,
+            secure=runtime.cookie_secure,
+            samesite=runtime.cookie_samesite,
+            path="/",
+        )
         return response
 
     @app.post("/auth/logout")
     def auth_logout(request: Request) -> Response:
+        runtime.require(request)
+        runtime.require_csrf(request)
         if runtime.session_store is not None:
             runtime.session_store.revoke(request.cookies.get(runtime.cookie_name, ""))
         response = Response(status_code=204)
         response.delete_cookie(runtime.cookie_name, path="/")
+        response.delete_cookie(runtime.csrf_cookie_name, path="/")
         return response
