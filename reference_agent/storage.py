@@ -55,6 +55,7 @@ class SQLiteStore:
     def create_ticket(
         self, user_id: str, asset_id: str, category: str, priority: str, idempotency_key: str | None
     ) -> dict[str, Any]:
+        idempotency_key = idempotency_key or None
         with self._transaction():
             existing = self._idempotent_row("tickets", "ticket_id", idempotency_key)
             if existing is not None:
@@ -88,6 +89,7 @@ class SQLiteStore:
     def create_approval(
         self, user_id: str, software: str, justification: str, idempotency_key: str | None
     ) -> dict[str, Any]:
+        idempotency_key = idempotency_key or None
         with self._transaction():
             existing = self._idempotent_row("approvals", "approval_id", idempotency_key)
             if existing is not None:

@@ -47,6 +47,25 @@ def test_persistent_ticket_writes_allocate_unique_ids_during_concurrency(tmp_pat
         store.close()
 
 
+def test_empty_idempotency_keys_do_not_create_durable_idempotency_records(tmp_path):
+    store = SQLiteStore(tmp_path / "reference-agent.db")
+    tickets = TicketService(repository=store)
+    approvals = ApprovalService(repository=store)
+
+    try:
+        first_ticket = tickets.create_ticket("U1001", "PC-1001", "vpn", "normal", "")
+        second_ticket = tickets.create_ticket("U1001", "PC-1002", "vpn", "normal", "")
+        first_approval = approvals.create_approval("U1001", "VPN", "remote work", "")
+        second_approval = approvals.create_approval("U1001", "Slack", "collaboration", "")
+
+        assert first_ticket["ticket_id"] == "T-0001"
+        assert second_ticket["ticket_id"] == "T-0002"
+        assert first_approval["approval_id"] == "A-0001"
+        assert second_approval["approval_id"] == "A-0002"
+    finally:
+        store.close()
+
+
 def test_access_draft_survives_app_reopen_until_request_is_complete(tmp_path):
     database = tmp_path / "reference-agent.db"
     users = UserService({"U1001": {"user_id": "U1001", "name": "User"}})
