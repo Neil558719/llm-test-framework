@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 
 from llmtest import Config
+from qe_platform.production.secrets import SecretSource
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class AgentModelConfig:
 
     @classmethod
     def from_env(cls) -> "AgentModelConfig":
+        secrets = SecretSource.from_environment(os.environ)
         mode = os.getenv("REFERENCE_AGENT_MODEL_MODE", "mock").lower()
         provider = os.getenv("REFERENCE_AGENT_MODEL_PROVIDER", "").lower()
         if mode not in {"mock", "real"}:
@@ -42,7 +44,7 @@ class AgentModelConfig:
             base = "https://api.deepseek.com"
         return cls(profile=profile or "mock", mode=mode, provider=provider or "mock",
                    model=os.getenv("REFERENCE_AGENT_MODEL", ""), base_url=base,
-                   api_key=os.getenv("REFERENCE_AGENT_MODEL_API_KEY"),
+                   api_key=secrets.get("REFERENCE_AGENT_MODEL_API_KEY"),
                    temperature=float(os.getenv("REFERENCE_AGENT_MODEL_TEMPERATURE", "0")),
                    max_tokens=int(os.environ["REFERENCE_AGENT_MODEL_MAX_TOKENS"]) if os.getenv("REFERENCE_AGENT_MODEL_MAX_TOKENS") else None)
 
