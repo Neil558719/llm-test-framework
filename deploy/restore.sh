@@ -30,7 +30,8 @@ docker compose -f "$compose_file" run --rm --no-deps -v "$backup_dir:/backup:ro"
 import sqlite3
 import sys
 from pathlib import Path
-from qe_platform.ops import restore_database, schema_versions
+from qe_platform.ops import restore_database
+from reference_agent.storage import _MIGRATIONS
 
 backup, target = map(Path, sys.argv[1:])
 if target.exists():
@@ -41,7 +42,7 @@ if target.exists():
         connection.close()
     for suffix in ("-wal", "-shm"):
         Path(str(target) + suffix).unlink(missing_ok=True)
-expected = schema_versions(target) if target.exists() else {}
+expected = {"reference_agent": max(migration.version for migration in _MIGRATIONS)}
 restore_database(backup, target, expected)
 ' "/backup/$backup_name" "$database_path"
 

@@ -188,8 +188,8 @@ def test_backup_verifies_sqlite_integrity_before_reporting_success():
     backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
 
     assert "PRAGMA integrity_check" in backup
-    assert "up -d --wait" in backup
-    assert "finally" in backup
+    assert "run --rm --no-deps" in backup
+    assert "up -d --wait" not in backup
     assert "Resolve-Path" in backup
 
 

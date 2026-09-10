@@ -113,3 +113,18 @@ def test_compose_operations_forward_declared_database_and_volume_inputs():
         source = _source(path)
         assert "$env:DATABASE_PATH = $DatabasePath" in source
         assert "$env:REFERENCE_AGENT_VOLUME = $Volume" in source
+
+
+def test_restore_uses_image_schema_version_for_an_empty_data_volume():
+    restore = _source("deploy/restore.sh")
+
+    assert "from reference_agent.storage import _MIGRATIONS" in restore
+    assert 'expected = {"reference_agent": max(migration.version for migration in _MIGRATIONS)}' in restore
+    assert "else {}" not in restore
+
+
+def test_online_backup_does_not_start_a_service_that_was_already_stopped():
+    backup = _source("deploy/backup.ps1")
+
+    assert "run --rm --no-deps" in backup
+    assert "docker compose -f $ComposeFile up -d --wait" not in backup
