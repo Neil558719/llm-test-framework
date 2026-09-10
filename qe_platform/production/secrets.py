@@ -26,26 +26,27 @@ class SecretSource:
         )
 
     def get(self, name: str, default: str = "") -> str:
-        """Return a direct value, or a Docker secret when the direct value is blank.
+        """Return a Docker secret first, then a direct environment value.
 
         ``<NAME>_FILE`` permits explicit local testing and deployments.  Without
         it, Docker's conventional ``/run/secrets/<lowercase-name>`` location is
         consulted only when it exists.  Error messages deliberately contain the
         variable name and never secret material or filesystem contents.
         """
-        value = self._value(name)
-        if isinstance(value, str) and value:
-            return value
         file_name = self._value("%s_FILE" % name)
-        candidate = Path(file_name) if isinstance(file_name, str) and file_name else Path("/run/secrets") / name.lower()
+        configured_file = isinstance(file_name, str) and bool(file_name)
+        candidate = Path(file_name) if configured_file else Path("/run/secrets") / name.lower()
         try:
-            if candidate.is_file():
+            if configured_file or candidate.is_file():
                 content = candidate.read_text(encoding="utf-8")
                 if content.endswith("\r\n"):
                     return content[:-2]
                 return content[:-1] if content.endswith("\n") else content
         except (OSError, UnicodeError) as exc:
             raise ValueError("%s secret file could not be read" % name) from exc
+        value = self._value(name)
+        if isinstance(value, str) and value:
+            return value
         return default
 
     def require(self, name: str) -> str:

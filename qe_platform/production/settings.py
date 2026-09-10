@@ -28,7 +28,14 @@ def _url(value: str, name: str, *, production: bool) -> str:
         return ""
     parsed = urlsplit(value.strip())
     allowed_schemes = {"https"} if production else {"http", "https"}
-    if parsed.scheme not in allowed_schemes or not parsed.netloc or parsed.query or parsed.fragment:
+    if (
+        parsed.scheme not in allowed_schemes
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ValueError("%s must be an absolute %s URL" % (name, "HTTPS" if production else "HTTP"))
     path = parsed.path.rstrip("/")
     return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
