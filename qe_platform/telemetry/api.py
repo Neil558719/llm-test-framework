@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
+from qe_platform.auth.dependencies import AuthRuntime
 from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, ReviewAttribution, ReviewPriority, ReviewStatus, promote_review
 from qe_platform.quality_loop.engine import build_quality_links, build_trends, validate_release
 from qe_platform.quality_loop.models import ReleaseGatePolicy
@@ -22,6 +23,8 @@ def create_telemetry_app(
     settings: TelemetrySettings,
     repository: TelemetryRepository | None = None,
     quality_repository: SQLiteQualityRepository | None = None,
+    *,
+    auth_runtime: AuthRuntime | None = None,
 ) -> FastAPI:
     repo = repository or create_telemetry_repository(
         settings.database,
@@ -32,6 +35,7 @@ def create_telemetry_app(
         settings.database,
         retention_days=settings.retention_days,
     )
+    auth = auth_runtime or AuthRuntime.from_environment()
     app = FastAPI(title="QE Telemetry API")
 
     def unauthorized() -> None:
@@ -43,6 +47,17 @@ def create_telemetry_app(
     def require_token(token: str | None) -> None:
         if token is None or not hmac.compare_digest(token, settings.ingest_token):
             unauthorized()
+
+    def require_human(request: Request, role: str) -> None:
+        auth.require(request, role)
+        auth.require_csrf(request)
+
+    def require_machine_or_human(request: Request, token: str | None, role: str) -> None:
+        if token is not None and hmac.compare_digest(token, settings.ingest_token):
+            return
+        if auth.development_mode:
+            require_token(token)
+        require_human(request, role)
 
     async def read_mapping(request: Request) -> Mapping[str, Any]:
         try:
@@ -159,6 +174,7 @@ def create_telemetry_app(
 
     @app.post("/api/traces/{trace_id}/feedback")
     async def add_feedback(trace_id: str, request: Request) -> Response:
+        require_human(request, "viewer")
         payload = await read_mapping(request)
         if set(payload) != {"category", "reporter_id", "source"}:
             bad_request()
@@ -201,6 +217,7 @@ def create_telemetry_app(
 
     @app.post("/api/feedback/{feedback_id}/review")
     async def add_review(feedback_id: str, request: Request) -> Response:
+        require_human(request, "reviewer")
         payload = await read_mapping(request)
         if set(payload) != {"reviewer_id", "status", "attribution", "priority"}:
             bad_request()
@@ -272,6 +289,7 @@ def create_telemetry_app(
 
     @app.post("/api/reviews/{review_id}/promote")
     async def promote(review_id: str, request: Request) -> Response:
+        require_human(request, "releaser")
         payload = await read_mapping(request)
         if set(payload) != {"scenario"} or not isinstance(payload["scenario"], Mapping):
             bad_request()
@@ -344,7 +362,7 @@ def create_telemetry_app(
         request: Request,
         x_qe_telemetry_token: str | None = Header(default=None, alias="X-QE-Telemetry-Token"),
     ) -> Response:
-        require_token(x_qe_telemetry_token)
+        require_machine_or_human(request, x_qe_telemetry_token, "releaser")
         payload = dict(await read_mapping(request))
         source_label = payload.pop("source_label", "api-report")
         if not isinstance(source_label, str):
@@ -363,7 +381,7 @@ def create_telemetry_app(
         request: Request,
         x_qe_telemetry_token: str | None = Header(default=None, alias="X-QE-Telemetry-Token"),
     ) -> Response:
-        require_token(x_qe_telemetry_token)
+        require_machine_or_human(request, x_qe_telemetry_token, "releaser")
         payload = await read_mapping(request)
         if set(payload) - {"promotion_id", "offline_run_id", "scenario_id"} or not {"promotion_id", "offline_run_id"} <= set(payload):
             bad_request()
@@ -396,7 +414,7 @@ def create_telemetry_app(
         request: Request,
         x_qe_telemetry_token: str | None = Header(default=None, alias="X-QE-Telemetry-Token"),
     ) -> Response:
-        require_token(x_qe_telemetry_token)
+        require_machine_or_human(request, x_qe_telemetry_token, "releaser")
         payload = await read_mapping(request)
         allowed = {
             "baseline_run_id", "candidate_run_id", "validation_id", "max_candidate_failure_rate",

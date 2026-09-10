@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +17,7 @@ from llmtest import LatencyMetrics, ResponseEnvelope, ModelVersion, CostMetrics,
 from llmtest.cost import PriceTable
 from qe_platform.telemetry import build_trace_event
 from qe_platform.telemetry.sink import TelemetrySink, telemetry_sink_from_environment
+from qe_platform.auth.dependencies import AuthRuntime, install_auth_routes
 
 from .graph import build_graph
 from .services.assets import AssetService
@@ -57,6 +58,7 @@ def create_app(
     fault_settings: FaultControlSettings | None = None,
     *,
     telemetry_sink: TelemetrySink | None = None,
+    auth_runtime: AuthRuntime | None = None,
 ) -> FastAPI:
     database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
@@ -73,6 +75,7 @@ def create_app(
     app.state.access_drafts = {}
     app.state.fault_settings = fault_settings or FaultControlSettings.from_env()
     app.state.telemetry_sink = telemetry_sink or telemetry_sink_from_environment()
+    app.state.auth_runtime = auth_runtime or AuthRuntime.from_environment()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -84,7 +87,9 @@ def create_app(
         return {"profiles": [{"name": p.name, "label": p.label, "mode": p.mode, "provider": p.provider, "base_url": p.base_url} for p in registry.profiles()], "current": current.as_public_dict()}
 
     @app.put("/api/model-profile")
-    def set_model_profile(payload: dict[str, Any]) -> dict[str, Any]:
+    def set_model_profile(payload: dict[str, Any], request: Request) -> dict[str, Any]:
+        app.state.auth_runtime.require(request, "admin")
+        app.state.auth_runtime.require_csrf(request)
         name = str(payload.get("profile", ""))
         try:
             profile = registry.resolve(name)
@@ -248,6 +253,7 @@ def create_app(
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
+    install_auth_routes(app, app.state.auth_runtime)
     app.mount("/", StaticFiles(directory=Path(__file__).parent / "web", html=True), name="web")
 
     return app
