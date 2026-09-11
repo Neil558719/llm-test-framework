@@ -196,14 +196,13 @@ def test_backup_verifies_sqlite_integrity_before_reporting_success():
 
 
 def test_backup_integrity_checks_use_immutable_read_only_sqlite_uri():
-    backups = [
-        (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8"),
-        (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8"),
-    ]
+    powershell_backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
+    shell_backup = (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8")
 
-    for backup in backups:
+    for backup in [powershell_backup, shell_backup]:
         assert "mode=ro&immutable=1" in backup
         assert "uri=True" in backup
+    assert "file:/backup/${targetName}?mode=ro&immutable=1" in powershell_backup
 
 
 def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
