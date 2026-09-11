@@ -458,7 +458,7 @@ python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
 
 ## 生产加固与服务器迁移
 
-生产模式使用通用 OIDC（浏览器授权码 + PKCE 与 API Bearer token）、四类角色、独立会话 SQLite、版本化业务 SQLite、在线备份/恢复、就绪探针和无敏感字段指标。生产 Compose 只接受 Docker secret 文件与不可变镜像 digest；本地开发仍使用显式的 `QE_ENVIRONMENT=development`。运行顺序和 Windows/Linux 命令在 [`docs/deployment/production-readiness-runbook.md`](docs/deployment/production-readiness-runbook.md) 中。当前证据来自临时 SQLite、生成的测试密钥、离线 HTTP 契约和本机浏览器测试；本次容器迁移、备份恢复、Smoke 与回滚演练尚未执行。GitHub Issue、push、PR、Actions、审查、合并与 Release 仍待完成；真实 IdP、HTTPS 域名、独立服务器与公网 Smoke 需在服务器提供后执行。
+生产模式使用通用 OIDC（浏览器授权码 + PKCE 与 API Bearer token）、四类角色、独立会话 SQLite、版本化业务 SQLite、在线备份/恢复、就绪探针和无敏感字段指标。生产 Compose 只接受 Docker secret 文件与不可变镜像 digest；本地开发仍使用显式的 `QE_ENVIRONMENT=development`。运行顺序和 Windows/Linux 命令在 [`docs/deployment/production-readiness-runbook.md`](docs/deployment/production-readiness-runbook.md) 中。当前证据来自临时 SQLite、生成的测试密钥、离线 HTTP 契约、本机浏览器测试和 Docker 迁移/备份/恢复/跨重启/rollback 演练；完整 Bearer Smoke、真实 IdP、HTTPS 域名、独立服务器与公网 Smoke 需在服务器提供后执行。GitHub Issue、push、PR、Actions、审查、合并与 Release 仍待完成。
 
 ## 报告看板
 

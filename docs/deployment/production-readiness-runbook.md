@@ -4,7 +4,7 @@
 
 ## 当前验收边界
 
-2026-09-10 已完成离线生产加固契约、完整非 UI 回归、UI 回归、Python 静态编译、diff 空白检查和带临时占位值的 Compose 静态配置。Docker Desktop Linux daemon 当前不可连接，因此本机尚无容器启动、迁移、备份、恢复、Smoke、rollback、镜像 digest、`schema_meta` 版本或备份 SHA-256 的实际报告。GitHub Issue、push、Pull Request、Actions、独立审查、合并、Release 与服务器部署同样仍待执行；详细本地证据见 `docs/deployment/evidence/2026-09-10-production-hardening.md`。
+2026-09-11 已完成离线生产加固契约、完整非 UI/UI 回归、Python 静态编译、diff 空白检查、Compose 静态配置，以及本机 Docker 构建、迁移、备份、恢复、跨重启和 rollback 演练。演练使用临时 OIDC JWKS、临时 secret 文件和本地不可变镜像 digest；完整 Bearer Smoke、真实 IdP、HTTPS、公网和独立服务器部署仍待正式环境。GitHub Issue、push、Pull Request、Actions、独立审查、合并与 Release 同样仍待执行；详细证据见 `docs/deployment/evidence/2026-09-10-production-hardening.md`。
 
 ## 前置条件
 
