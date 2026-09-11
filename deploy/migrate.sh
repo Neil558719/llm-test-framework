@@ -7,13 +7,15 @@ export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml${COMPOSE_PATH_SEPARATOR}
 database_path="${DATABASE_PATH:-/data/reference_agent.db}"
 volume="${REFERENCE_AGENT_VOLUME:-local-production-drill_reference-agent-data}"
 report="${REPORT_PATH:-reports/migrate.json}"
+pull_policy="${COMPOSE_PULL_POLICY:-always}"
 
 case "$database_path" in /data/*) ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
+case "$pull_policy" in always|missing|never) ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
 export DATABASE_PATH="$database_path"
 export REFERENCE_AGENT_VOLUME="$volume"
 mkdir -p "$(dirname "$report")"
 
-docker compose run --rm --no-deps --entrypoint python reference-agent -c 'from reference_agent.app import create_app; create_app()'
+docker compose run --pull "$pull_policy" --rm --no-deps --entrypoint python reference-agent -c 'from reference_agent.app import create_app; create_app()'
 docker run --rm -v "$volume:/data:ro" python:3.12-alpine python -c 'import sqlite3,sys; path=sys.argv[1]; result=sqlite3.connect(path).execute("PRAGMA integrity_check").fetchone()[0]; sys.exit(0 if result == "ok" else 1)' "$database_path"
 
 python - "$report" "$database_path" <<'PY'

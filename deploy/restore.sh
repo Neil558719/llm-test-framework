@@ -8,7 +8,9 @@ export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml${COMPOSE_PATH_SEPARATOR}
 database_path="${DATABASE_PATH:-/data/reference_agent.db}"
 volume="${REFERENCE_AGENT_VOLUME:-local-production-drill_reference-agent-data}"
 report="${REPORT_PATH:-reports/restore.json}"
+pull_policy="${COMPOSE_PULL_POLICY:-always}"
 case "$database_path" in /data/*) ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
+case "$pull_policy" in always|missing|never) ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
 export DATABASE_PATH="$database_path"
 export REFERENCE_AGENT_VOLUME="$volume"
 
@@ -21,14 +23,14 @@ mkdir -p "$(dirname "$report")"
 stopped=0
 restart_service() {
   if [ "$stopped" -eq 1 ]; then
-    docker compose up -d --wait
+    docker compose up -d --pull "$pull_policy" --wait
   fi
 }
 trap restart_service EXIT INT TERM
 docker compose stop reference-agent
 stopped=1
 
-docker compose run --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
+docker compose run --pull "$pull_policy" --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
 import sqlite3
 import sys
 from pathlib import Path

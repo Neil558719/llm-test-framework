@@ -8,8 +8,10 @@ database_path="${DATABASE_PATH:-/data/reference_agent.db}"
 volume="${REFERENCE_AGENT_VOLUME:-local-production-drill_reference-agent-data}"
 output_dir="${BACKUP_DIR:-deploy/backups}"
 report="${REPORT_PATH:-reports/backup.json}"
+pull_policy="${COMPOSE_PULL_POLICY:-always}"
 
 case "$database_path" in /data/*) ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
+case "$pull_policy" in always|missing|never) ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
 export DATABASE_PATH="$database_path"
 export REFERENCE_AGENT_VOLUME="$volume"
 mkdir -p "$output_dir" "$(dirname "$report")"
@@ -24,7 +26,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # The helper uses SQLite's online backup API, so a healthy service remains available.
-docker compose run --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
+docker compose run --pull "$pull_policy" --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
 import sys
 from pathlib import Path
 from qe_platform.ops import backup_database

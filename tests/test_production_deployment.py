@@ -126,5 +126,5 @@ def test_restore_uses_image_schema_version_for_an_empty_data_volume():
 def test_online_backup_does_not_start_a_service_that_was_already_stopped():
     backup = _source("deploy/backup.ps1")
 
-    assert "run --rm --no-deps" in backup
+    assert "run --pull $PullPolicy --rm --no-deps" in backup
     assert "docker compose -f $ComposeFile up -d --wait" not in backup

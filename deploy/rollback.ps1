@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ImageTag,
     [string]$ImageDigest = "",
     [Alias("ComposeFile")][string[]]$ComposeFiles = @("docker-compose.yml", "docker-compose.production.yml"),
+    [ValidateSet("always", "missing", "never")][string]$PullPolicy = "always",
     [string]$ReportPath = "reports/rollback.json"
 )
 $ErrorActionPreference = "Stop"
@@ -15,7 +16,7 @@ $env:IMAGE_TAG = $ImageTag
 if ($ImageDigest) { $env:REFERENCE_AGENT_IMAGE_DIGEST = $ImageDigest }
 $reportDirectory = Split-Path -Parent $ReportPath
 if ($reportDirectory) { New-Item -ItemType Directory -Force $reportDirectory | Out-Null }
-docker compose @composeArgs up -d --no-build --wait
+docker compose @composeArgs up -d --pull $PullPolicy --no-build --wait
 if ($LASTEXITCODE -ne 0) { throw "Rollback compose command failed" }
 docker compose @composeArgs ps
 if ($LASTEXITCODE -ne 0) { throw "Rollback status check failed" }

@@ -166,7 +166,7 @@ def test_smoke_script_validates_health_payload_instead_of_only_http_success():
 def test_rollback_waits_for_container_health_before_returning():
     rollback = (ROOT / "deploy" / "rollback.ps1").read_text(encoding="utf-8")
 
-    assert "up -d --no-build --wait" in rollback
+    assert "up -d --pull $PullPolicy --no-build --wait" in rollback
 
 
 def test_deployment_scripts_check_native_command_exit_codes_and_use_stable_volume_name():
@@ -190,7 +190,7 @@ def test_backup_verifies_sqlite_integrity_before_reporting_success():
     backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
 
     assert "PRAGMA integrity_check" in backup
-    assert "run --rm --no-deps" in backup
+    assert "run --pull $PullPolicy --rm --no-deps" in backup
     assert "up -d --wait" not in backup
     assert "Resolve-Path" in backup
 
@@ -200,7 +200,7 @@ def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
     restore = (ROOT / "deploy" / "restore.sh").read_text(encoding="utf-8")
 
     assert "trap" in backup and "PRAGMA integrity_check" in backup
-    assert "PRAGMA integrity_check" in restore and "docker compose up -d --wait" in restore
+    assert "PRAGMA integrity_check" in restore and 'docker compose up -d --pull "$pull_policy" --wait' in restore
     assert "trap" in restore
 
 

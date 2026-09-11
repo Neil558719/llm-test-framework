@@ -3,6 +3,7 @@ param(
     [Alias("ComposeFile")][string[]]$ComposeFiles = @("docker-compose.yml", "docker-compose.production.yml"),
     [string]$DatabasePath = "/data/reference_agent.db",
     [string]$Volume = "local-production-drill_reference-agent-data",
+    [ValidateSet("always", "missing", "never")][string]$PullPolicy = "always",
     [string]$ReportPath = "reports/restore.json"
 )
 $ErrorActionPreference = "Stop"
@@ -39,9 +40,9 @@ if target.exists():
         Path(str(target) + suffix).unlink(missing_ok=True)
 restore_database(backup, target, {'reference_agent': max(item.version for item in _MIGRATIONS)})
 "@
-docker compose @composeArgs run --rm --no-deps -v "${backupDirectory}:/backup:ro" --entrypoint python reference-agent -c $restoreCode "/backup/$backupName" $DatabasePath
+docker compose @composeArgs run --pull $PullPolicy --rm --no-deps -v "${backupDirectory}:/backup:ro" --entrypoint python reference-agent -c $restoreCode "/backup/$backupName" $DatabasePath
 if ($LASTEXITCODE -ne 0) { throw "Restore failed; service remains stopped for inspection" }
-docker compose @composeArgs up -d --wait
+docker compose @composeArgs up -d --pull $PullPolicy --wait
 if ($LASTEXITCODE -ne 0) { throw "Restored service readiness failed" }
 [ordered]@{ operation = "restore"; status = "ok"; database_path = $DatabasePath } |
     ConvertTo-Json -Compress | Set-Content -LiteralPath $ReportPath -Encoding utf8
