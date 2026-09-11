@@ -31,8 +31,13 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _read_only_connection(path: Path) -> sqlite3.Connection:
+    """Open an inspection-only SQLite connection that works on read-only mounts."""
+    return sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
+
+
 def _integrity_check(path: Path) -> bool:
-    connection = sqlite3.connect(str(path))
+    connection = _read_only_connection(path)
     try:
         rows = connection.execute("PRAGMA integrity_check").fetchall()
     finally:
@@ -41,7 +46,7 @@ def _integrity_check(path: Path) -> bool:
 
 
 def schema_versions(path: Path) -> dict[str, int]:
-    connection = sqlite3.connect(str(path))
+    connection = _read_only_connection(path)
     try:
         table = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_meta'"

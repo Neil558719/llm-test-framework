@@ -92,6 +92,32 @@ def test_restore_validates_backup_and_replaces_target_atomically(tmp_path):
         assert connection.execute("SELECT value FROM records").fetchone()[0] == "kept"
 
 
+def test_restore_reads_backup_through_an_immutable_read_only_connection(tmp_path, monkeypatch):
+    source = tmp_path / "source.db"
+    backup = tmp_path / "backup.db"
+    target = tmp_path / "target.db"
+    _database(source)
+    backup_database(source, backup)
+
+    real_connect = backup_module.sqlite3.connect
+    connection_calls: list[tuple[str, bool]] = []
+
+    def read_only_mount_connect(database, *args, **kwargs):
+        connection_calls.append((str(database), kwargs.get("uri", False)))
+        if str(database) == str(backup):
+            raise sqlite3.OperationalError("attempt to write a readonly database")
+        return real_connect(database, *args, **kwargs)
+
+    monkeypatch.setattr(backup_module.sqlite3, "connect", read_only_mount_connect)
+
+    restore_database(backup, target, {"reference_agent": 1})
+
+    backup_connections = [call for call in connection_calls if call[0].startswith("file:") and "backup.db" in call[0]]
+    assert backup_connections
+    assert all(uri for _, uri in backup_connections)
+    assert all("mode=ro&immutable=1" in database for database, _ in backup_connections)
+
+
 def test_restore_rejects_non_quiescent_target_before_replacing_it(tmp_path):
     source = tmp_path / "source.db"
     target = tmp_path / "target.db"
