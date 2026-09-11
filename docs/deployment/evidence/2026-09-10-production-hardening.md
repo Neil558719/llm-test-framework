@@ -4,16 +4,16 @@
 
 | 检查 | 命令 | 2026-09-10 本机结果 |
 | --- | --- | --- |
-| 生产加固定向回归 | `python -m pytest tests/test_production_settings.py tests/test_auth_oidc.py tests/test_auth_api.py tests/test_storage_migrations.py tests/test_reference_agent_persistence.py tests/test_production_ops.py tests/test_health_readiness.py tests/test_production_deployment.py tests/test_production_hardening_contract.py --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-task7-focused` | `54 passed, 13 warnings` |
-| 完整非 UI 回归 | `python -m pytest --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-task7-full` | `499 passed, 4 deselected, 217 warnings` |
-| UI 回归 | `python -m pytest -m ui --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-task7-ui` | `4 passed, 499 deselected, 3 warnings` |
+| 生产加固定向回归 | `python -m pytest tests/test_production_settings.py tests/test_auth_oidc.py tests/test_auth_api.py tests/test_storage_migrations.py tests/test_reference_agent_persistence.py tests/test_production_ops.py tests/test_health_readiness.py tests/test_production_deployment.py tests/test_production_hardening_contract.py tests/test_final_hardening_fixes.py tests/test_final_deploy_args.py --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-final-focused` | `74 passed, 49 warnings` |
+| 完整非 UI 回归 | `python -m pytest --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-final-20260911` | `531 passed, 5 deselected, 261 warnings` |
+| UI 回归 | `python -m pytest -m ui --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-final-ui-20260911` | `5 passed, 531 deselected, 5 warnings` |
 | Python 静态编译与空白检查 | `python -m compileall -q llmtest qe_platform reference_agent tests`；`git diff --check master...HEAD`；`git diff --check` | 均以退出码 0 完成 |
-| Compose 静态配置 | `docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet`，使用临时空 secret 文件、占位 OIDC 值和占位 image digest | 以退出码 0 完成；未拉取或运行镜像 |
+| Compose 静态配置 | 设置临时占位 OIDC、数据库路径、`*_FILE` 和 image digest 后运行 `docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet` | 以退出码 0 完成；未拉取或运行镜像 |
 | 范围与兼容性检查 | `git diff --name-only master...HEAD`、`git diff master...HEAD -- ':!docs'`、`git diff master...HEAD -- llmtest` | 没有 FastGPT 命名文件或实现引用；`llmtest/` 无改动，`AppResponse` 兼容面未改动 |
 | 迁移、备份、恢复、Smoke 与 rollback | `deploy/migrate.*`、`deploy/backup.*`、`deploy/restore.sh`、`deploy/smoke.*`、`deploy/rollback.ps1` | 未运行。`docker info` 无法连接 `//./pipe/dockerDesktopLinuxEngine`，因此没有可记录的实际 image digest、`schema_meta` 版本、备份 SHA-256、Smoke 或 rollback 报告 |
 | 独立服务器 OIDC/HTTPS/公网 Smoke | 需要服务器、域名、正式 secret 与 IdP 配置 | 待服务器提供后执行 |
 
-本轮契约覆盖并修复两项集成风险：Bearer 认证的 API 写操作会跳过 Cookie CSRF 校验；Reference Agent 机器遥测发送器可以读取 Docker secret 文件。报告、备份、secret 文件、OIDC token 和真实业务请求均不得提交。
+2026-09-11 最终修复波次补充了生产业务路由角色门禁、跨浏览器 OIDC 事务绑定、审批与草稿隐私迁移、会话数据库共享迁移运行时、深度 readiness、生产 Compose 参数一致性、模型密钥 `*_FILE`、生产浏览器 CSRF、操作指标和部署脚本回归。最终定向回归 `74 passed`，全量非 UI `531 passed`，UI `5 passed`；Docker 容器迁移/备份恢复/Smoke/rollback 仍未运行，因为本机 Docker Linux daemon 不可连接。报告、备份、secret 文件、OIDC token 和真实业务请求均不得提交。
 
 ## 交付生命周期状态
 
