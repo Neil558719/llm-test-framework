@@ -7,7 +7,7 @@
 | 环境 | 当前目标 | 状态 |
 | --- | --- | --- |
 | 开发 | Windows 工作区与 Python 虚拟环境 | 已具备 |
-| 类生产 | Windows + Docker Desktop + Docker Compose | 本次加固演练待 Docker daemon 恢复后验证 |
+| 类生产 | Windows + Docker Desktop + Docker Compose | 本次已完成构建、迁移、备份、恢复、跨重启和 rollback 演练 |
 | CI | GitHub Actions Ubuntu runner | PR 自动验证 |
 | 公网生产 | Ubuntu LTS、2 核 4 GB、Docker Compose | 待取得服务器 |
 

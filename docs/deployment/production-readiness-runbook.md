@@ -102,4 +102,4 @@ In production, use `/auth/login`, `/auth/session`, and `/auth/logout`; `/api/log
 
 Metrics are process-local, fixed-name counters and latency totals for HTTP operations, auth failures, database/migration failures, quality-gate decisions, backup and restore. They accept no request labels. CLI operation metrics live in that CLI process; `/api/metrics` exposes the running service process and requires admin authorization.
 
-Final review also found an available POSIX shell at `D:/Git/bin/bash.exe`; shell syntax and controlled command execution are now locally verified. This supersedes the earlier WSL-only shell limitation, but does not remove the unavailable Docker daemon or establish container/server evidence.
+Final review also found an available POSIX shell at `D:/Git/bin/bash.exe`; shell syntax and controlled command execution are now locally verified. This supersedes the earlier WSL-only shell limitation, but does not replace the completed local Docker drill or establish independent server evidence.
