@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import jwt
+import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
@@ -137,6 +138,33 @@ def test_production_hardening_contract_covers_authenticated_api_machine_ingest_a
     assert secret_values["hash"] not in metrics.text
     assert secret_values["token"] not in metrics.text
     assert result.integrity_ok is True
+
+
+@pytest.mark.parametrize("route", ["/api/chat", "/api/chat/stream"])
+def test_production_chat_rejects_zero_role_browser_sessions_and_bearer_tokens(tmp_path, route):
+    runtime, signing_key = _production_runtime(tmp_path)
+    agent = TestClient(create_app(str(tmp_path / "reference-agent.db"), auth_runtime=runtime))
+    payload = {"message": "VPN", "session_id": "unmapped-role-session"}
+
+    browser_session = runtime.session_store.create(
+        "browser-without-role", set(), expires_at=NOW + timedelta(minutes=5), csrf_token="zero-role-csrf"
+    )
+    agent.cookies.set("qe_session", browser_session.session_id)
+    assert agent.post(route, json=payload, headers={"X-CSRF-Token": "zero-role-csrf"}).status_code == 403
+
+    token = jwt.encode(
+        {
+            "sub": "bearer-without-role",
+            "iss": "https://issuer.example.test",
+            "aud": "qe-api",
+            "exp": int((NOW + timedelta(minutes=5)).timestamp()),
+            "roles": ["unmapped-external-role"],
+        },
+        signing_key,
+        algorithm="RS256",
+        headers={"kid": "contract-key"},
+    )
+    assert agent.post(route, json=payload, headers={"Authorization": f"Bearer {token}"}).status_code == 403
 
 
 def test_production_hardening_contract_reads_machine_telemetry_secrets_from_ephemeral_files(tmp_path):

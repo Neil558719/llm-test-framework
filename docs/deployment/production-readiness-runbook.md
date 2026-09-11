@@ -18,19 +18,21 @@
 在 PowerShell 中使用临时 secret 文件、生成的测试 OIDC 密钥和本地镜像。不要连接真实 IdP、模型或公网 URL。
 
 ```powershell
+$composeFiles = @("docker-compose.yml", "docker-compose.production.yml")
+$composeArgs = @($composeFiles | ForEach-Object { "-f"; $_ })
 python -m pytest tests/test_production_hardening_contract.py -q --no-report --no-history -p no:cacheprovider
-docker compose build
-.\deploy\migrate.ps1 -ComposeFile docker-compose.yml -ReportPath reports/migrate.json
-docker compose up -d --wait
+docker compose @composeArgs build
+.\deploy\migrate.ps1 -ComposeFiles $composeFiles -ReportPath reports/migrate.json
+docker compose @composeArgs up -d --wait
 .\deploy\smoke.ps1 -ReportPath reports/smoke.json
 .\deploy\backup.ps1 -ComposeFiles $composeFiles -ReportPath reports/backup.json
-docker compose -f docker-compose.yml -f docker-compose.production.yml ps
+docker compose @composeArgs ps
 ```
 
 恢复演练使用刚生成的备份数据库及其相邻 manifest。恢复完成后重新 Smoke，并保留恢复报告。
 
 ```powershell
-.\deploy\restore.ps1 -BackupPath <backup-db> -ComposeFiles $composeFiles -ReportPath reports/restore.json
+.\deploy\restore.ps1 -ComposeFiles $composeFiles -BackupPath <backup-db> -ReportPath reports/restore.json
 .\deploy\smoke.ps1 -ReportPath reports/smoke-after-restore.json
 ```
 

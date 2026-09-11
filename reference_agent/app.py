@@ -270,7 +270,7 @@ def create_app(
 
     def _bind_identity(payload: ChatRequest, request: Request) -> ChatRequest:
         auth = app.state.auth_runtime
-        principal = auth.require(request)
+        principal = auth.require(request, "viewer")
         auth.require_csrf(request)
         if auth.development_mode:
             return payload

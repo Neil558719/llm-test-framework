@@ -39,3 +39,29 @@ C:\Users\ZhuanZ1\Desktop\LLM应用测试框架(backup)\.venv\Scripts\python.exe 
 
 `git diff --check` was also run before commit.  A full test suite was not run
 in this final-fix wave.
+
+## Follow-up review fixes
+
+- Both production chat write endpoints now require the `viewer` role.  The
+  existing role model keeps `admin` as a viewer-capable super-role; reviewer
+  and releaser authorization remains scoped to their existing endpoints.
+  Browser sessions and signed Bearer tokens whose external roles map to no
+  internal role receive `403` before a business session can be claimed.
+- The Windows readiness drill defines the ordered base-plus-production Compose
+  pair once, derives Compose command arguments from it, and passes the same
+  `$composeFiles` value to migration, backup, restore, and rollback examples.
+
+The new regressions were first run before implementation:
+
+```text
+tests/test_production_hardening_contract.py::test_production_chat_rejects_zero_role_browser_sessions_and_bearer_tokens
+tests/test_final_deploy_args.py::test_readiness_runbook_defines_and_reuses_the_production_compose_file_pair
+3 failed (two zero-role writes returned 200; Compose pair was undefined)
+```
+
+After the minimal fixes, the focused regression command completed with:
+
+```text
+C:\Users\ZhuanZ1\Desktop\LLM应用测试框架(backup)\.venv\Scripts\python.exe -m pytest -q --basetemp .pytest-final-review-regression tests/test_auth_api.py tests/test_auth_oidc.py tests/test_production_hardening_contract.py tests/test_final_hardening_fixes.py tests/test_final_deploy_args.py tests/test_production_deployment.py tests/test_deploy_scripts.py tests/test_deployment_assets.py
+74 passed, 49 warnings in 17.96s
+```

@@ -82,3 +82,12 @@ def test_effective_production_compose_preserves_image_secrets_and_auth_mode(tmp_
     assert service["environment"]["AUTH_SESSION_SECRET_FILE"] == "/run/secrets/auth_session_secret"
     assert service["environment"].get("REFERENCE_AGENT_MODEL_API_KEY") in (None, "")
     assert len(service["secrets"]) == 4
+
+
+def test_readiness_runbook_defines_and_reuses_the_production_compose_file_pair():
+    runbook = (ROOT / "docs" / "deployment" / "production-readiness-runbook.md").read_text(encoding="utf-8")
+    definition = '$composeFiles = @("docker-compose.yml", "docker-compose.production.yml")'
+
+    assert definition in runbook
+    for operation in ("migrate.ps1", "backup.ps1", "restore.ps1", "rollback.ps1"):
+        assert f".\\deploy\\{operation} -ComposeFiles $composeFiles" in runbook
