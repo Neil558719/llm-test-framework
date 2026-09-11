@@ -195,11 +195,26 @@ def test_backup_verifies_sqlite_integrity_before_reporting_success():
     assert "Resolve-Path" in backup
 
 
+def test_backup_integrity_checks_use_immutable_read_only_sqlite_uri():
+    backups = [
+        (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8"),
+        (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8"),
+    ]
+
+    for backup in backups:
+        assert "mode=ro&immutable=1" in backup
+        assert "uri=True" in backup
+
+
 def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
     backup = (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8")
     restore = (ROOT / "deploy" / "restore.sh").read_text(encoding="utf-8")
 
     assert "trap" in backup and "PRAGMA integrity_check" in backup
+    assert 'case "$database_path" in /data/*) : ;;' in backup
+    assert 'always|missing|never) : ;;' in backup
+    assert 'case "$database_path" in /data/*) : ;;' in restore
+    assert 'always|missing|never) : ;;' in restore
     assert "PRAGMA integrity_check" in restore and 'docker compose up -d --pull "$pull_policy" --wait' in restore
     assert "trap" in restore
 

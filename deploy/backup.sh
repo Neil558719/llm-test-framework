@@ -10,8 +10,8 @@ output_dir="${BACKUP_DIR:-deploy/backups}"
 report="${REPORT_PATH:-reports/backup.json}"
 pull_policy="${COMPOSE_PULL_POLICY:-always}"
 
-case "$database_path" in /data/*) ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
-case "$pull_policy" in always|missing|never) ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
+case "$database_path" in /data/*) : ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
+case "$pull_policy" in always|missing|never) : ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
 export DATABASE_PATH="$database_path"
 export REFERENCE_AGENT_VOLUME="$volume"
 mkdir -p "$output_dir" "$(dirname "$report")"
@@ -34,7 +34,7 @@ backup_database(Path(sys.argv[1]), Path(sys.argv[2]))
 ' "$database_path" "/backup/$target"
 test -f "$output_dir/$target"
 test -f "$output_dir/$target.manifest.json"
-docker run --rm -v "$output_dir:/backup:ro" python:3.12-alpine python -c "import sqlite3,sys; result=sqlite3.connect('/backup/$target').execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)"
+docker run --rm -v "$output_dir:/backup:ro" python:3.12-alpine python -c "import sqlite3,sys; result=sqlite3.connect('file:/backup/$target?mode=ro&immutable=1', uri=True).execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)"
 published=1
 
 python - "$report" "$output_dir/$target" <<'PY'

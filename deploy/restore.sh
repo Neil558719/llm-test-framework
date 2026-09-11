@@ -9,8 +9,8 @@ database_path="${DATABASE_PATH:-/data/reference_agent.db}"
 volume="${REFERENCE_AGENT_VOLUME:-local-production-drill_reference-agent-data}"
 report="${REPORT_PATH:-reports/restore.json}"
 pull_policy="${COMPOSE_PULL_POLICY:-always}"
-case "$database_path" in /data/*) ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
-case "$pull_policy" in always|missing|never) ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
+case "$database_path" in /data/*) : ;; *) echo "DATABASE_PATH must be inside /data" >&2; exit 2;; esac
+case "$pull_policy" in always|missing|never) : ;; *) echo "COMPOSE_PULL_POLICY must be always, missing, or never" >&2; exit 2;; esac
 export DATABASE_PATH="$database_path"
 export REFERENCE_AGENT_VOLUME="$volume"
 
