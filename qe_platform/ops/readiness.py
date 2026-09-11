@@ -17,29 +17,46 @@ class ReadinessResult:
         return {"ready": self.ready, "checks": dict(self.checks)}
 
 
+def _check_connection(connection, requirements) -> bool:
+    if connection.execute("PRAGMA query_only").fetchone()[0]:
+        return False
+    if tuple(connection.execute("PRAGMA integrity_check").fetchone()) != ("ok",):
+        return False
+    versions = dict(connection.execute("SELECT component, version FROM schema_meta"))
+    if not versions or not requirements:
+        return False
+    tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for component, (version, required_tables) in requirements.items():
+        if versions.get(component) != version or not set(required_tables) <= tables:
+            return False
+    if connection.in_transaction:
+        return False
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        # A real write in a rolled-back transaction detects read-only mounts.
+        connection.execute("UPDATE schema_meta SET version=version")
+    finally:
+        connection.rollback()
+    return True
+
+
 def _probe(value: Any) -> bool:
+    from contextlib import nullcontext
     if callable(value):
         return value() is True
     if isinstance(value, bool):
         return value
+    requirements = getattr(value, "schema_requirements", None)
     connection = getattr(value, "_connection", None)
     if connection is not None:
-        connection.execute("SELECT 1").fetchone()
-        return True
+        with getattr(value, "_lock", nullcontext()):
+            return _check_connection(connection, requirements)
     database = getattr(value, "database", value)
-    if isinstance(database, Path):
-        database = str(database)
-    if not isinstance(database, str):
+    if not isinstance(database, (str, Path)) or not Path(database).is_file():
         return False
-    if database == ":memory:":
-        return True
-    path = Path(database)
-    if not path.is_file():
-        return False
-    connection = sqlite3.connect("file:" + path.resolve().as_posix() + "?mode=ro", uri=True)
+    connection = sqlite3.connect("file:" + Path(database).resolve().as_posix() + "?mode=rw", uri=True, timeout=1)
     try:
-        connection.execute("SELECT 1").fetchone()
-        return connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        return _check_connection(connection, requirements)
     finally:
         connection.close()
 
@@ -54,6 +71,6 @@ def readiness(repository_bundle: Mapping[str, Any]) -> ReadinessResult:
             return ReadinessResult(False, {"configuration": "unavailable"})
         try:
             checks[name] = "ok" if _probe(repository) else "unavailable"
-        except (OSError, sqlite3.Error, ValueError):
+        except Exception:
             checks[name] = "unavailable"
     return ReadinessResult(all(value == "ok" for value in checks.values()), checks)

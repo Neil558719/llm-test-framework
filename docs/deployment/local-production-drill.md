@@ -7,7 +7,7 @@
 | 环境 | 当前目标 | 状态 |
 | --- | --- | --- |
 | 开发 | Windows 工作区与 Python 虚拟环境 | 已具备 |
-| 类生产 | Windows + Docker Desktop + Docker Compose | 本交付验证 |
+| 类生产 | Windows + Docker Desktop + Docker Compose | 本次加固演练待 Docker daemon 恢复后验证 |
 | CI | GitHub Actions Ubuntu runner | PR 自动验证 |
 | 公网生产 | Ubuntu LTS、2 核 4 GB、Docker Compose | 待取得服务器 |
 
@@ -16,10 +16,10 @@
 ```powershell
 Copy-Item .env.example .env
 docker compose build
-.\deploy\migrate.ps1 -ReportPath reports/local-production-migrate.json
+.\deploy\migrate.ps1 -ComposeFiles docker-compose.yml -ReportPath reports/local-production-migrate.json
 docker compose up -d --wait
 .\deploy\smoke.ps1 -ReportPath reports/local-production-smoke.json
-.\deploy\backup.ps1 -ReportPath reports/local-production-backup.json
+.\deploy\backup.ps1 -ComposeFiles docker-compose.yml -ReportPath reports/local-production-backup.json
 docker compose down
 ```
 

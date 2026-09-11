@@ -2,7 +2,9 @@
 set -eu
 
 if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "usage: deploy/restore.sh BACKUP_DB" >&2; exit 2; fi
-compose_file="${COMPOSE_FILE:-docker-compose.yml}"
+# Docker Compose consumes this ordered list on every operation, including restart.
+export COMPOSE_PATH_SEPARATOR="${COMPOSE_PATH_SEPARATOR:-:}"
+export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml${COMPOSE_PATH_SEPARATOR}docker-compose.production.yml}"
 database_path="${DATABASE_PATH:-/data/reference_agent.db}"
 volume="${REFERENCE_AGENT_VOLUME:-local-production-drill_reference-agent-data}"
 report="${REPORT_PATH:-reports/restore.json}"
@@ -19,14 +21,14 @@ mkdir -p "$(dirname "$report")"
 stopped=0
 restart_service() {
   if [ "$stopped" -eq 1 ]; then
-    if [ "$compose_file" = "docker-compose.yml" ]; then docker compose up -d --wait; else docker compose -f "$compose_file" up -d --wait; fi
+    docker compose up -d --wait
   fi
 }
 trap restart_service EXIT INT TERM
-docker compose -f "$compose_file" stop reference-agent
+docker compose stop reference-agent
 stopped=1
 
-docker compose -f "$compose_file" run --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
+docker compose run --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
 import sqlite3
 import sys
 from pathlib import Path

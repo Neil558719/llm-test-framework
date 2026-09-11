@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from qe_platform.ops.metrics import PROCESS_METRICS
+
 import json
 import sqlite3
 import threading
@@ -40,6 +42,10 @@ class SQLiteQualityRepository:
             configure_sqlite(self._connection)
             MigrationRunner(self._connection, "quality_loop", _QUALITY_MIGRATIONS).apply()
 
+    @property
+    def schema_requirements(self):
+        return {"quality_loop": (1, ('quality_offline_runs', 'quality_links', 'quality_release_validations'))}
+
     @contextmanager
     def _transaction(self) -> Iterator[None]:
         with self._lock:
@@ -48,6 +54,7 @@ class SQLiteQualityRepository:
                 yield
                 self._connection.commit()
             except BaseException:
+                PROCESS_METRICS.increment("database_failures_total")
                 self._connection.rollback()
                 raise
 

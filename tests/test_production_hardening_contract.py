@@ -47,6 +47,8 @@ def _production_runtime(tmp_path: Path) -> tuple[AuthRuntime, rsa.RSAPrivateKey]
         session_store=SessionStore(tmp_path / "auth.db", clock=lambda: NOW, session_secret="contract-session-secret"),
         cookie_name="qe_session",
         environment="production",
+        metadata_client=metadata, client_id="browser-client",
+        redirect_uri="https://platform.example.test/auth/callback",
         verifier=OidcVerifier(
             metadata,
             lambda: NOW,
@@ -82,6 +84,11 @@ def test_production_hardening_contract_covers_authenticated_api_machine_ingest_a
         headers={"Authorization": f"Bearer {token}"},
         json={"profile": "mock"},
     ).status_code == 200
+
+    for route in ("/api/chat", "/api/chat/stream"):
+        response = agent.post(route, headers={"Authorization": f"Bearer {token}"}, json={"message": "VPN", "user_id": "forged-user"})
+        assert response.status_code == 200
+    assert agent.post("/api/chat", headers={"Authorization": "Bearer invalid"}, json={"message": "VPN"}).status_code == 401
 
     browser_session = runtime.session_store.create(
         "viewer", {"viewer"}, expires_at=NOW + timedelta(minutes=5), csrf_token="contract-csrf-token"

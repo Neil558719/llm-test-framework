@@ -83,7 +83,8 @@ def test_access_draft_survives_app_reopen_until_request_is_complete(tmp_path):
         draft = connection.execute(
             "SELECT message FROM access_drafts WHERE session_id = 'persistent-draft'"
         ).fetchone()[0]
-        assert draft == "申请权限 VPN"
+        import json
+        assert json.loads(draft) == {"software": "VPN", "justification_provided": False}
     finally:
         connection.close()
 

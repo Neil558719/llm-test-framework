@@ -123,10 +123,12 @@ def test_windows_watcher_survives_failed_refresh_and_retries_next_env_save(tmp_p
     counter_file = tmp_path / "docker-counter"
     (fake_bin / "docker.ps1").write_text(
         "param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)\n"
-        f"Add-Content -LiteralPath '{log_file}' -Value ($Arguments -join ' ')\n"
+        f"Add-Content -LiteralPath '{log_file}' -Value ($Arguments -join ' ') -Encoding utf8\n"
         f"if (-not (Test-Path -LiteralPath '{counter_file}')) {{ Set-Content -LiteralPath '{counter_file}' -Value 1; exit 1 }}\n"
         "exit 0\n",
-        encoding="utf-8",
+        # Windows PowerShell 5.1 treats a BOM-less script as the active ANSI
+        # code page.  The temporary workspace may contain non-ASCII names.
+        encoding="utf-8-sig",
     )
     child_env = os.environ.copy()
     child_env["PATH"] = str(fake_bin) + ";" + child_env["PATH"]

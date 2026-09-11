@@ -172,7 +172,7 @@ def test_callback_sets_readable_csrf_cookie_and_logout_requires_session_and_csrf
     )
     app = FastAPI()
     install_auth_routes(app, runtime)
-    browser = TestClient(app, follow_redirects=False)
+    browser = TestClient(app, base_url="https://testserver", follow_redirects=False)
     login = browser.get("/auth/login?next=/after")
     query = parse_qs(urlparse(login.headers["location"]).query)
     state = query["state"][0]
@@ -182,6 +182,10 @@ def test_callback_sets_readable_csrf_cookie_and_logout_requires_session_and_csrf
         {"sub": "alice", "iss": login_client.issuer, "aud": "browser-client", "exp": int((NOW + timedelta(minutes=5)).timestamp()), "nonce": nonce, "roles": ["qe-view"]},
         private_key, algorithm="RS256", headers={"kid": "callback-key"},
     )
+    stranger = TestClient(app, base_url="https://testserver", follow_redirects=False)
+    assert stranger.get(f"/auth/callback?code=code&state={state}").status_code == 401
+    cookie = next(value for value in login.headers.get_list("set-cookie") if "transaction" in value)
+    assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=lax" in cookie
     callback = browser.get(f"/auth/callback?code=code&state={state}")
     assert callback.status_code == 302
     assert callback.headers["location"] == "/after"

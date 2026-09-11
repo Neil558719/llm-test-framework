@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from qe_platform.ops.metrics import PROCESS_METRICS
+
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -9,6 +11,7 @@ from threading import RLock
 from typing import Any, Dict, Iterator
 
 from qe_platform.storage import Migration, MigrationRunner, configure_sqlite
+from .privacy import encode_draft, decode_draft
 
 
 class SQLiteStore:
@@ -23,8 +26,19 @@ class SQLiteStore:
             configure_sqlite(self._connection)
             self.migrate()
 
+    @property
+    def schema_requirements(self):
+        return {"reference_agent": (2, ("sessions", "tickets", "approvals", "access_drafts"))}
+
     def migrate(self) -> int:
-        return MigrationRunner(self._connection, "reference_agent", _MIGRATIONS).apply()
+        self._connection.execute("PRAGMA secure_delete=ON")
+        version = MigrationRunner(self._connection, "reference_agent", _MIGRATIONS).apply()
+        # Purge historical WAL pages after the privacy migration. Run again on
+        # restart so an interrupted cleanup cannot silently retain old content.
+        checkpoint = self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if checkpoint[0]:
+            raise RuntimeError("database privacy cleanup requires exclusive maintenance")
+        return version
 
     @contextmanager
     def _transaction(self) -> Iterator[None]:
@@ -34,6 +48,7 @@ class SQLiteStore:
                 yield
                 self._connection.commit()
             except BaseException:
+                PROCESS_METRICS.increment("database_failures_total")
                 self._connection.rollback()
                 raise
 
@@ -44,6 +59,16 @@ class SQLiteStore:
                 "ON CONFLICT(session_id) DO UPDATE SET user_id=excluded.user_id",
                 (session_id, user_id),
             )
+
+    def claim_session(self, session_id: str, user_id: str) -> bool:
+        """Atomically create a session or verify its existing authenticated owner."""
+        with self._transaction():
+            self._connection.execute(
+                "INSERT INTO sessions(session_id, user_id) VALUES (?, ?) ON CONFLICT(session_id) DO NOTHING",
+                (session_id, user_id),
+            )
+            row = self._connection.execute("SELECT user_id FROM sessions WHERE session_id=?", (session_id,)).fetchone()
+            return row[0] == user_id
 
     def get_session(self, session_id: str) -> Dict[str, Any] | None:
         with self._lock:
@@ -89,6 +114,7 @@ class SQLiteStore:
     def create_approval(
         self, user_id: str, software: str, justification: str, idempotency_key: str | None
     ) -> dict[str, Any]:
+        justification = "provided" if justification.strip() else ""
         idempotency_key = idempotency_key or None
         with self._transaction():
             existing = self._idempotent_row("approvals", "approval_id", idempotency_key)
@@ -114,14 +140,14 @@ class SQLiteStore:
             row = self._connection.execute(
                 "SELECT message FROM access_drafts WHERE session_id = ?", (session_id,)
             ).fetchone()
-        return "" if row is None else str(row[0])
+        return "" if row is None else decode_draft(str(row[0]))
 
     def upsert_access_draft(self, session_id: str, message: str) -> None:
         with self._transaction():
             self._connection.execute(
                 "INSERT INTO access_drafts(session_id, message) VALUES (?, ?) "
                 "ON CONFLICT(session_id) DO UPDATE SET message=excluded.message",
-                (session_id, message),
+                (session_id, encode_draft(message)),
             )
 
     def delete_access_draft(self, session_id: str) -> None:
@@ -183,4 +209,10 @@ def _create_reference_agent_tables(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE TABLE IF NOT EXISTS access_drafts (session_id TEXT PRIMARY KEY, message TEXT NOT NULL)")
 
 
-_MIGRATIONS = (Migration(1, _create_reference_agent_tables),)
+def _scrub_legacy_business_text(connection: sqlite3.Connection) -> None:
+    connection.execute("UPDATE approvals SET justification=CASE WHEN trim(justification)='' THEN '' ELSE 'provided' END")
+    for session_id, message in connection.execute("SELECT session_id, message FROM access_drafts").fetchall():
+        connection.execute("UPDATE access_drafts SET message=? WHERE session_id=?", (encode_draft(decode_draft(message)), session_id))
+
+
+_MIGRATIONS = (Migration(1, _create_reference_agent_tables), Migration(2, _scrub_legacy_business_text))

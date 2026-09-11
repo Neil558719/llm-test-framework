@@ -13,7 +13,7 @@
 - 配置 HTTPS OIDC issuer、audience、client ID、回调 URL、JWKS URL 和允许的回调地址。生产配置会因缺少任一项失败关闭。
 - 准备 `/data` 的持久卷、部署报告目录和可恢复的备份存储。部署机必须有 Docker Compose v2。
 
-## Windows 本机演练
+## Windows 生产覆盖配置演练
 
 在 PowerShell 中使用临时 secret 文件、生成的测试 OIDC 密钥和本地镜像。不要连接真实 IdP、模型或公网 URL。
 
@@ -23,23 +23,21 @@ docker compose build
 .\deploy\migrate.ps1 -ComposeFile docker-compose.yml -ReportPath reports/migrate.json
 docker compose up -d --wait
 .\deploy\smoke.ps1 -ReportPath reports/smoke.json
-.\deploy\backup.ps1 -ReportPath reports/backup.json
-docker compose ps
+.\deploy\backup.ps1 -ComposeFiles $composeFiles -ReportPath reports/backup.json
+docker compose -f docker-compose.yml -f docker-compose.production.yml ps
 ```
 
 恢复演练使用刚生成的备份数据库及其相邻 manifest。恢复完成后重新 Smoke，并保留恢复报告。
 
 ```powershell
-docker compose down
-docker compose up -d --wait
-.\deploy\restore.sh <backup-db> # 在 Git Bash/WSL 运行 Linux 恢复脚本
+.\deploy\restore.ps1 -BackupPath <backup-db> -ComposeFiles $composeFiles -ReportPath reports/restore.json
 .\deploy\smoke.ps1 -ReportPath reports/smoke-after-restore.json
 ```
 
-Windows 当前没有 PowerShell 恢复脚本；服务器恢复以 Linux 命令为准。若需要撤回镜像，使用已验证的候选 tag/digest：
+Windows 使用 `restore.ps1`，Linux 使用 `restore.sh`。所有迁移、备份、恢复、回滚步骤必须沿用同一有序 Compose 文件集合；默认是基础文件加生产覆盖层。开发演练必须显式选择单个基础文件。若需要撤回镜像，使用已验证的候选 tag/digest：
 
 ```powershell
-.\deploy\rollback.ps1 -ImageTag <verified-tag> -ImageDigest <verified-digest> -ReportPath reports/rollback.json
+.\deploy\rollback.ps1 -ComposeFiles $composeFiles -ImageTag <verified-tag> -ImageDigest <verified-digest> -ReportPath reports/rollback.json
 .\deploy\smoke.ps1 -ReportPath reports/smoke-after-rollback.json
 ```
 
@@ -48,7 +46,8 @@ Windows 当前没有 PowerShell 恢复脚本；服务器恢复以 Linux 命令�
 在服务器的受限部署账户中设置非敏感环境变量，并让 `*_FILE` 变量指向 secret 文件。通过两个 Compose 文件启动，生产覆盖层会固定 UID 10001、只读根文件系统、`/data` 卷、健康检查、资源限制和 restart policy。
 
 ```sh
-export COMPOSE_FILE=docker-compose.yml
+export COMPOSE_PATH_SEPARATOR=:
+export COMPOSE_FILE=docker-compose.yml:docker-compose.production.yml
 export REFERENCE_AGENT_IMAGE='<registry/repository>'
 export REFERENCE_AGENT_IMAGE_DIGEST='<sha256 digest>'
 export AUTH_SESSION_SECRET_FILE='<secret file path>'
@@ -67,7 +66,7 @@ REPORT_PATH=reports/smoke.json deploy/smoke.sh
 REPORT_PATH=reports/backup.json BACKUP_DIR=deploy/backups deploy/backup.sh
 ```
 
-Run the readiness endpoint after startup. It checks configuration and local repositories; liveness alone is insufficient.
+Run the readiness endpoint after startup. It checks required schema versions and tables, integrity and a writable transaction, model/auth configuration, the auth session database, and the configured IdP JWKS dependency; liveness alone is insufficient.
 
 ```sh
 curl --fail --silent --show-error http://127.0.0.1:8000/api/health/ready
@@ -89,3 +88,16 @@ To roll back, select a pre-verified compatible image/digest, start it with the p
 Record the exact command, exit status, image digest, `schema_meta` versions, backup SHA-256, readiness response, Smoke report and rollback report. The local contract and drill do not prove public DNS, TLS termination, real IdP reachability, monitoring delivery or live provider behavior. Those checks remain pending until an independent server and approved production credentials are supplied.
 
 Do not create a Release or mark this hardening work production-ready until the branch has an Issue, push, Pull Request, passing Actions, independent review, merge to `master`, merged-master verification, and the server drill evidence described above.
+
+
+## Privacy and compatibility after final review
+
+Reference Agent schema version 2 stores approval justification only as `provided` or an empty value. The API retains the justification field and pending/idempotent approval semantics, while approval observations use the same safe marker. Access drafts retain only an allowlisted software identifier and `justification_provided` boolean, including across restarts. No free-form draft prose is retained. The versioned migration scrubs existing approval/draft content with SQLite secure deletion and truncates historical WAL pages. Run migration with writers stopped; already-exported legacy backups need their own retention/removal policy and are not rewritten by this migration.
+
+Auth sessions now register schema component `auth` version 1 and use shared WAL/foreign-key/busy-timeout settings. Auth backup/restore uses the same `backup_database` / `restore_database` primitives with expected versions `{"auth": 1}`; verify readiness after restoring every component. Reference Agent backup/restore scripts select the Reference Agent database by default. Preserve the stable session secret when restoring auth sessions, or revoke sessions and require login again.
+
+In production, use `/auth/login`, `/auth/session`, and `/auth/logout`; `/api/login` is development-only. Chat and stream identities come from the verified principal, with atomic business-session ownership. Browser writes include the configured CSRF cookie value in `X-CSRF-Token`; authenticated Bearer API requests do not require a browser CSRF token. Production Smoke must receive a test Bearer token through its existing token-file input.
+
+Metrics are process-local, fixed-name counters and latency totals for HTTP operations, auth failures, database/migration failures, quality-gate decisions, backup and restore. They accept no request labels. CLI operation metrics live in that CLI process; `/api/metrics` exposes the running service process and requires admin authorization.
+
+Final review also found an available POSIX shell at `D:/Git/bin/bash.exe`; shell syntax and controlled command execution are now locally verified. This supersedes the earlier WSL-only shell limitation, but does not remove the unavailable Docker daemon or establish container/server evidence.

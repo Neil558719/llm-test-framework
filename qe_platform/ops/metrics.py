@@ -50,3 +50,49 @@ class MetricsRegistry:
                     for name, values in sorted(self._latencies.items())
                 },
             }
+
+
+# Process-local totals also cover CLI operations and startup migrations.
+PROCESS_METRICS = MetricsRegistry()
+
+
+def measured(operation: str):
+    from functools import wraps
+    from time import perf_counter
+    def decorate(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            start = perf_counter()
+            PROCESS_METRICS.increment(operation + "_total")
+            try:
+                return function(*args, **kwargs)
+            except Exception:
+                PROCESS_METRICS.increment(operation + "_failures_total")
+                raise
+            finally:
+                PROCESS_METRICS.observe_latency(operation + "_latency_ms", (perf_counter() - start) * 1000)
+        return wrapped
+    return decorate
+
+
+def install_http_metrics(app, service: str) -> None:
+    from time import perf_counter
+    import sqlite3
+    from fastapi.responses import JSONResponse
+    @app.middleware("http")
+    async def observe(request, call_next):
+        start = perf_counter()
+        app.state.metrics.increment(service + "_requests_total")
+        try:
+            try:
+                response = await call_next(request)
+            except sqlite3.Error:
+                PROCESS_METRICS.increment("database_failures_total")
+                response = JSONResponse({"detail": "database unavailable"}, status_code=503)
+            if response.status_code in (401, 403):
+                app.state.metrics.increment("auth_failures_total")
+            if response.status_code >= 500:
+                app.state.metrics.increment(service + "_failures_total")
+            return response
+        finally:
+            app.state.metrics.observe_latency(service + "_request_latency_ms", (perf_counter() - start) * 1000)

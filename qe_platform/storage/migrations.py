@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from qe_platform.ops.metrics import measured
+
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -47,6 +49,7 @@ class MigrationRunner:
         ).fetchone()
         return 0 if row is None else int(row[0])
 
+    @measured("migration")
     def apply(self) -> int:
         current = self.current_version()
         code_version = self._migrations[-1].version if self._migrations else 0

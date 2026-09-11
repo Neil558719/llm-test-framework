@@ -1,7 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
-compose_file="${COMPOSE_FILE:-docker-compose.yml}"
+# Docker Compose consumes this ordered list on every operation, including restart.
+export COMPOSE_PATH_SEPARATOR="${COMPOSE_PATH_SEPARATOR:-:}"
+export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml${COMPOSE_PATH_SEPARATOR}docker-compose.production.yml}"
 database_path="${DATABASE_PATH:-/data/reference_agent.db}"
 volume="${REFERENCE_AGENT_VOLUME:-local-production-drill_reference-agent-data}"
 output_dir="${BACKUP_DIR:-deploy/backups}"
@@ -22,7 +24,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # The helper uses SQLite's online backup API, so a healthy service remains available.
-docker compose -f "$compose_file" run --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
+docker compose run --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
 import sys
 from pathlib import Path
 from qe_platform.ops import backup_database

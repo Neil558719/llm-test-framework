@@ -9,7 +9,8 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from qe_platform.auth.dependencies import AuthRuntime
-from qe_platform.ops import MetricsRegistry, readiness
+from qe_platform.ops import readiness
+from qe_platform.ops.metrics import PROCESS_METRICS, install_http_metrics
 from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, ReviewAttribution, ReviewPriority, ReviewStatus, promote_review
 from qe_platform.quality_loop.engine import build_quality_links, build_trends, validate_release
 from qe_platform.quality_loop.models import ReleaseGatePolicy
@@ -38,7 +39,8 @@ def create_telemetry_app(
     )
     auth = auth_runtime or AuthRuntime.from_environment()
     app = FastAPI(title="QE Telemetry API")
-    app.state.metrics = MetricsRegistry()
+    app.state.metrics = PROCESS_METRICS
+    install_http_metrics(app, "telemetry")
 
     def unauthorized() -> None:
         raise HTTPException(status_code=401, detail="unauthorized")
@@ -71,6 +73,7 @@ def create_telemetry_app(
             "configuration": lambda: bool(settings.database and settings.hash_key and settings.ingest_token),
             "telemetry": repo,
             "quality": quality_repo,
+            **auth.readiness_bundle(),
         })
         payload = {"status": "ready" if result.ready else "not_ready", "service": "qe-telemetry", "checks": dict(result.checks)}
         return JSONResponse(payload, status_code=200 if result.ready else 503)

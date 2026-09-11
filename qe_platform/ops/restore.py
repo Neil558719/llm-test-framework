@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from qe_platform.ops.metrics import measured
+
 import hashlib
 import json
 import os
@@ -66,6 +68,7 @@ def _validate_compatibility(actual: Mapping[str, int], expected: Mapping[str, in
             raise RestoreError("backup schema version is incompatible")
 
 
+@measured("restore")
 def restore_database(backup: Path, target: Path, expected_versions: Mapping[str, int]) -> RestoreResult:
     """Verify a backup completely before atomically replacing ``target``."""
     backup = Path(backup)

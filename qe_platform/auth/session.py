@@ -7,7 +7,9 @@ import hmac
 import json
 import secrets
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass
+from qe_platform.storage import Migration, MigrationRunner, configure_sqlite
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
@@ -54,33 +56,29 @@ class SessionStore:
             raise ValueError("session secret must be nonempty")
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
         connection = sqlite3.connect(self.database)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+        try:
+            configure_sqlite(connection)
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _initialize(self) -> None:
         with self._connect() as connection:
-            connection.execute(
-                """CREATE TABLE IF NOT EXISTS auth_sessions (
-                    session_hash TEXT PRIMARY KEY,
-                    subject TEXT NOT NULL,
-                    roles_json TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    csrf_hash TEXT NOT NULL,
-                    revoked_at TEXT
-                )"""
-            )
-            connection.execute(
-                """CREATE TABLE IF NOT EXISTS oidc_authorization_attempts (
-                    state TEXT PRIMARY KEY,
-                    nonce TEXT NOT NULL,
-                    code_verifier TEXT NOT NULL,
-                    redirect_target TEXT NOT NULL,
-                    expires_at TEXT NOT NULL
-                )"""
-            )
+            MigrationRunner(connection, "auth", _AUTH_MIGRATIONS).apply()
+
+    @property
+    def schema_requirements(self):
+        return {"auth": (1, ("auth_sessions", "oidc_authorization_attempts"))}
+
+    def transaction_cookie(self, state: str) -> str:
+        # Domain separated HMAC binds a callback to an HttpOnly browser cookie.
+        # The raw correlation cookie is never persisted.
+        return self._session_hash("oidc-transaction:" + state)
 
     def create(
         self,
@@ -168,6 +166,7 @@ class SessionStore:
 
     def consume_authorization_attempt(self, state: str) -> AuthorizationAttempt | None:
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT state, nonce, code_verifier, redirect_target, expires_at FROM oidc_authorization_attempts WHERE state = ?", (state,)
             ).fetchone()
@@ -181,3 +180,11 @@ class SessionStore:
         except (TypeError, ValueError):
             return None
         return attempt if attempt.expires_at > _utc(self._clock()) else None
+
+
+def _create_auth_tables(connection):
+    connection.execute("CREATE TABLE IF NOT EXISTS auth_sessions (session_hash TEXT PRIMARY KEY, subject TEXT NOT NULL, roles_json TEXT NOT NULL, expires_at TEXT NOT NULL, csrf_hash TEXT NOT NULL, revoked_at TEXT)")
+    connection.execute("CREATE TABLE IF NOT EXISTS oidc_authorization_attempts (state TEXT PRIMARY KEY, nonce TEXT NOT NULL, code_verifier TEXT NOT NULL, redirect_target TEXT NOT NULL, expires_at TEXT NOT NULL)")
+
+
+_AUTH_MIGRATIONS = (Migration(1, _create_auth_tables),)

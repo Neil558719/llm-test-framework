@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from qe_platform.ops.metrics import measured
+
 import hashlib
 import json
 import os
@@ -66,6 +68,7 @@ def _temporary_path(target: Path, suffix: str) -> Path:
     return Path(name)
 
 
+@measured("backup")
 def backup_database(source: Path, target: Path) -> BackupResult:
     """Create an online SQLite backup and atomically publish its manifest."""
     source = Path(source)

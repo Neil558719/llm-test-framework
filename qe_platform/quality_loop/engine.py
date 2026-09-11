@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from qe_platform.ops.metrics import measured, PROCESS_METRICS
+
 import math
 import uuid
 from collections import defaultdict
@@ -152,6 +154,7 @@ def _linked_low_quality_rate(
     return low_quality / feedback if feedback else 0.0
 
 
+@measured("quality_gate")
 def validate_release(
     repository: SQLiteQualityRepository,
     baseline_run_id: str,
@@ -237,7 +240,9 @@ def validate_release(
         len(repository.list_links(offline_run_id=candidate_run_id, now=now)),
         (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
     )
-    return repository.save_validation(result)
+    saved = repository.save_validation(result)
+    PROCESS_METRICS.increment("quality_gate_passed_total" if saved.passed else "quality_gate_denied_total")
+    return saved
 
 
 def quality_summary(

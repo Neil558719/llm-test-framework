@@ -47,9 +47,12 @@ def test_telemetry_metrics_are_admin_protected_and_secret_free(tmp_path):
     )
     client = TestClient(app)
 
+    client.get("/api/health/live")
     response = client.get("/api/metrics")
 
     assert response.status_code == 200
+    assert response.json()["counters"]["telemetry_requests_total"] > 0
+    assert response.json()["latencies"]["telemetry_request_latency_ms"]["count"] > 0
     assert response.headers["content-type"].startswith("application/json")
     assert "hash-key-should-not-leak" not in response.text
     assert "ingest-token-should-not-leak" not in response.text

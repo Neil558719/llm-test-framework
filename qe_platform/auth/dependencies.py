@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import secrets
 from typing import Any, Mapping
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs, urlparse
 
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
@@ -51,6 +52,7 @@ class AuthRuntime:
         self.session_store = session_store
         self.cookie_name = cookie_name
         self.csrf_cookie_name = cookie_name + "_csrf"
+        self.transaction_cookie_name = cookie_name + "_transaction"
         self.environment = environment
         self.verifier = verifier
         self.cookie_secure = cookie_secure
@@ -120,7 +122,10 @@ class AuthRuntime:
                 return None
         if request is None or self.session_store is None:
             return None
-        session = self.session_store.get(request.cookies.get(self.cookie_name, ""))
+        try:
+            session = self.session_store.get(request.cookies.get(self.cookie_name, ""))
+        except Exception:
+            return None
         if session is None:
             return None
         return AuthenticatedPrincipal(session.subject, session.roles)
@@ -193,6 +198,20 @@ class AuthRuntime:
         session = self.session_store.create(principal.subject, principal.roles, csrf_token=csrf_token)
         return principal, session.session_id, csrf_token, attempt.redirect_target
 
+    def readiness_bundle(self) -> dict[str, Any]:
+        if self.development_mode:
+            return {}
+        return {
+            "auth_configuration": lambda: self._login_available() and self.session_store is not None,
+            "auth_database": self.session_store,
+            "identity_provider": self._idp_ready,
+        }
+
+    def _idp_ready(self) -> bool:
+        if self.metadata_client is None:
+            return False
+        return bool(self.metadata_client.get_jwks().get("keys"))
+
     def _login_available(self) -> bool:
         return self.verifier is not None and self.metadata_client is not None and bool(self.redirect_uri and self.client_id)
 
@@ -234,12 +253,23 @@ def install_auth_routes(app, runtime: AuthRuntime) -> None:
 
     @app.get("/auth/login")
     def auth_login(next: str = "/") -> Response:
-        return RedirectResponse(runtime.authorize_redirect(next), status_code=302)
+        location = runtime.authorize_redirect(next)
+        state = parse_qs(urlparse(location).query)["state"][0]
+        response = RedirectResponse(location, status_code=302)
+        response.set_cookie(runtime.transaction_cookie_name, runtime.session_store.transaction_cookie(state),
+                            httponly=True, secure=runtime.cookie_secure, samesite="lax", path="/auth", max_age=600)
+        return response
 
     @app.get("/auth/callback")
-    def auth_callback(code: str = "", state: str = "") -> Response:
+    def auth_callback(request: Request, code: str = "", state: str = "") -> Response:
+        supplied = request.cookies.get(runtime.transaction_cookie_name, "")
+        if not state or not supplied or runtime.session_store is None or not hmac.compare_digest(
+            supplied, runtime.session_store.transaction_cookie(state)
+        ):
+            _unauthorized()
         _principal, session_id, csrf_token, redirect_target = runtime.complete_authorization(code, state)
         response = RedirectResponse(redirect_target, status_code=302)
+        response.delete_cookie(runtime.transaction_cookie_name, path="/auth")
         response.set_cookie(
             runtime.cookie_name,
             session_id,
@@ -259,6 +289,14 @@ def install_auth_routes(app, runtime: AuthRuntime) -> None:
             path="/",
         )
         return response
+
+    @app.get("/auth/session")
+    def auth_session(request: Request) -> dict[str, Any]:
+        principal = runtime.principal_from_request(request, request.headers.get("Authorization"))
+        payload = {"environment": runtime.environment, "authenticated": principal is not None}
+        if principal is not None:
+            payload.update(subject=principal.subject, roles=sorted(principal.roles), csrf_cookie_name=runtime.csrf_cookie_name)
+        return payload
 
     @app.post("/auth/logout")
     def auth_logout(request: Request) -> Response:

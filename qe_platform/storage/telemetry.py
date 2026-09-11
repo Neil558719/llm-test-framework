@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from qe_platform.ops.metrics import PROCESS_METRICS
+
 import json
 import sqlite3
 import threading
@@ -214,6 +216,10 @@ class SQLiteTelemetryRepository:
             configure_sqlite(self._connection)
             MigrationRunner(self._connection, "telemetry", _TELEMETRY_MIGRATIONS).apply()
 
+    @property
+    def schema_requirements(self):
+        return {"telemetry": (1, ('telemetry_traces', 'telemetry_feedback', 'telemetry_reviews', 'telemetry_promotions'))}
+
     @contextmanager
     def _transaction(self) -> Iterator[None]:
         with self._lock:
@@ -222,6 +228,7 @@ class SQLiteTelemetryRepository:
                 yield
                 self._connection.commit()
             except BaseException:
+                PROCESS_METRICS.increment("database_failures_total")
                 self._connection.rollback()
                 raise
 
