@@ -20,6 +20,7 @@
 - 非 UI 回归：`534 passed, 5 deselected`；UI 回归：`5 passed`；`compileall`、Compose 配置和脚本语法检查通过。
 - 本机 Docker 已验证构建、数据库迁移、在线备份、恢复、跨重启 readiness 和 rollback；服务器已完成 Mock 模式的回环部署验证。
 - GitHub 已发布至 `v0.2.0-alpha.23`；生产加固分支仍需完成 Issue/Push/PR/Actions/Review/Merge/Release 生命周期后再合并。
+- 当前分支包版本为 `0.2.0a24.dev0`，表示基于 `v0.2.0-alpha.23` 的未发布生产加固迭代。
 
 真实 IdP、正式模型凭据、HTTPS/域名、公网 Bearer Smoke 和线上遥测接收端属于部署环境验收，
 不在本地证据中冒充已完成。PostgreSQL 遥测存储以及共享环境下 Trace/反馈读写授权仍是明确的后续边界。
@@ -41,6 +42,17 @@
 pip install -e .          # 基础（Mock 模式 + 测试）
 pip install -e ".[real]"  # 加上真实模型 SDK（openai / anthropic）
 ```
+
+仓库提供 `uv.lock` 锁定直接与传递依赖、版本和包哈希。需要可复现环境时使用：
+
+```bash
+uv sync --locked
+uv run pytest -q
+uv sync --locked --extra real   # 真实模型 SDK
+uv sync --locked --extra ui     # Playwright UI 测试依赖
+```
+
+CI 使用 `uv sync --locked`；如果环境不能安装 uv，仍可使用上面的 pip 安装方式运行开发模式。
 
 首次启动 Reference Agent 时运行：
 

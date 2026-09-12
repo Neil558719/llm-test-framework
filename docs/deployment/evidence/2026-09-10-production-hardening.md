@@ -8,6 +8,7 @@
 | 完整非 UI 回归 | `python -m pytest --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-final-20260911` | `534 passed, 5 deselected, 261 warnings` |
 | UI 回归 | `python -m pytest -m ui --no-report --no-history -p no:cacheprovider --basetemp C:\Temp\production-hardening-final-ui-20260911` | `5 passed, 534 deselected, 5 warnings` |
 | Python 静态编译与空白检查 | `python -m compileall -q llmtest qe_platform reference_agent tests`；`git diff --check master...HEAD`；`git diff --check` | 均以退出码 0 完成 |
+| 仓库可复现性收尾 | `uv lock`；`uv sync --locked --extra ci`；包版本元数据检查 | `uv.lock` 已锁定传递依赖与哈希；包版本统一为 `0.2.0a24.dev0`；MIT `LICENSE` 已加入；CI 改用 `uv sync --locked` |
 | Compose 静态配置 | 设置临时占位 OIDC、数据库路径、`*_FILE` 和 image digest 后运行 `docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet` | 以退出码 0 完成；未拉取或运行镜像 |
 | 范围与兼容性检查 | `git diff --name-only master...HEAD`、`git diff master...HEAD -- ':!docs'`、`git diff master...HEAD -- llmtest` | 没有 FastGPT 命名文件或实现引用；`llmtest/` 无改动，`AppResponse` 兼容面未改动 |
 | Docker 构建与生产 Compose | `docker compose build reference-agent`；`docker compose --env-file <临时配置> -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --pull never --wait` | 镜像 digest `sha256:9c8d7a2f3a8452e16f3a9667da36505508831b36b3db0d1a54bbf5adadba527a`；容器 healthy、UID/GID `10001:10001`、只读根文件系统；临时 OIDC JWKS 仅用于本机就绪演练 |

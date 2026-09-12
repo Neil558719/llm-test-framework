@@ -16,9 +16,10 @@ jobs:
       COMPOSE_FILE: docker-compose.yml
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: docker/setup-buildx-action@v4
       - name: Validate deployment assets
-        run: python -m pip install PyYAML pytest && python -m pytest tests/test_deployment_assets.py tests/test_deploy_scripts.py -q
+        run: uv sync --locked --extra ci && uv run pytest tests/test_deployment_assets.py tests/test_deploy_scripts.py -q
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Build image
