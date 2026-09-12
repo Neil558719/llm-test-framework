@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from qe_platform.ops.metrics import PROCESS_METRICS
+
 import json
 import sqlite3
 import threading
@@ -10,6 +12,8 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from qe_platform.storage.telemetry import _sqlite_path
+from qe_platform.storage.migrations import Migration, MigrationRunner
+from qe_platform.storage.sqlite_runtime import configure_sqlite
 
 from .models import OfflineRun, QualityLink, ReleaseValidation, parse_run_report
 
@@ -35,40 +39,12 @@ class SQLiteQualityRepository:
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(str(_sqlite_path(database)), check_same_thread=False, isolation_level=None)
         with self._lock:
-            self._connection.execute("PRAGMA foreign_keys=ON")
-            self._connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS quality_offline_runs (
-                    run_id TEXT PRIMARY KEY,
-                    started_at TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_quality_offline_runs_started
-                    ON quality_offline_runs(started_at DESC, run_id DESC);
-                CREATE TABLE IF NOT EXISTS quality_links (
-                    link_id TEXT PRIMARY KEY,
-                    trace_id TEXT NOT NULL,
-                    feedback_id TEXT NOT NULL,
-                    review_id TEXT NOT NULL,
-                    promotion_id TEXT NOT NULL REFERENCES telemetry_promotions(promotion_id) ON DELETE CASCADE,
-                    scenario_id TEXT NOT NULL,
-                    offline_run_id TEXT NOT NULL REFERENCES quality_offline_runs(run_id) ON DELETE CASCADE,
-                    created_at TEXT NOT NULL,
-                    UNIQUE(promotion_id, offline_run_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_quality_links_run
-                    ON quality_links(offline_run_id, created_at DESC);
-                CREATE TABLE IF NOT EXISTS quality_release_validations (
-                    validation_id TEXT PRIMARY KEY,
-                    baseline_run_id TEXT NOT NULL,
-                    candidate_run_id TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_quality_validations_candidate
-                    ON quality_release_validations(candidate_run_id, created_at DESC);
-                """
-            )
+            configure_sqlite(self._connection)
+            MigrationRunner(self._connection, "quality_loop", _QUALITY_MIGRATIONS).apply()
+
+    @property
+    def schema_requirements(self):
+        return {"quality_loop": (1, ('quality_offline_runs', 'quality_links', 'quality_release_validations'))}
 
     @contextmanager
     def _transaction(self) -> Iterator[None]:
@@ -78,6 +54,7 @@ class SQLiteQualityRepository:
                 yield
                 self._connection.commit()
             except BaseException:
+                PROCESS_METRICS.increment("database_failures_total")
                 self._connection.rollback()
                 raise
 
@@ -327,3 +304,19 @@ class SQLiteQualityRepository:
                 }
             )
         return result
+
+
+def _create_quality_tables(connection: sqlite3.Connection) -> None:
+    statements = (
+        "CREATE TABLE IF NOT EXISTS quality_offline_runs (run_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, payload TEXT NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_quality_offline_runs_started ON quality_offline_runs(started_at DESC, run_id DESC)",
+        "CREATE TABLE IF NOT EXISTS quality_links (link_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, feedback_id TEXT NOT NULL, review_id TEXT NOT NULL, promotion_id TEXT NOT NULL REFERENCES telemetry_promotions(promotion_id) ON DELETE CASCADE, scenario_id TEXT NOT NULL, offline_run_id TEXT NOT NULL REFERENCES quality_offline_runs(run_id) ON DELETE CASCADE, created_at TEXT NOT NULL, UNIQUE(promotion_id, offline_run_id))",
+        "CREATE INDEX IF NOT EXISTS idx_quality_links_run ON quality_links(offline_run_id, created_at DESC)",
+        "CREATE TABLE IF NOT EXISTS quality_release_validations (validation_id TEXT PRIMARY KEY, baseline_run_id TEXT NOT NULL, candidate_run_id TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_quality_validations_candidate ON quality_release_validations(candidate_run_id, created_at DESC)",
+    )
+    for statement in statements:
+        connection.execute(statement)
+
+
+_QUALITY_MIGRATIONS = (Migration(1, _create_quality_tables),)

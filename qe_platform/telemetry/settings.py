@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
+from qe_platform.production.secrets import SecretSource
+
 
 @dataclass(frozen=True)
 class TelemetrySettings:
@@ -18,9 +20,10 @@ class TelemetrySettings:
         environ: Mapping[str, str] | None = None,
     ) -> "TelemetrySettings":
         values = os.environ if environ is None else environ
+        secrets = SecretSource.from_environment(values)
         database = values.get("QE_TELEMETRY_DATABASE", "telemetry.db")
-        hash_key = values.get("QE_TELEMETRY_HASH_KEY", "")
-        ingest_token = values.get("QE_TELEMETRY_INGEST_TOKEN", "")
+        hash_key = secrets.get("QE_TELEMETRY_HASH_KEY")
+        ingest_token = secrets.get("QE_TELEMETRY_INGEST_TOKEN")
         retention_text = values.get("QE_TELEMETRY_RETENTION_DAYS", "30")
         if not isinstance(database, str) or not database:
             raise ValueError("QE_TELEMETRY_DATABASE must be nonempty")

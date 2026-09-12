@@ -5,6 +5,8 @@ from .telemetry import (
     create_telemetry_repository,
     prune_expired,
 )
+from .migrations import Migration, MigrationRunner
+from .sqlite_runtime import configure_sqlite
 
 __all__ = [
     "PostgreSQLTelemetryRepository",
@@ -12,4 +14,7 @@ __all__ = [
     "TelemetryRepository",
     "create_telemetry_repository",
     "prune_expired",
+    "Migration",
+    "MigrationRunner",
+    "configure_sqlite",
 ]

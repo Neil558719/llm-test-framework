@@ -5,6 +5,7 @@ services:
       args:
         BUILD_REV: ${BUILD_REV:-source}
     image: ${REFERENCE_AGENT_IMAGE:-llmtest-reference-agent}:${IMAGE_TAG:-local}
+    user: "10001:10001"
     restart: unless-stopped
     environment:
       REFERENCE_AGENT_DATABASE: ${DATABASE_PATH:-/data/reference_agent.db}

@@ -1,0 +1,76 @@
+services:
+  reference-agent:
+    # A server deployment must supply an immutable registry digest.  The base
+    # compose file intentionally remains usable for the local development drill.
+    build: !reset null
+    image: "${REFERENCE_AGENT_IMAGE:?REFERENCE_AGENT_IMAGE is required}@${REFERENCE_AGENT_IMAGE_DIGEST:?REFERENCE_AGENT_IMAGE_DIGEST is required}"
+    pull_policy: always
+    user: "10001:10001"
+    read_only: true
+    restart: unless-stopped
+    environment:
+      QE_ENVIRONMENT: production
+      REFERENCE_AGENT_DATABASE: /data/reference_agent.db
+      QE_AUTH_DATABASE: /data/auth.db
+      QE_TELEMETRY_DATABASE: /data/telemetry.db
+      QE_TELEMETRY_RETENTION_DAYS: "${QE_TELEMETRY_RETENTION_DAYS:-30}"
+      OIDC_ISSUER: "${OIDC_ISSUER:?OIDC_ISSUER is required}"
+      OIDC_AUDIENCE: "${OIDC_AUDIENCE:?OIDC_AUDIENCE is required}"
+      OIDC_CLIENT_ID: "${OIDC_CLIENT_ID:?OIDC_CLIENT_ID is required}"
+      OIDC_REDIRECT_URI: "${OIDC_REDIRECT_URI:?OIDC_REDIRECT_URI is required}"
+      OIDC_JWKS_URL: "${OIDC_JWKS_URL:?OIDC_JWKS_URL is required}"
+      OIDC_ROLES_CLAIM: "${OIDC_ROLES_CLAIM:-roles}"
+      AUTH_COOKIE_NAME: "${AUTH_COOKIE_NAME:-qe_session}"
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_SAMESITE: "${AUTH_COOKIE_SAMESITE:-lax}"
+      AUTH_SESSION_SECRET_FILE: /run/secrets/auth_session_secret
+      QE_TELEMETRY_HASH_KEY_FILE: /run/secrets/qe_telemetry_hash_key
+      QE_TELEMETRY_INGEST_TOKEN_FILE: /run/secrets/qe_telemetry_ingest_token
+      REFERENCE_AGENT_MODEL_API_KEY_FILE: /run/secrets/reference_agent_model_api_key
+      # Do not inherit a direct local-development credential into production.
+      REFERENCE_AGENT_MODEL_API_KEY: null
+      REFERENCE_AGENT_TEST_FAULTS_ENABLED: "false"
+      REFERENCE_AGENT_TEST_FAULT_TOKEN: null
+    volumes:
+      - type: volume
+        source: reference-agent-data
+        target: /data
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=1777
+    secrets:
+      - source: auth_session_secret
+        target: auth_session_secret
+        mode: 0400
+      - source: qe_telemetry_hash_key
+        target: qe_telemetry_hash_key
+        mode: 0400
+      - source: qe_telemetry_ingest_token
+        target: qe_telemetry_ingest_token
+        mode: 0400
+      - source: reference_agent_model_api_key
+        target: reference_agent_model_api_key
+        mode: 0400
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+secrets:
+  auth_session_secret:
+    file: "${AUTH_SESSION_SECRET_FILE:?AUTH_SESSION_SECRET_FILE is required}"
+  qe_telemetry_hash_key:
+    file: "${QE_TELEMETRY_HASH_KEY_FILE:?QE_TELEMETRY_HASH_KEY_FILE is required}"
+  qe_telemetry_ingest_token:
+    file: "${QE_TELEMETRY_INGEST_TOKEN_FILE:?QE_TELEMETRY_INGEST_TOKEN_FILE is required}"
+  reference_agent_model_api_key:
+    file: "${REFERENCE_AGENT_MODEL_API_KEY_FILE:?REFERENCE_AGENT_MODEL_API_KEY_FILE is required}"

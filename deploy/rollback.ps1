@@ -1,8 +1,25 @@
-param([Parameter(Mandatory=$true)][string]$ImageTag, [string]$ComposeFile = "docker-compose.yml")
+param(
+    [Parameter(Mandatory=$true)][string]$ImageTag,
+    [string]$ImageDigest = "",
+    [Alias("ComposeFile")][string[]]$ComposeFiles = @("docker-compose.yml", "docker-compose.production.yml"),
+    [ValidateSet("always", "missing", "never")][string]$PullPolicy = "always",
+    [string]$ReportPath = "reports/rollback.json"
+)
 $ErrorActionPreference = "Stop"
+$composeArgs = @()
+foreach ($file in $ComposeFiles) {
+    if ([string]::IsNullOrWhiteSpace($file)) { throw "Compose file list must not contain empty paths" }
+    $composeArgs += @("-f", $file)
+}
+if ($composeArgs.Count -eq 0) { throw "Compose file list must not be empty" }
 $env:IMAGE_TAG = $ImageTag
-docker compose -f $ComposeFile up -d --no-build --wait
+if ($ImageDigest) { $env:REFERENCE_AGENT_IMAGE_DIGEST = $ImageDigest }
+$reportDirectory = Split-Path -Parent $ReportPath
+if ($reportDirectory) { New-Item -ItemType Directory -Force $reportDirectory | Out-Null }
+docker compose @composeArgs up -d --pull $PullPolicy --no-build --wait
 if ($LASTEXITCODE -ne 0) { throw "Rollback compose command failed" }
-docker compose -f $ComposeFile ps
+docker compose @composeArgs ps
 if ($LASTEXITCODE -ne 0) { throw "Rollback status check failed" }
+[ordered]@{ operation = "rollback"; status = "ok"; image_tag = $ImageTag; image_digest = $ImageDigest } |
+    ConvertTo-Json -Compress | Set-Content -LiteralPath $ReportPath -Encoding utf8
 Write-Host "Rolled back to image tag $ImageTag; run smoke.ps1 to verify."

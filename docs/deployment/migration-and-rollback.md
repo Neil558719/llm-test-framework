@@ -11,10 +11,10 @@
 
 ## 回滚
 
-部署前执行 `deploy/backup.ps1` 并记录当前镜像标签。异常时运行：
+部署前执行 `deploy/backup.ps1 -ComposeFiles docker-compose.yml` 并记录当前镜像标签。异常时运行：
 
 ```powershell
-.\deploy\rollback.ps1 -ImageTag <上一稳定版本>
+.\deploy\rollback.ps1 -ComposeFiles docker-compose.yml -ImageTag <上一稳定版本>
 .\deploy\smoke.ps1 -ReportPath reports/rollback-smoke.json
 ```
 

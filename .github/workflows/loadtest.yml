@@ -24,13 +24,14 @@ jobs:
         python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - run: uv sync --locked --extra ci
       - name: Run standalone load-test tests
-        run: python -m pytest -q tests/test_loadtest_*.py
+        run: uv run pytest -q tests/test_loadtest_*.py
 
   m13-quality-gate:
     name: M13 fault and SLA/SLO gate
@@ -45,14 +46,15 @@ jobs:
       LLM_PRICING_TABLE: '{"mock/mock":{"input_per_1k":0,"output_per_1k":0,"currency":"USD","version":"m13-ci"}}'
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - run: uv sync --locked --extra ci
       - name: Start Reference Agent
         run: |
-          python -m uvicorn reference_agent.deployment:create_deployment_app --factory --host 127.0.0.1 --port 8000 > /tmp/m13-reference-agent.log 2>&1 &
+          uv run python -m uvicorn reference_agent.deployment:create_deployment_app --factory --host 127.0.0.1 --port 8000 > /tmp/m13-reference-agent.log 2>&1 &
           echo $! > /tmp/m13-reference-agent.pid
       - name: Wait for Reference Agent health
         run: |
@@ -62,7 +64,7 @@ jobs:
 
           for attempt in range(30):
               try:
-                  with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=1) as response:
+                  with urllib.request.urlopen("http://127.0.0.1:8000/api/health/ready", timeout=1) as response:
                       if response.status == 200:
                           break
               except Exception:
@@ -71,7 +73,7 @@ jobs:
                   time.sleep(1)
           PY
       - name: Run milestone 13 quality gate
-        run: python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
+        run: uv run python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
       - name: Show Reference Agent log on failure
         if: failure()
         run: cat /tmp/m13-reference-agent.log
@@ -93,13 +95,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - run: uv sync --locked --extra ci
       - name: Run offline Dify compatibility contract
-        run: python -m pytest -q tests/test_dify_adapter_config.py tests/test_dify_adapter.py tests/test_dify_gate.py tests/test_m14_dify_assets.py tests/test_m14_docs.py
+        run: uv run pytest -q tests/test_dify_adapter_config.py tests/test_dify_adapter.py tests/test_dify_gate.py tests/test_m14_dify_assets.py tests/test_m14_docs.py
 
   m15-telemetry-contract:
     name: M15 telemetry contract
@@ -111,13 +114,14 @@ jobs:
       QE_TELEMETRY_RETENTION_DAYS: "30"
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - run: uv sync --locked --extra ci
       - name: Run offline telemetry contract
-        run: python -m pytest -q tests/test_telemetry_models.py tests/test_telemetry_storage.py tests/test_telemetry_api.py tests/test_telemetry_cli.py tests/test_reference_agent_telemetry.py tests/test_reference_agent_deployment_config.py tests/test_m15_docs.py
+        run: uv run pytest -q tests/test_telemetry_models.py tests/test_telemetry_storage.py tests/test_telemetry_api.py tests/test_telemetry_cli.py tests/test_reference_agent_telemetry.py tests/test_reference_agent_deployment_config.py tests/test_m15_docs.py
 
   m16-review-promotion-contract:
     name: M16 review and promotion contract
@@ -129,13 +133,14 @@ jobs:
       QE_TELEMETRY_RETENTION_DAYS: "30"
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - run: uv sync --locked --extra ci
       - name: Run offline review and promotion contract
-        run: python -m pytest -q tests/test_feedback_review_models.py tests/test_feedback_promotion.py tests/test_telemetry_review_storage.py tests/test_telemetry_review_api.py tests/test_m16_docs.py
+        run: uv run pytest -q tests/test_feedback_review_models.py tests/test_feedback_promotion.py tests/test_telemetry_review_storage.py tests/test_telemetry_review_api.py tests/test_m16_docs.py
 
   m17-quality-loop-contract:
     name: M17 quality loop contract
@@ -147,10 +152,11 @@ jobs:
       QE_TELEMETRY_RETENTION_DAYS: "30"
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install -e ".[ci]"
+      - run: uv sync --locked --extra ci
       - name: Run offline M17 quality loop contract
-        run: python -m pytest -q tests/test_quality_loop_models.py tests/test_quality_loop_storage.py tests/test_quality_loop_engine.py tests/test_quality_loop_reporting.py tests/test_quality_loop_cli.py tests/test_quality_loop_api.py tests/test_quality_loop_contract.py tests/test_m17_docs.py
+        run: uv run pytest -q tests/test_quality_loop_models.py tests/test_quality_loop_storage.py tests/test_quality_loop_engine.py tests/test_quality_loop_reporting.py tests/test_quality_loop_cli.py tests/test_quality_loop_api.py tests/test_quality_loop_contract.py tests/test_m17_docs.py

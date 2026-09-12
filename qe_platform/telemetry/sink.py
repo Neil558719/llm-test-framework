@@ -6,6 +6,8 @@ import urllib.request
 import threading
 from typing import Any
 
+from qe_platform.production.secrets import SecretSource
+
 from .models import TelemetryTrace
 
 
@@ -64,9 +66,10 @@ class HttpTelemetrySink(TelemetrySink):
 
 def telemetry_sink_from_environment(values: dict[str, Any] | None = None) -> TelemetrySink:
     env = os.environ if values is None else values
+    secrets = SecretSource.from_environment(env)
     endpoint = str(env.get("QE_TELEMETRY_ENDPOINT", "")).strip()
-    ingest_token = str(env.get("QE_TELEMETRY_INGEST_TOKEN", "")).strip()
-    hash_key = str(env.get("QE_TELEMETRY_HASH_KEY", "")).strip()
+    ingest_token = secrets.get("QE_TELEMETRY_INGEST_TOKEN").strip()
+    hash_key = secrets.get("QE_TELEMETRY_HASH_KEY").strip()
     if not endpoint or not ingest_token or not hash_key:
         return NoopTelemetrySink()
     try:

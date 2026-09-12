@@ -123,10 +123,12 @@ def test_windows_watcher_survives_failed_refresh_and_retries_next_env_save(tmp_p
     counter_file = tmp_path / "docker-counter"
     (fake_bin / "docker.ps1").write_text(
         "param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)\n"
-        f"Add-Content -LiteralPath '{log_file}' -Value ($Arguments -join ' ')\n"
+        f"Add-Content -LiteralPath '{log_file}' -Value ($Arguments -join ' ') -Encoding utf8\n"
         f"if (-not (Test-Path -LiteralPath '{counter_file}')) {{ Set-Content -LiteralPath '{counter_file}' -Value 1; exit 1 }}\n"
         "exit 0\n",
-        encoding="utf-8",
+        # Windows PowerShell 5.1 treats a BOM-less script as the active ANSI
+        # code page.  The temporary workspace may contain non-ASCII names.
+        encoding="utf-8-sig",
     )
     child_env = os.environ.copy()
     child_env["PATH"] = str(fake_bin) + ";" + child_env["PATH"]
@@ -164,7 +166,7 @@ def test_smoke_script_validates_health_payload_instead_of_only_http_success():
 def test_rollback_waits_for_container_health_before_returning():
     rollback = (ROOT / "deploy" / "rollback.ps1").read_text(encoding="utf-8")
 
-    assert "up -d --no-build --wait" in rollback
+    assert "up -d --pull $PullPolicy --no-build --wait" in rollback
 
 
 def test_deployment_scripts_check_native_command_exit_codes_and_use_stable_volume_name():
@@ -188,9 +190,19 @@ def test_backup_verifies_sqlite_integrity_before_reporting_success():
     backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
 
     assert "PRAGMA integrity_check" in backup
-    assert "up -d --wait" in backup
-    assert "finally" in backup
+    assert "run --pull $PullPolicy --rm --no-deps" in backup
+    assert "up -d --wait" not in backup
     assert "Resolve-Path" in backup
+
+
+def test_backup_integrity_checks_use_immutable_read_only_sqlite_uri():
+    powershell_backup = (ROOT / "deploy" / "backup.ps1").read_text(encoding="utf-8")
+    shell_backup = (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8")
+
+    for backup in [powershell_backup, shell_backup]:
+        assert "mode=ro&immutable=1" in backup
+        assert "uri=True" in backup
+    assert "file:/backup/${targetName}?mode=ro&immutable=1" in powershell_backup
 
 
 def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
@@ -198,7 +210,11 @@ def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
     restore = (ROOT / "deploy" / "restore.sh").read_text(encoding="utf-8")
 
     assert "trap" in backup and "PRAGMA integrity_check" in backup
-    assert "PRAGMA integrity_check" in restore and "docker compose up -d --wait" in restore
+    assert 'case "$database_path" in /data/*) : ;;' in backup
+    assert 'always|missing|never) : ;;' in backup
+    assert 'case "$database_path" in /data/*) : ;;' in restore
+    assert 'always|missing|never) : ;;' in restore
+    assert "PRAGMA integrity_check" in restore and 'docker compose up -d --pull "$pull_policy" --wait' in restore
     assert "trap" in restore
 
 

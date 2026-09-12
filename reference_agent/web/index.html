@@ -12,7 +12,8 @@
       <p class="eyebrow">REFERENCE AGENT</p>
       <h1>企业 IT 服务台</h1>
       <p class="muted">登录后提交知识问答、故障工单或权限申请。</p>
-      <form id="login-form">
+      <a id="oidc-login" href="/auth/login?next=/" hidden>企业账号登录</a>
+      <form id="login-form" hidden>
         <label for="user-id">用户</label>
         <select id="user-id" name="user_id">
           <option value="U1001">U1001 · Smoke User</option>
@@ -25,7 +26,7 @@
     <section id="chat-panel" class="panel" hidden>
       <header class="chat-header">
         <div><p class="eyebrow">ACTIVE SESSION</p><h2>服务台对话</h2></div>
-        <div class="session-meta"><span id="session-label"></span><button id="new-session" type="button" class="quiet">新会话</button></div>
+        <div class="session-meta"><span id="session-label"></span><button id="logout" type="button" class="quiet" hidden>退出登录</button><button id="new-session" type="button" class="quiet">新会话</button></div>
       </header>
       <div class="model-controls" aria-label="模型配置">
         <label for="model-profile">模型</label>

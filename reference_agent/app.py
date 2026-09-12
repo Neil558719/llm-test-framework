@@ -8,17 +8,22 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from llmtest import LatencyMetrics, ResponseEnvelope, ModelVersion, CostMetrics, TokenUsage
 from llmtest.cost import PriceTable
 from qe_platform.telemetry import build_trace_event
 from qe_platform.telemetry.sink import TelemetrySink, telemetry_sink_from_environment
+from qe_platform.auth.dependencies import AuthRuntime, install_auth_routes
+from qe_platform.ops import readiness
+from qe_platform.ops.metrics import PROCESS_METRICS, install_http_metrics
+from qe_platform.production.secrets import SecretSource
 
 from .graph import build_graph
+from .privacy import access_slots, draft_message
 from .services.assets import AssetService
 from .services.approvals import ApprovalService
 from .services.knowledge_base import KnowledgeBase
@@ -45,6 +50,8 @@ class LoginRequest(BaseModel):
     user_id: str = Field(min_length=1)
 
 
+
+
 def create_app(
     database: str | None = None,
     knowledge_base: KnowledgeBase | None = None,
@@ -57,10 +64,13 @@ def create_app(
     fault_settings: FaultControlSettings | None = None,
     *,
     telemetry_sink: TelemetrySink | None = None,
+    auth_runtime: AuthRuntime | None = None,
 ) -> FastAPI:
     database = database or os.getenv("REFERENCE_AGENT_DATABASE", "reference_agent.db")
     app = FastAPI(title="Reference IT Service Desk Agent")
     store = SQLiteStore(database)
+    ticket_service = ticket_service or TicketService(repository=store)
+    approval_service = approval_service or ApprovalService(repository=store)
     graph = build_graph(knowledge_base, user_service, asset_service, ticket_service, approval_service)
     registry = ModelProviderRegistry.with_defaults()
     app.state.model_registry = registry
@@ -73,10 +83,31 @@ def create_app(
     app.state.access_drafts = {}
     app.state.fault_settings = fault_settings or FaultControlSettings.from_env()
     app.state.telemetry_sink = telemetry_sink or telemetry_sink_from_environment()
+    app.state.auth_runtime = auth_runtime or AuthRuntime.from_environment()
+    app.state.metrics = PROCESS_METRICS
+    install_http_metrics(app, "reference")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "reference-agent"}
+
+    @app.get("/api/health/live")
+    def health_live() -> dict[str, str]:
+        return {"status": "ok", "service": "reference-agent"}
+
+    @app.get("/api/health/ready")
+    def health_ready() -> JSONResponse:
+        bundle = {"database": store, **app.state.auth_runtime.readiness_bundle()}
+        if not app.state.auth_runtime.development_mode:
+            bundle["configuration"] = lambda: bool(app.state.model_config.as_public_dict()["configured"])
+        result = readiness(bundle)
+        payload = {"status": "ready" if result.ready else "not_ready", "service": "reference-agent", "checks": dict(result.checks)}
+        return JSONResponse(payload, status_code=200 if result.ready else 503)
+
+    @app.get("/api/metrics")
+    def metrics(request: Request) -> dict[str, Any]:
+        app.state.auth_runtime.require(request, "admin")
+        return app.state.metrics.snapshot()
 
     @app.get("/api/model-profiles")
     def model_profiles() -> dict[str, Any]:
@@ -84,7 +115,9 @@ def create_app(
         return {"profiles": [{"name": p.name, "label": p.label, "mode": p.mode, "provider": p.provider, "base_url": p.base_url} for p in registry.profiles()], "current": current.as_public_dict()}
 
     @app.put("/api/model-profile")
-    def set_model_profile(payload: dict[str, Any]) -> dict[str, Any]:
+    def set_model_profile(payload: dict[str, Any], request: Request) -> dict[str, Any]:
+        app.state.auth_runtime.require(request, "admin")
+        app.state.auth_runtime.require_csrf(request)
         name = str(payload.get("profile", ""))
         try:
             profile = registry.resolve(name)
@@ -92,24 +125,33 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         model = str(payload.get("model", ""))[:200]
         base_url = str(payload.get("base_url", profile.base_url))[:500]
-        if profile.mode == "real" and not os.getenv("REFERENCE_AGENT_MODEL_API_KEY"):
+        try:
+            api_key = SecretSource.from_environment(os.environ).get("REFERENCE_AGENT_MODEL_API_KEY")
+        except ValueError:
+            raise HTTPException(status_code=409, detail="server model API key is not configured") from None
+        if profile.mode == "real" and not api_key:
             raise HTTPException(status_code=409, detail="server model API key is not configured")
-        config = AgentModelConfig(profile=name, mode=profile.mode, provider=profile.provider, model=model, base_url=base_url, api_key=os.getenv("REFERENCE_AGENT_MODEL_API_KEY"))
+        config = AgentModelConfig(profile=name, mode=profile.mode, provider=profile.provider, model=model, base_url=base_url, api_key=api_key)
         app.state.model_config = config
         app.state.runtime = AgentRuntime(graph, config, registry)
         return config.as_public_dict()
 
     @app.post("/api/login")
     def login(request: LoginRequest) -> dict[str, str]:
+        if not app.state.auth_runtime.development_mode:
+            raise HTTPException(status_code=403, detail="forbidden")
         session_id = str(uuid.uuid4())
         store.upsert_session(session_id, request.user_id)
         return {"session_id": session_id, "user_id": request.user_id}
 
     @app.get("/api/sessions/{session_id}")
-    def get_session(session_id: str) -> dict[str, str]:
+    def get_session(session_id: str, request: Request) -> dict[str, str]:
+        principal = app.state.auth_runtime.require(request)
         session = store.get_session(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="session not found")
+        if not app.state.auth_runtime.development_mode and session["user_id"] != principal.subject:
+            raise HTTPException(status_code=403, detail="forbidden")
         return session
 
     def _resolve_fault(
@@ -133,7 +175,7 @@ def create_app(
         except InjectedDatabaseError as exc:
             raise HTTPException(status_code=503, detail="database temporarily unavailable") from exc
         store.upsert_session(session_id, request.user_id)
-        draft = app.state.access_drafts.get(session_id, "")
+        draft = store.get_access_draft(session_id)
         effective_message = f"{draft} {request.message}".strip() if draft else request.message
         result = app.state.runtime.invoke(
             {
@@ -147,9 +189,15 @@ def create_app(
             }
         )
         if result.get("approval_status") == "needs_information":
-            app.state.access_drafts[session_id] = effective_message
+            store.upsert_access_draft(session_id, draft_message(access_slots(effective_message)))
         else:
-            app.state.access_drafts.pop(session_id, None)
+            store.delete_access_draft(session_id)
+        for call in result.get("tool_calls", []):
+            if call.name == "create_approval":
+                if "justification" in call.arguments:
+                    call.arguments = {**call.arguments, "justification": "provided" if call.arguments["justification"] else ""}
+                if isinstance(call.result, dict) and "justification" in call.result:
+                    call.result = {**call.result, "justification": "provided" if call.result["justification"] else ""}
         envelope = ResponseEnvelope(
             answer=str(result["answer"]),
             conversation_id=session_id,
@@ -220,20 +268,35 @@ def create_app(
         except Exception:
             return
 
+    def _bind_identity(payload: ChatRequest, request: Request) -> ChatRequest:
+        auth = app.state.auth_runtime
+        principal = auth.require(request, "viewer")
+        auth.require_csrf(request)
+        if auth.development_mode:
+            return payload
+        session_id = payload.session_id or str(uuid.uuid4())
+        if not store.claim_session(session_id, principal.subject):
+            raise HTTPException(status_code=403, detail="forbidden")
+        return payload.model_copy(update={"user_id": principal.subject, "session_id": session_id})
+
     @app.post("/api/chat")
     def chat(
         request: ChatRequest,
+        http_request: Request,
         x_qe_test_token: str | None = Header(default=None, alias="X-QE-Test-Token"),
         x_qe_fault: str | None = Header(default=None, alias="X-QE-Fault"),
     ) -> dict[str, Any]:
+        request = _bind_identity(request, http_request)
         return _run_chat(request, _resolve_fault(x_qe_test_token, x_qe_fault))
 
     @app.post("/api/chat/stream")
     def chat_stream(
         request: ChatRequest,
+        http_request: Request,
         x_qe_test_token: str | None = Header(default=None, alias="X-QE-Test-Token"),
         x_qe_fault: str | None = Header(default=None, alias="X-QE-Fault"),
     ) -> StreamingResponse:
+        request = _bind_identity(request, http_request)
         fault = _resolve_fault(x_qe_test_token, x_qe_fault)
         response = _run_chat(request, fault)
 
@@ -248,6 +311,7 @@ def create_app(
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
+    install_auth_routes(app, app.state.auth_runtime)
     app.mount("/", StaticFiles(directory=Path(__file__).parent / "web", html=True), name="web")
 
     return app
