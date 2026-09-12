@@ -1,6 +1,28 @@
-# llmtest —— LLM 应用自动化测试框架
+# llmtest —— AI 应用全链路质量工程与自动化测试平台
 
-给大模型应用（聊天机器人 / RAG 助手）做**自动化测试**与**质量评估**的一体化框架，基于 pytest 封装。
+面向企业 AI 应用的可复用质量工程平台：从 Reference Agent、工具契约和 YAML 场景，
+到 API/UI 回归、压测、SLA/SLO、Trace/反馈、人工复核、质量趋势和发布门禁，形成可重复的
+离线测试与线上质量反馈链路。`llmtest` 保留为底层 LLM 评测内核，`qe_platform` 和
+`reference_agent` 承载平台与被测对象能力，测试平台与 Agent 实现保持分离。
+
+## 项目简介（简历摘要）
+
+- **项目定位**：企业 IT 服务台 Agent 的全链路质量工程平台，同时提供 Dify Chat 的受限兼容适配器。
+- **核心能力**：语义/相似度/JSON Schema/LLM-as-Judge/幻觉率断言，Tool Contract，YAML 场景执行，API/UI 回归，HTTP/SSE 压测，故障注入与 SLA/SLO 门禁。
+- **质量闭环**：脱敏 Trace 与反馈持久化 → 人工复核 → 回归场景晋级 → 趋势聚合 → baseline/candidate 发布验证。
+- **工程化交付**：FastAPI、SQLite WAL 与版本迁移、Docker Compose、健康/就绪探针、备份恢复、不可变镜像 rollback、GitHub Actions 和 Playwright。
+- **安全设计**：OIDC/OAuth2 + PKCE、Bearer API、四角色授权、浏览器 CSRF、Docker secrets、隐私安全字段和报告脱敏。
+
+## 当前交付状态
+
+截至 2026-09-11，M0–M17 的代码、测试和本机类生产演练已完成。生产加固分支的最终验证结果为：
+
+- 非 UI 回归：`534 passed, 5 deselected`；UI 回归：`5 passed`；`compileall`、Compose 配置和脚本语法检查通过。
+- 本机 Docker 已验证构建、数据库迁移、在线备份、恢复、跨重启 readiness 和 rollback；服务器已完成 Mock 模式的回环部署验证。
+- GitHub 已发布至 `v0.2.0-alpha.23`；生产加固分支仍需完成 Issue/Push/PR/Actions/Review/Merge/Release 生命周期后再合并。
+
+真实 IdP、正式模型凭据、HTTPS/域名、公网 Bearer Smoke 和线上遥测接收端属于部署环境验收，
+不在本地证据中冒充已完成。PostgreSQL 遥测存储以及共享环境下 Trace/反馈读写授权仍是明确的后续边界。
 
 ## 特性
 
@@ -458,7 +480,7 @@ python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
 
 ## 生产加固与服务器迁移
 
-生产模式使用通用 OIDC（浏览器授权码 + PKCE 与 API Bearer token）、四类角色、独立会话 SQLite、版本化业务 SQLite、在线备份/恢复、就绪探针和无敏感字段指标。生产 Compose 只接受 Docker secret 文件与不可变镜像 digest；本地开发仍使用显式的 `QE_ENVIRONMENT=development`。运行顺序和 Windows/Linux 命令在 [`docs/deployment/production-readiness-runbook.md`](docs/deployment/production-readiness-runbook.md) 中。当前证据来自临时 SQLite、生成的测试密钥、离线 HTTP 契约、本机浏览器测试和 Docker 迁移/备份/恢复/跨重启/rollback 演练；完整 Bearer Smoke、真实 IdP、HTTPS 域名、独立服务器与公网 Smoke 需在服务器提供后执行。GitHub Issue、push、PR、Actions、审查、合并与 Release 仍待完成。
+生产模式使用通用 OIDC（浏览器授权码 + PKCE 与 API Bearer token）、四类角色、独立会话 SQLite、版本化业务 SQLite、在线备份/恢复、就绪探针和无敏感字段指标。生产 Compose 只接受 Docker secret 文件与不可变镜像 digest；本地开发仍使用显式的 `QE_ENVIRONMENT=development`。运行顺序和 Windows/Linux 命令在 [`docs/deployment/production-readiness-runbook.md`](docs/deployment/production-readiness-runbook.md) 中。当前证据来自临时 SQLite、生成的测试密钥、离线 HTTP 契约、本机浏览器测试和 Docker 迁移/备份/恢复/跨重启/rollback 演练；本机服务器已完成 Mock 模式回环部署；完整 Bearer Smoke、真实 IdP、HTTPS 域名和公网 Smoke 仍待正式凭据与公网配置。生产加固分支的 GitHub Issue、push、PR、Actions、审查、合并与 Release 仍待完成。
 
 ## 报告看板
 
@@ -473,6 +495,23 @@ python -m qe_platform.loadtest.gate_cli configs/m13-reference-agent-gate.yaml
 ## 架构
 
 ```
+reference_agent/
+├── app.py / deployment.py   # 企业 IT 服务台 Reference Agent 与 FastAPI 工厂
+├── graph.py                  # 知识问答、工单、权限申请和工具调用流程
+├── services/                 # 可注入故障的 Mock 用户/资产/工单/审批/知识库
+├── runtime/                  # Mock/Real 模型运行时与模型 profile
+└── storage.py                # SQLite WAL 会话与业务状态
+
+qe_platform/
+├── contracts/                # Tool Contract 与业务状态断言
+├── scenarios/                # 严格 YAML DSL、场景加载与资源
+├── workflow_runner/          # 多轮场景执行与可序列化结果
+├── loadtest/                 # 独立 HTTP/SSE 压测与 SLA/SLO 门禁
+├── telemetry/                # 脱敏 Trace/反馈 API、保留策略与上报
+├── feedback/                 # 人工复核、归因和回归场景晋级
+├── quality_loop/             # 趋势、线上离线关联和发布验证
+└── ops/                      # 迁移、就绪、备份、恢复和 rollback
+
 llmtest/
 ├── config.py          # 配置（env / pytest 参数）
 ├── apps.py            # 被测应用注册表（@register_app + --app 切换被测对象）
@@ -496,14 +535,14 @@ tests/test_rag_assistant.py # RAG 助手：幻觉检测 / 延迟（上下文写�
 examples/customer_service/  # 接入真实客服 App：adapter + 注册 + 示例用例
 examples/dify_bot/          # 接入 Dify 知识库客服机器人：adapter + probe + 用例 + question_bank + 双裁判脚本
 examples/model_vs_model/    # 模型对模型（精简版）：只测模型，全终端切换
-examples/kb_bots/           # 多平台共享套件：一套用例一条命令测 Dify / FastGPT
+examples/kb_bots/           # 兼容性参考套件（Dify 为声明目标；FastGPT 文件仅作历史参考）
 examples/kb_bots/data/      # 数据驱动问题集（knowledge_questions.json）
 scripts/ci_run.py           # CI 脚本：一条命令跑两档（Mock 冒烟 + 真实回归）
 scripts/probe_embedding.py  # 诊断脚本：探测网关 Embedding 可用性
 docs/术语手册与原理详解.md        # 术语 + 原理 + 用例全解
 docs/使用手册.md                  # 完整功能 + 运行方法（不遗漏）
 docs/Dify 兼容性测试指南.md       # Dify Chat 兼容能力、限制和门禁
-docs/FastGPT 部署与迁移指南.md    # FastGPT 部署 · 接入 · 迁移
+docs/FastGPT 部署与迁移指南.md    # 历史参考材料，不属于当前项目范围
 docs/迁移说明.md                  # 迁移到新电脑 / Python 3.14 兼容 / GitHub 上传
 CHANGELOG.md                      # 开发记录 + 遇到的问题
 reports/llm_test_report.html        # 最新报告（历史摘要见 history.json）
