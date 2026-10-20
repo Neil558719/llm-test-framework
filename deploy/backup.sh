@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # The helper uses SQLite's online backup API, so a healthy service remains available.
-docker compose run --pull "$pull_policy" --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
+docker compose run --pull "$pull_policy" --user "0:0" --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
 import sys
 from pathlib import Path
 from qe_platform.ops import backup_database

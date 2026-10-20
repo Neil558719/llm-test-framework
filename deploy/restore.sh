@@ -30,7 +30,7 @@ trap restart_service EXIT INT TERM
 docker compose stop reference-agent
 stopped=1
 
-docker compose run --pull "$pull_policy" --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
+docker compose run --pull "$pull_policy" --user "0:0" --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
 import sqlite3
 import sys
 from pathlib import Path

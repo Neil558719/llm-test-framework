@@ -15,3 +15,15 @@
 **兼容。** 构造函数只新增可选 keyword-only clock；已有调用继续默认真实 UTC。新增写接口 now 为可选 keyword-only。数据库 schema、迁移版本、持久化 payload 无变化；无数据迁移和历史删除。撤销本修复提交即可回退。
 
 **练习（尚未作答）。** 用三分钟解释：为什么把日期改成“今天”或增大 TTL 会掩盖问题？画出显式 now、注入 clock、默认 utc_now 的优先关系；说明为什么截止点采用严格大于；写出首次晋级和幂等重放过期的负例；说明本地绿灯与完成发布的区别。
+
+## A-container：非 root 应用与备份 helper 的权限边界
+
+状态：PR #62 的远程 Container Readiness 首次运行发现独立阻断；修复已在同一分支本地验证，Issue [#63](https://github.com/Neil558719/llm-test-framework/issues/63)；远程复跑待执行。用户是否已理解或掌握：未评估。
+
+**触发与证据。** Actions run 39444075058/job 118701218642 在 `deploy/backup.sh` 的 SQLite 在线备份阶段报 `PermissionError: [Errno 13] Permission denied`，临时文件路径为挂载的 `/backup/...db.m_*.tmp`。应用服务在 `docker-compose.yml` 中保持 `user: "10001:10001"`，helper 继承该用户，无法写入 runner 的挂载目录。
+
+**修复与取舍。** 仅给短生命周期的备份/恢复 helper 增加 `docker compose run --user "0:0"`；应用容器仍以 10001:10001 运行，保留只读 immutable 完整性检查、恢复校验和清理 trap。没有放宽业务门禁或改变数据库 schema。聚焦守卫旧脚本先失败，修复后 `3 passed, 14 deselected`。
+
+**面试表达。** “容器服务必须非 root，但迁移 helper 需要向宿主挂载目录写临时 SQLite 文件。我先读完整堆栈确认失败在 helper 写入边界，再用最小的 helper-only 用户覆盖修复，避免把应用改回 root。”
+
+**练习（尚未作答）。** 解释为什么修改 compose 的应用 `user` 是更大风险；指出 backup helper 的写入挂载与 integrity checker 的只读挂载差异；说出 CI 远程复跑通过前为什么只能说“本地修复”。
