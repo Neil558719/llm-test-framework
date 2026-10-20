@@ -11,7 +11,7 @@ from tests.test_telemetry_storage import trace_at, utc
 
 def _setup_database(tmp_path):
     database = tmp_path / "telemetry.db"
-    telemetry = SQLiteTelemetryRepository(database, retention_days=30, hash_key="test-key")
+    telemetry = SQLiteTelemetryRepository(database, retention_days=30, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     telemetry.upsert_trace(trace_at("2026-08-29T00:00:00+00:00", application="service-desk"))
     feedback = telemetry.add_feedback(FeedbackInput(FeedbackKind.HALLUCINATION, "reporter", "ui"), "trace-1")
     review = telemetry.upsert_review(
@@ -26,7 +26,7 @@ def _setup_database(tmp_path):
         "vpn-recovery-regression",
         "id: vpn-recovery-regression\nname: VPN recovery\nconversation:\n  - user: hello\n",
     )
-    quality = SQLiteQualityRepository(database, retention_days=30)
+    quality = SQLiteQualityRepository(database, retention_days=30, clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     baseline = quality.import_run(
         _report_payload(
             run_id="run-baseline",

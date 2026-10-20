@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .engine import build_quality_links, build_trends, validate_release
 from .models import ReleaseGatePolicy
@@ -58,12 +58,16 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    repository_factory: Callable[[argparse.Namespace], SQLiteQualityRepository] = _repository,
+) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     repository: SQLiteQualityRepository | None = None
     try:
-        repository = _repository(args)
+        repository = repository_factory(args)
         if args.command == "import-run":
             payload = json.loads(Path(args.report).read_text(encoding="utf-8"))
             run = repository.import_run(payload, source_label=args.source_label)

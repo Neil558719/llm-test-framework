@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from qe_platform.ops.metrics import PROCESS_METRICS
+from qe_platform.time import Clock, utc_now
 
 import json
 import sqlite3
@@ -18,9 +19,9 @@ from qe_platform.storage.sqlite_runtime import configure_sqlite
 from .models import OfflineRun, QualityLink, ReleaseValidation, parse_run_report
 
 
-def _utc(value: datetime | None) -> datetime:
-    current = datetime.now(timezone.utc) if value is None else value
-    if current.tzinfo is None or current.utcoffset() != timedelta(0):
+def _utc(value: datetime) -> datetime:
+    current = value
+    if not isinstance(current, datetime) or current.tzinfo is None or current.utcoffset() != timedelta(0):
         raise ValueError("timestamp must be UTC")
     return current.astimezone(timezone.utc)
 
@@ -32,10 +33,11 @@ def _timestamp(value: datetime) -> str:
 class SQLiteQualityRepository:
     """Shared-database persistence for M17 artifacts and safe aggregates."""
 
-    def __init__(self, database: str | Path, *, retention_days: int = 30) -> None:
+    def __init__(self, database: str | Path, *, retention_days: int = 30, clock: Clock = utc_now) -> None:
         if isinstance(retention_days, bool) or not isinstance(retention_days, int) or retention_days <= 0:
             raise ValueError("retention_days must be a positive integer")
         self.retention_days = retention_days
+        self._clock = clock
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(str(_sqlite_path(database)), check_same_thread=False, isolation_level=None)
         with self._lock:
@@ -62,8 +64,12 @@ class SQLiteQualityRepository:
         with self._lock:
             self._connection.close()
 
+    def current_time(self, now: datetime | None = None) -> datetime:
+        """Resolve operation time once; explicit values override the repository clock."""
+        return _utc(self._clock() if now is None else now)
+
     def _cutoff(self, now: datetime | None) -> str:
-        return _timestamp(_utc(now) - timedelta(days=self.retention_days))
+        return _timestamp(self.current_time(now) - timedelta(days=self.retention_days))
 
     @staticmethod
     def _hydrate_run(payload: str) -> OfflineRun:
@@ -154,6 +160,7 @@ class SQLiteQualityRepository:
     ) -> QualityLink:
         if not isinstance(promotion_id, str) or not promotion_id:
             raise ValueError("promotion_id must be nonempty")
+        now = self.current_time(now)
         run = self.get_run(offline_run_id, now=now)
         if run is None:
             raise KeyError("offline run not found")
@@ -218,7 +225,8 @@ class SQLiteQualityRepository:
             JOIN quality_offline_runs AS run ON run.run_id = link.offline_run_id
             WHERE trace.timestamp > ? AND run.started_at > ?
         """
-        params: list[Any] = [self._cutoff(now), self._cutoff(now)]
+        cutoff = self._cutoff(now)
+        params: list[Any] = [cutoff, cutoff]
         if offline_run_id:
             query += " AND link.offline_run_id = ?"
             params.append(offline_run_id)

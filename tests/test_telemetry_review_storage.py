@@ -14,7 +14,7 @@ from tests.test_telemetry_storage import trace_at, utc
 
 
 def test_review_upsert_hydrates_and_updates_one_record_per_feedback(tmp_path):
-    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", hash_key="test-key")
+    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     repo.upsert_trace(trace_at("2026-08-29T00:00:00+00:00"))
     feedback = repo.add_feedback(FeedbackInput(FeedbackKind.INACCURATE, "reporter", "ui"), "trace-1")
 
@@ -44,7 +44,7 @@ def test_review_upsert_hydrates_and_updates_one_record_per_feedback(tmp_path):
 
 
 def test_promotion_is_idempotent_and_cascades_with_expired_trace(tmp_path):
-    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", retention_days=30, hash_key="test-key")
+    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", retention_days=30, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     repo.upsert_trace(trace_at("2026-08-29T00:00:00+00:00"))
     feedback = repo.add_feedback(FeedbackInput(FeedbackKind.HALLUCINATION, "reporter", "ui"), "trace-1")
     review = repo.upsert_review(
@@ -66,7 +66,7 @@ def test_promotion_is_idempotent_and_cascades_with_expired_trace(tmp_path):
 
 
 def test_expired_feedback_cannot_create_review(tmp_path):
-    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", retention_days=30, hash_key="test-key")
+    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", retention_days=30, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     repo.upsert_trace(trace_at("2026-07-01T00:00:00+00:00"))
     feedback = repo.add_feedback(FeedbackInput(FeedbackKind.INACCURATE, "reporter", "ui"), "trace-1")
 
@@ -81,7 +81,7 @@ def test_expired_feedback_cannot_create_review(tmp_path):
 
 
 def test_storage_rejects_promotion_that_bypasses_review_or_scenario_validation(tmp_path):
-    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", hash_key="test-key")
+    repo = SQLiteTelemetryRepository(tmp_path / "telemetry.db", hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     repo.upsert_trace(trace_at("2026-08-29T00:00:00+00:00"))
     feedback = repo.add_feedback(FeedbackInput(FeedbackKind.INACCURATE, "reporter", "ui"), "trace-1")
     pending = repo.upsert_review(

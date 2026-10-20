@@ -164,6 +164,7 @@ def validate_release(
     validation_id: str | None = None,
     now: datetime | None = None,
 ) -> ReleaseValidation:
+    now = repository.current_time(now)
     baseline = repository.get_run(baseline_run_id, now=now)
     candidate = repository.get_run(candidate_run_id, now=now)
     if baseline is None:
@@ -238,7 +239,7 @@ def validate_release(
         all(item.passed for item in checks),
         checks,
         len(repository.list_links(offline_run_id=candidate_run_id, now=now)),
-        (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
+        now.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
     )
     saved = repository.save_validation(result)
     PROCESS_METRICS.increment("quality_gate_passed_total" if saved.passed else "quality_gate_denied_total")

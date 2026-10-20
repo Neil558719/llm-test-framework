@@ -3,15 +3,21 @@ from __future__ import annotations
 import json
 
 from qe_platform.feedback import FeedbackInput, FeedbackKind, ReviewAttribution, ReviewPriority, ReviewStatus
-from qe_platform.quality_loop.cli import main
+from qe_platform.quality_loop.cli import main as cli_main
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
 from qe_platform.storage import SQLiteTelemetryRepository
 from tests.test_quality_loop_models import _report_payload
-from tests.test_telemetry_storage import trace_at
+from tests.test_telemetry_storage import trace_at, utc
+
+
+def main(argv):
+    return cli_main(argv, repository_factory=lambda args: SQLiteQualityRepository(
+        args.database, retention_days=args.retention_days, clock=lambda: utc("2026-09-01T00:00:00+00:00")
+    ))
 
 
 def _create_promotion(database):
-    telemetry = SQLiteTelemetryRepository(database, hash_key="test-key")
+    telemetry = SQLiteTelemetryRepository(database, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     telemetry.upsert_trace(trace_at("2026-08-29T00:00:00+00:00"))
     feedback = telemetry.add_feedback(FeedbackInput(FeedbackKind.HALLUCINATION, "reporter", "ui"), "trace-1")
     review = telemetry.upsert_review(

@@ -3,7 +3,23 @@ from __future__ import annotations
 import json
 
 from tests.test_quality_loop_models import _report_payload
-from tests.test_telemetry_api import INGEST_TOKEN, client_for, safe_payload
+from fastapi.testclient import TestClient
+from qe_platform.storage import SQLiteTelemetryRepository
+from qe_platform.quality_loop.storage import SQLiteQualityRepository
+from qe_platform.telemetry.api import create_telemetry_app
+from qe_platform.telemetry.settings import TelemetrySettings
+from tests.test_telemetry_api import HASH_KEY, INGEST_TOKEN, safe_payload
+from tests.test_telemetry_storage import utc
+
+
+def client_for(tmp_path):
+    database = tmp_path / "telemetry.db"
+    clock = lambda: utc("2026-09-10T00:00:00+00:00")
+    return TestClient(create_telemetry_app(
+        TelemetrySettings(str(database), HASH_KEY, INGEST_TOKEN, 30),
+        SQLiteTelemetryRepository(database, hash_key=HASH_KEY, clock=clock),
+        SQLiteQualityRepository(database, clock=clock),
+    ))
 
 
 SCENARIO = {
@@ -14,7 +30,9 @@ SCENARIO = {
 
 
 def _create_promotion(client):
-    assert client.post("/api/traces", headers={"X-QE-Telemetry-Token": INGEST_TOKEN}, json=safe_payload()).status_code == 201
+    payload = safe_payload()
+    payload["timestamp"] = "2026-08-29T00:00:00Z"
+    assert client.post("/api/traces", headers={"X-QE-Telemetry-Token": INGEST_TOKEN}, json=payload).status_code == 201
     feedback_id = client.post(
         "/api/traces/trace-1/feedback",
         json={"category": "hallucination", "reporter_id": "reporter", "source": "ui"},
