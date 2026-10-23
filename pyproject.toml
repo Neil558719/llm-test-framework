@@ -60,6 +60,7 @@ include = ["llmtest*", "qe_platform*", "reference_agent*"]
 
 [tool.setuptools.package-data]
 qe_platform = ["scenarios/assets/**/*.yaml", "scenarios/assets/**/*.yml"]
+reference_agent = ["web/*.html", "web/*.js", "web/*.css"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
