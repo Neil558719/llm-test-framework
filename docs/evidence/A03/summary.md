@@ -46,7 +46,7 @@ Issue [#68](https://github.com/Neil558719/llm-test-framework/issues/68)。分支
 
 ## 依赖交付接续与未验证边界
 
-主代理报告 A02 已合并为 `f7c28b08360e6aa981ea43d677f67cba2065d31c`，代码树与本分支base a764同；合并后显式Mock658通过/7排除/2警告，独立dev1安装包14/14场景与三静态资源通过，隔离运行A02有效性95通过且无skip；dev1预发布由主流程推进。A01 dev0已发布并回下载校验hash/tag，Issue61/63/65已关闭。这些是主流程提供的验收记录，本子代理未重复执行。
+主代理报告 A02 已合并为 `f7c28b08360e6aa981ea43d677f67cba2065d31c`，代码树与本分支base a764同；合并后显式Mock658通过/7排除/2警告，独立dev1安装包14/14场景与三静态资源通过，隔离运行A02有效性95通过且无skip。[A02 v0.2.0a24.dev1](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev1) 已发布，回下载wheel SHA256为 `0d3096ec94b85b29c5e05a8cbae72fe8ed56715d3911dd6f2a0f235ee5a72d96`，tag指向核对一致，Issue64已关闭。A01 [v0.2.0a24.dev0](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev0) 已发布并回下载校验hash/tag，Issue61/63/65已关闭。这些是主流程提供的验收记录，本子代理未重复执行；真实环境和用户掌握仍未验证。
 
 A03尚未验证：真实SDK/模型/embedding provider、实际HTTP错误体与供应商配置、Linux/Python3.12/3.14、UI、安装wheel、当前SHA CI、独立审查、合并后验证、Release/部署，以及未来manifest接线。测试用受控异常证明错误分类与缓存决策，不把它等同真实API兼容验收。
 

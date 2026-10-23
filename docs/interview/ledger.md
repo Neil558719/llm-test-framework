@@ -14,7 +14,7 @@
 
 ### 主流程依赖验收接续
 
-主代理确认A02已合并 `f7c28b08360e6aa981ea43d677f67cba2065d31c`（与A03 base a764同树），合并后658通过/7排除/2警告；独立dev1安装包14/14场景、三静态资源及隔离A02有效性95通过且无skip。dev1预发布由主流程推进。A01 dev0已发布并验证回下载hash/tag，Issue61/63/65已关闭。下方A02/A01章节保留历史阶段记录；此处是主流程提供的接续证据，本子代理没有重复执行或标记用户掌握。
+主代理确认A02已合并 `f7c28b08360e6aa981ea43d677f67cba2065d31c`（与A03 base a764同树），合并后658通过/7排除/2警告；独立dev1安装包14/14场景、三静态资源及隔离A02有效性95通过且无skip。[dev1预发布](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev1) 已完成，回下载wheel SHA256=`0d3096ec94b85b29c5e05a8cbae72fe8ed56715d3911dd6f2a0f235ee5a72d96`、tag指向核对一致，Issue64已关。A01 [dev0](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev0) 已发布并验证回下载hash/tag，Issue61/63/65已关闭。下方A02/A01章节保留历史阶段记录；此处是主流程提供的接续证据，本子代理没有重复执行。真实环境与用户掌握仍未验证。
 
 ## A02：证据不足、质量分与金标准确率分开
 
