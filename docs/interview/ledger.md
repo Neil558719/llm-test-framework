@@ -8,11 +8,11 @@
 
 **原理与取舍。** 率值需要有效分母；证据不足不代表业务必错，也不能证明质量通过。`inconclusive` 抛明确异常阻断必需断言；合法非事实回复须调用方显式策略标为 `not_applicable`，不混入分母。Judge 输出严格校验布尔、有限范围数字、枚举与语义结论一致性，不通过字符串转换、钳位或 embedding 回退掩盖错误。均分表示 rubric 质量，只有明确金标布尔判定才能生成正确率分母。
 
-**兼容与迁移。** 行为迁移版本为 `0.2.0a24.dev1`，区别于 A01 的 `0.2.0a24.dev0`；本项目 pyproject 与 uv.lock 节点同步，依赖版本保持。`AppResponse(answer, sources)` 和已有事实计算保持；率值改为可空，旧 accuracy 均分含义 deprecated，改读 `mean_judge_score`，准确率只读显式金标。history schema v2 保留旧记录并在 Judge 列解释旧 accuracy。A03 embedding、A04 权限、A05 YAML 连接未扩展；源码运行时版本来源随主流程 packaging 修复统一整合。
+**兼容与迁移。** 行为迁移版本为 `0.2.0a24.dev1`，区别于 A01 的 `0.2.0a24.dev0`；本项目 pyproject、uv.lock 节点及 `llmtest.__version__` 三处同步，依赖版本保持。`AppResponse(answer, sources)` 和已有事实计算保持；率值改为可空，旧 accuracy 均分含义 deprecated，改读 `mean_judge_score`，准确率只读显式金标。history schema v2 保留旧记录并在 Judge 列解释旧 accuracy。A03 embedding、A04 权限、A05 YAML 连接未扩展。
 
 **独立审查补充。** Reviewer 发现 Judge 图表副标题遗留“聚合为准确率”，已统一为 Judge 均分，既有 HTML 契约加强后先 `1 failed/94 deselected`，修复后 HTML/历史窄验证 `2 passed/93 deselected`。累计7次pytest，原全量结果归属 `51237ff`，文案修复未重复全量；其余审查和发布仍待主流程。
 
-**独立迁移版本验证。** A02 定为 `0.2.0a24.dev1`，TOML 结构比较证明仅本项目版本改变，依赖未升级；`uv sync --locked --offline --dry-run` 退出0，安装计划可解。未实际安装或修改共享解释器，不把 dry-run 当 wheel/安装验收；源码运行时版本来源由主流程 packaging 整合。
+**独立迁移版本验证。** A02 定为 `0.2.0a24.dev1`，TOML 结构比较证明仅本项目版本改变，依赖未升级；`uv sync --locked --offline --dry-run` 退出0，安装计划可解。后续按授权同步源码版本常量，AST/TOML 窄验证确认三处 version 一致且源码仅常量改变。未实际安装或修改共享解释器，不把 dry-run 当 wheel/安装验收；pytest仍7次，未重复全量。
 
 **练习（待作答，10–20 分钟）。** 离线重现空 claims、字符串 false、NaN 三种输入，解释 inconclusive/error/not_applicable 的区别；证明不适用不增加分母；展示 helpfulness 90% 与三条金标真/假/真得到 2/3 正确率的区别。说清本地、独立审查、CI、合并与发布各自证明什么。
 

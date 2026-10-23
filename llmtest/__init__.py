@@ -20,7 +20,7 @@
     )
 """
 
-__version__ = "0.2.0a24.dev0"
+__version__ = "0.2.0a24.dev1"
 
 from .assertions.schema import assert_valid_json, assert_json_schema
 from .assertions.semantic import assert_semantic_match, semantic_match
