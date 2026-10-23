@@ -53,7 +53,7 @@ expected = {"reference_agent": max(migration.version for migration in _MIGRATION
 restore_database(backup, target, expected, owner=(application.pw_uid, application.pw_gid))
 ' "/backup/$backup_name" "$database_path"
 
-docker run --rm -v "$volume:/data:ro" python:3.12-alpine python -c "import sqlite3,sys; result=sqlite3.connect(sys.argv[1]).execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)" "$database_path"
+docker run --rm -v "$volume:/data:ro" python:3.12-alpine python -c "import sqlite3,sys; from pathlib import Path; result=sqlite3.connect(Path(sys.argv[1]).resolve().as_uri() + '?mode=ro&immutable=1', uri=True).execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)" "$database_path"
 restart_service
 stopped=0
 trap - EXIT INT TERM

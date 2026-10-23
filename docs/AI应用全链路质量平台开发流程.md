@@ -242,6 +242,7 @@ performance:
 
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
+| Issue #63 恢复快照只读检查补充 | 属主修复远程已越过；新WAL快照检查修复本地60通过、独立复审通过 | `762da56` 的PR run `39909703097` 中备份读取/上传成功，恢复后只读卷checker报SQLite unable to open；两项旧checker负例先失败，改immutable只读URI后相关60通过/2系统项排除/2上游警告，保持完整性与marker正反断言 | 待推送并验证当前SHA真实Linux CI、合并后验证、Release与部署跟踪；快照检查不证明活动WAL实时状态 |
 | A01 / Issue #63 接续（2026-10-23） | PR #62 当前远程容器失败；补充修复已本地验证、独立复审通过 | `9ad1fbd` 的 run `39448584021` 暴露 root-owned 私有备份导致 host 读取/上传失败；交还 backup/manifest 给 host，并从可信 appuser 解析UID/GID在恢复原子替换前设置属主；含旧root-owned目标和权限失败保留原DB负例，最终相关58通过、2 Windows系统集成项排除、2上游警告；见 `docs/evidence/A01/container-ownership.md` | 本行更新先前 A01 行交付状态：PR 已创建；补充修复仍需提交、Push、当前SHA CI、合并后验证、Release与部署跟踪；不得标交付完成 |
 | 0. 基线冻结与兼容性清单 | 已完成 | 2026-08-30：`.venv\\Scripts\\python.exe -m pytest -q` 结果为 `9 passed, 1 skipped`；现有模块和适配器已评估 | 后续变更需持续回归 |
 | 1. 统一领域模型与结果协议 | 已完成 | `llmtest/specs.py` 新增 `ToolCall`、`TokenUsage`、`LatencyMetrics`、`ResponseEnvelope`；`tests/test_response_envelope.py` 定向结果 `3 passed`；2026-08-30 全量结果 `12 passed, 1 skipped` | 进入里程碑 2：创建独立 `reference_agent` 模块 |

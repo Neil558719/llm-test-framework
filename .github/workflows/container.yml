@@ -35,7 +35,7 @@ jobs:
           backup_file=$(find reports/backup -name 'reference_agent_*.db' -type f | head -n 1)
           curl -fsS -X POST http://localhost:8000/api/chat -H 'content-type: application/json' -d '{"message":"VPN 使用帮助","user_id":"U1001","session_id":"post-backup-marker"}' >/dev/null
           sh deploy/restore.sh "$backup_file"
-          docker run --rm -v local-production-drill_reference-agent-data:/data:ro python:3.12-alpine python -c "import sqlite3; rows={r[0] for r in sqlite3.connect('/data/reference_agent.db').execute('SELECT session_id FROM sessions')}; assert 'backup-marker' in rows and 'post-backup-marker' not in rows, rows"
+          docker run --rm -v local-production-drill_reference-agent-data:/data:ro python:3.12-alpine python -c "import sqlite3; rows={r[0] for r in sqlite3.connect('file:/data/reference_agent.db?mode=ro&immutable=1', uri=True).execute('SELECT session_id FROM sessions')}; assert 'backup-marker' in rows and 'post-backup-marker' not in rows, rows"
           BASE_URL=http://localhost:8000 SMOKE_REPORT=reports/post-restore-smoke.json sh deploy/smoke.sh
       - name: Upload smoke evidence
         if: always()

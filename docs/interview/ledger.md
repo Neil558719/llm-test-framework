@@ -35,3 +35,9 @@
 新增3项回归先在旧脚本 `3 failed`；独立审查又发现旧 root-owned 目标与替换后 chown 失败两种边界，补负例初稿 `4 failed, 1 passed, 8 deselected`。最终相关回归 `58 passed, 2 deselected, 2 warnings`；限定复审无剩余阻断项。测试运行真实 SQLite/payload；Windows 仅替代 chown/pwd 边界，真实 Linux 容器演练待验证。完整证据见 `../evidence/A01/container-ownership.md`。当前 SHA CI、合并、Release 与部署仍单独记录。
 
 **取舍与练习（待作答）。** 仅能写成功不等于能完成交付；按 runner→helper→应用三种身份逐一验证文件读取和替换。说明为什么把备份 chmod 成全员可读写会增加风险，以及原子替换为什么可能改变文件属主。用户掌握未评估。
+
+### 恢复快照的只读检查边界
+
+`762da56` 的远程容器演练已越过属主错误，但在停写恢复文件的只读挂载检查中触发SQLite unable to open database file。普通连接会因WAL模式依赖sidecar；改用与备份一致的immutable只读URI检查已关闭恢复主文件，保留marker正反断言。新增2项旧payload失败，最终相关60通过/2系统项排除/2警告，限定复审无阻断。当前提交真实Linux CI仍单独验收，不把受控挂载模拟当环境通过。
+
+练习（待完成）：说明SQLite主文件、WAL、SHM分别承担什么；为什么immutable适合这里的恢复快照，却不能用于需要读取最新活动WAL的查询？不要用“只读就绝对没有写操作”概括普通SQLite连接。

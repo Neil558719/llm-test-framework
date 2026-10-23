@@ -20,3 +20,11 @@ SQLite backup/restore 使用 mkstemp 创建私有文件。root helper 能写挂�
 测试执行真实脚本 Python payload 及真实 SQLite 数据操作，仅替代 native Windows 无法执行的 chown/pwd 和模拟不同应用 UID；完整 shell/Docker 编排和真实文件访问控制仍须远程工作流验证。初轮审查负例曾因测试 SQLite 句柄未显式关闭触发 WinError，修正 closing 后重新确认失败来自预期缺陷，未删除旧日志。工作区保存 `a-permissions-red`、`a-review-red-confirmed`、`a-review-green-final` 日志及 JUnit XML。未操作用户既有 Docker 服务。
 
 练习（待用户复现）：为什么把 helper 改成 root 只能解决写入，还可能导致 runner 读取或应用重启失败？画出 runner、helper、应用三个 UID 与备份目录、数据卷的访问关系，并解释为何只交还属主、不放宽到全员可读写。
+
+## 远程后续：只读 WAL 恢复快照（2026-10-23）
+
+提交 `762da56` 的 PR workflow `39909703097` 已通过离线、UI、负载契约等检查。容器演练成功发布host可读备份并上传，越过原PermissionError；恢复后、重启前的独立只读卷SQLite检查报 `OperationalError: unable to open database file`，堆栈为checker的`<string>, line 1`，helper调用已结束。
+
+恢复文件可能保留WAL模式，但已关闭的快照未包含活动sidecar。普通连接会尝试使用/创建wal/shm，不能在只读挂载完成检查。与已有备份检查保持一致：restore.sh和CI持久化快照marker检查改用`mode=ro&immutable=1` URI，保留完整性与marker正反断言。
+
+新增两项回归真实创建并关闭WAL SQLite库，执行原两个checker payload，在受控只读挂载边界先得到`2 failed`；修复后所有相关回归`60 passed, 2 deselected, 2 warnings`。独立限定复审无阻断项。此处验证停写恢复主文件快照，不将immutable连接用于活动WAL实时统计；模拟挂载边界不能替代下一次真实Linux CI。旧日志和JUnit保留在`work/ci-m0-resume/a-readonly-{red,green}.*`。

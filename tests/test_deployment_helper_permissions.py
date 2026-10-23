@@ -7,11 +7,13 @@ The container workflow separately checks the Linux permission boundary.
 from pathlib import Path
 import json
 import os
+import shlex
 import sqlite3
 import sys
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from qe_platform.ops import backup_database
 from tests.test_production_ops import _database
@@ -78,3 +80,44 @@ def test_restore_returns_database_to_application_owner(tmp_path, monkeypatch, ex
     assert owned_path.parent == data
     with sqlite3.connect(target) as connection:
         assert connection.execute("SELECT value FROM records").fetchone() == ("kept",)
+
+
+@pytest.mark.parametrize("inspector", ["restore", "workflow"])
+def test_restored_snapshot_inspection_does_not_require_writable_wal_sidecars(tmp_path, monkeypatch, inspector):
+    database = tmp_path / "restored snapshot.db"
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("CREATE TABLE sessions (session_id TEXT)")
+        connection.execute("INSERT INTO sessions VALUES ('backup-marker')")
+        connection.commit()
+    finally:
+        connection.close()
+
+    if inspector == "restore":
+        commands = (ROOT / "deploy/restore.sh").read_text(encoding="utf-8").splitlines()
+    else:
+        workflow = yaml.safe_load((ROOT / ".github/workflows/container.yml").read_text(encoding="utf-8"))
+        step = next(step for step in workflow["jobs"]["local-production-drill"]["steps"]
+                    if step.get("name") == "Verify SQLite backup and actual restore")
+        commands = step["run"].splitlines()
+    inspection = next(line for line in commands if line.startswith("docker run --rm -v"))
+    arguments = shlex.split(inspection)
+    payload = arguments[arguments.index("-c") + 1]
+    real_connect = sqlite3.connect
+
+    def read_only_snapshot_connect(path, *args, **kwargs):
+        # This is the mount boundary that failed in the real Linux CI run:
+        # a closed WAL snapshot cannot create -wal/-shm on a read-only mount.
+        if not kwargs.get("uri") or "mode=ro&immutable=1" not in str(path):
+            raise sqlite3.OperationalError("unable to open database file on read-only WAL snapshot")
+        return real_connect(database.as_uri() + "?mode=ro&immutable=1", uri=True)
+
+    monkeypatch.setattr(sqlite3, "connect", read_only_snapshot_connect)
+    monkeypatch.setattr(sys, "argv", ["python", str(database)])
+    try:
+        exec(compile(payload, inspector + ":inspection", "exec"), {"__name__": "__main__"})
+    except SystemExit as result:
+        assert result.code == 0
+    assert not Path(str(database) + "-wal").exists()
+    assert not Path(str(database) + "-shm").exists()
