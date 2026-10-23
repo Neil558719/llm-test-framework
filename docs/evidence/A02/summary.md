@@ -19,7 +19,7 @@ Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)。分支
 
 正确性字段（equivalent/score/verdict/confidence）必须存在。解释字段 reasoning/evidence 延续可省略为空字符串的兼容约定；若出现则必须是字符串，不把非字符串强制转成文本。Judge 分数接受有限整数或小数，保留原有 float API；提示仍请求整数。
 
-迁移采用评测历史 schema v2，不涉及数据库或包版本变化。消费者需按 `status` 和可空率值处理；不要用 `rate or 0`，也不要用 `accuracy` 继续显示 Judge 质量均分。错误输出应捕获 `ValueError`（契约错误为子类 `EvaluationOutputError`）；缺证据可单独捕获 `EvaluationInconclusiveError`。撤销本提交能回退代码，但会恢复已知假绿；历史 v2 记录仍保留可辨别版本，不需要删除历史。
+本轮行为迁移版本为 **`0.2.0a24.dev1`**，区别于 A01 的 `0.2.0a24.dev0`，并采用评测历史 schema v2；数据库无迁移。消费者需按 `status` 和可空率值处理；不要用 `rate or 0`，也不要用 `accuracy` 继续显示 Judge 质量均分。错误输出应捕获 `ValueError`（契约错误为子类 `EvaluationOutputError`）；缺证据可单独捕获 `EvaluationInconclusiveError`。撤销本提交能回退代码，但会恢复已知假绿；历史 v2 记录仍保留可辨别版本，不需要删除历史。版本元数据仅更新 pyproject 及锁文件中本项目节点，不升级依赖；源码运行时版本来源由主流程的 packaging 修复统一整合。
 
 ## 本地证据
 
@@ -46,3 +46,7 @@ Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)。分支
 ## 独立审查补充：Judge 图表副标题
 
 独立 reviewer 在 `51237ff` 发现 Minor：Judge 图表副标题仍写“聚合为准确率”。主代理授权仅修本文案、加强既有 HTML 契约并窄验证。现在统一为“归一化得分（得分/满分），聚合为 Judge 均分”；测试验证旧误导文案不存在及新标签正确。`review-subtitle-red.log` 对应 `-q tests/test_evaluation_validity.py -k html_preserves_empty`，**1 failed, 94 deselected**；`review-subtitle-green.log` 对应 `-q tests/test_evaluation_validity.py -k 'html or history'`，**2 passed, 93 deselected**。`git diff --check` 通过。累计 **7 次 pytest 调用**；此文案修复没有重跑全量，上方全量结果归属原提交 `51237ff`。其余独立审查结果、CI 与交付仍待主流程。
+
+## 行为迁移版本窄验证
+
+主流程将 A01 以 `0.2.0a24.dev0` 交付，授权 A02 独立迁移版本 `0.2.0a24.dev1`。只修改 pyproject 的 version 和 uv.lock 的 llmtest 项目 version，不重新生成依赖锁。独立 TOML 结构比较确认：将旧项目 version 替换为新值后，项目配置和整个锁文件与原内容完全相等，全部依赖节点未变。`uv sync --locked --offline --dry-run --python <既有 env-a Python>` 成功（退出0，解析106个包）；目标环境显式设为工作树 `.context/A02/version-check-env`，没有实际创建环境、下载或安装依赖。此检查证明锁文件与元数据一致且离线安装计划可解，不宣称完成实际安装或 wheel 验证。日志 `version-metadata.log` 保留在忽略目录。pytest 调用仍为7次，未再跑全量；源码行为和运行时版本来源未改，后者等待主流程 packaging 统一整合。
