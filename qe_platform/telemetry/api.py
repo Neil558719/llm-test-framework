@@ -9,6 +9,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from qe_platform.auth.dependencies import AuthRuntime
+from qe_platform.auth.models import AuthenticatedPrincipal
 from qe_platform.ops import readiness
 from qe_platform.ops.metrics import PROCESS_METRICS, install_http_metrics
 from qe_platform.feedback import FeedbackInput, FeedbackKind, FeedbackQuery, ReviewAttribution, ReviewPriority, ReviewStatus, promote_review
@@ -52,9 +53,17 @@ def create_telemetry_app(
         if token is None or not hmac.compare_digest(token, settings.ingest_token):
             unauthorized()
 
-    def require_human(request: Request, role: str) -> None:
-        auth.require(request, role)
+    def require_human(request: Request, role: str) -> AuthenticatedPrincipal:
+        principal = auth.require(request, role)
         auth.require_csrf(request)
+        return principal
+
+    def bind_actor(payload: Mapping[str, Any], field: str, principal: AuthenticatedPrincipal) -> Mapping[str, Any]:
+        if auth.development_mode:
+            return payload
+        if field in payload and payload[field] != principal.subject:
+            bad_request()
+        return {**payload, field: principal.subject}
 
     def require_machine_or_human(request: Request, token: str | None, role: str) -> None:
         if token is not None and hmac.compare_digest(token, settings.ingest_token):
@@ -147,11 +156,13 @@ def create_telemetry_app(
 
     @app.get("/api/traces")
     def list_traces(
+        request: Request,
         application: str = "",
         trace_id: str = "",
         limit: str = "100",
         offset: str = "0",
     ) -> Response:
+        auth.require_business_read(request)
         try:
             query = TelemetryQuery(
                 application=application,
@@ -169,7 +180,8 @@ def create_telemetry_app(
             return Response(status_code=500)
 
     @app.get("/api/traces/{trace_id}")
-    def get_trace(trace_id: str) -> Response:
+    def get_trace(trace_id: str, request: Request) -> Response:
+        auth.require_business_read(request)
         try:
             trace = repo.get_trace(trace_id)
         except ValueError:
@@ -198,8 +210,8 @@ def create_telemetry_app(
 
     @app.post("/api/traces/{trace_id}/feedback")
     async def add_feedback(trace_id: str, request: Request) -> Response:
-        require_human(request, "viewer")
-        payload = await read_mapping(request)
+        principal = require_human(request, "viewer")
+        payload = bind_actor(await read_mapping(request), "reporter_id", principal)
         if set(payload) != {"category", "reporter_id", "source"}:
             bad_request()
         if not all(isinstance(payload[key], str) for key in ("category", "reporter_id", "source")):
@@ -218,11 +230,13 @@ def create_telemetry_app(
 
     @app.get("/api/feedback")
     def list_feedback(
+        request: Request,
         trace_id: str = "",
         category: str = "",
         limit: str = "100",
         offset: str = "0",
     ) -> Response:
+        auth.require_business_read(request)
         try:
             query = FeedbackQuery(
                 trace_id=trace_id,
@@ -241,8 +255,8 @@ def create_telemetry_app(
 
     @app.post("/api/feedback/{feedback_id}/review")
     async def add_review(feedback_id: str, request: Request) -> Response:
-        require_human(request, "reviewer")
-        payload = await read_mapping(request)
+        principal = require_human(request, "reviewer")
+        payload = bind_actor(await read_mapping(request), "reviewer_id", principal)
         if set(payload) != {"reviewer_id", "status", "attribution", "priority"}:
             bad_request()
         if not all(isinstance(payload[key], str) for key in payload):
@@ -268,12 +282,14 @@ def create_telemetry_app(
 
     @app.get("/api/reviews")
     def list_reviews(
+        request: Request,
         feedback_id: str = "",
         trace_id: str = "",
         status: str = "",
         limit: str = "100",
         offset: str = "0",
     ) -> Response:
+        auth.require_business_read(request)
         try:
             reviews = repo.list_reviews(
                 feedback_id=feedback_id,
@@ -291,7 +307,8 @@ def create_telemetry_app(
         return JSONResponse({"reviews": [review.as_dict() for review in reviews]})
 
     @app.get("/api/reviews/{review_id}")
-    def get_review(review_id: str) -> Response:
+    def get_review(review_id: str, request: Request) -> Response:
+        auth.require_business_read(request)
         try:
             review = repo.get_review(review_id)
         except ValueError:
@@ -339,7 +356,8 @@ def create_telemetry_app(
         return JSONResponse(stored.as_dict(), status_code=201 if stored.promotion_id == generated.promotion_id else 200)
 
     @app.get("/api/promotions/{promotion_id}")
-    def get_promotion(promotion_id: str) -> Response:
+    def get_promotion(promotion_id: str, request: Request) -> Response:
+        auth.require_business_read(request)
         try:
             promotion = repo.get_promotion(promotion_id)
         except ValueError:
@@ -352,11 +370,13 @@ def create_telemetry_app(
 
     @app.get("/api/quality/trends")
     def quality_trends(
+        request: Request,
         application: str = "",
         version: str = "",
         from_timestamp: str = Query(default="", alias="from"),
         to_timestamp: str = Query(default="", alias="to"),
     ) -> Response:
+        auth.require_business_read(request)
         try:
             start = parse_datetime(from_timestamp) if from_timestamp else None
             end = parse_datetime(to_timestamp) if to_timestamp else None
@@ -371,7 +391,8 @@ def create_telemetry_app(
         return JSONResponse({"trends": [item.as_dict() for item in points], "links": [item.as_dict() for item in links]})
 
     @app.get("/api/quality/links")
-    def quality_links(offline_run_id: str = "", promotion_id: str = "") -> Response:
+    def quality_links(request: Request, offline_run_id: str = "", promotion_id: str = "") -> Response:
+        auth.require_business_read(request)
         try:
             values = build_quality_links(quality_repo, offline_run_id=offline_run_id, promotion_id=promotion_id)
         except ValueError:
@@ -473,7 +494,8 @@ def create_telemetry_app(
         return JSONResponse(result.as_dict(), status_code=201)
 
     @app.get("/api/quality/release-validations/{validation_id}")
-    def get_quality_validation(validation_id: str) -> Response:
+    def get_quality_validation(validation_id: str, request: Request) -> Response:
+        auth.require_business_read(request)
         try:
             value = quality_repo.get_validation(validation_id)
         except ValueError:

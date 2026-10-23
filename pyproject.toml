@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmtest"
-version = "0.2.0a24.dev2"
+version = "0.2.0a24.dev3"
 description = "LLM 应用自动化测试框架：语义断言 / JSON Schema 校验 / 相似度断言 / LLM-as-Judge / 幻觉检测 / 质量报告"
 readme = "README.md"
 requires-python = ">=3.9"

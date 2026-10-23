@@ -151,6 +151,13 @@ class AuthRuntime:
         if not self.session_store.verify_csrf(session, supplied):
             _forbidden()
 
+    def require_business_read(self, request: Request) -> AuthenticatedPrincipal:
+        """Allow reads to the existing platform roles without requiring CSRF."""
+        principal = self.require(request)
+        if not principal.roles.intersection(VALID_ROLES):
+            _forbidden()
+        return principal
+
     def authorize_redirect(self, target: str) -> str:
         if not self._login_available() or self.session_store is None:
             _unauthorized()

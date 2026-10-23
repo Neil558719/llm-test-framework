@@ -110,7 +110,8 @@ def create_app(
         return app.state.metrics.snapshot()
 
     @app.get("/api/model-profiles")
-    def model_profiles() -> dict[str, Any]:
+    def model_profiles(request: Request) -> dict[str, Any]:
+        app.state.auth_runtime.require_business_read(request)
         current = app.state.model_config
         return {"profiles": [{"name": p.name, "label": p.label, "mode": p.mode, "provider": p.provider, "base_url": p.base_url} for p in registry.profiles()], "current": current.as_public_dict()}
 
@@ -146,7 +147,7 @@ def create_app(
 
     @app.get("/api/sessions/{session_id}")
     def get_session(session_id: str, request: Request) -> dict[str, str]:
-        principal = app.state.auth_runtime.require(request)
+        principal = app.state.auth_runtime.require_business_read(request)
         session = store.get_session(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="session not found")

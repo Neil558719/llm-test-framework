@@ -57,7 +57,7 @@ curl -X POST "$QE_TELEMETRY_ENDPOINT" \
   }'
 ```
 
-反馈写入只保存固定类别、报告人指纹和来源，不保存自由文本：
+反馈写入只保存固定类别、报告人指纹和来源，不保存自由文本。以下未登录示例仅适用于显式 development 模式；production 需要 viewer 或 admin 身份，Cookie 会话写入还需 `X-CSRF-Token`。生产请求可省略 `reporter_id`，由服务端取认证 subject；若显式提交，必须与 subject 完全相同，否则返回 400：
 
 ```bash
 curl -X POST "$QE_TELEMETRY_ENDPOINT/trace-example/feedback" \
@@ -87,7 +87,9 @@ Trace 默认保留 `30 天`。`prune_expired` 以 Trace 时间戳计算到期边
 
 ## 当前限制
 
-当前 `POST /api/traces` 已有 ingest token 校验；读接口 `GET /api/traces`、`GET /api/traces/{trace_id}`、`GET /api/feedback` 以及反馈写入 `POST /api/traces/{trace_id}/feedback` 尚未实现独立读/反馈鉴权。部署到共享环境前，需要在服务前增加网关鉴权或在后续里程碑补齐应用级授权。
+production 下，Trace/反馈业务读取必须登录，并具有 viewer、reviewer、releaser、admin 中任一现有角色；匿名返回 401，已认证但无有效业务角色返回 403。读取不需要 CSRF；机器 ingest token 不能用作人类读取凭据。`/api/metrics` 仅 admin 可读；health 保持公开。反馈写入沿用 viewer/admin 与 Cookie CSRF 校验，并绑定认证 subject。显式 development 模式保持原有本地调用方式，且仍要求调用方提供 `reporter_id`。
+
+A04a 只完成登录、角色与操作者绑定；subject 到 application 的授权、对象级隔离、查询过滤与机器 ingest 的 allowed application 校验留待 A04b。当前不能据此声称共享应用数据已隔离。迁移、角色矩阵和验证证据见 [A04a 记录](evidence/A04a/summary.md)。
 
 PostgreSQL 仅保留工厂边界和错误语义。传入 `postgresql://...` 时会得到 `NotImplementedError("PostgreSQL telemetry storage is not enabled")`，当前可运行驱动为本地 SQLite。
 

@@ -242,6 +242,8 @@ performance:
 
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
+| A04a / Issue #70：读取鉴权与可信actor接续 | 本地相关与独立审查通过；已整合A03准备当前SHA CI | `5d2cfe0` 审查无剩余项，原根773通过/1旧夹具契约冲突失败保留，修正为省略actor成功并保留伪造400负例后相关128通过；整合A03 `6993aa6`，dev3三处metadata一致、依赖未变；见 `docs/evidence/A04a/summary.md` | 当前SHA CI、合并后全量、安装包与Release待执行；本项只完成读取/actor，A04b应用对象隔离/查询过滤未实现 |
+| A03 主流程交付接续 | PR #69全部同SHA检查与复审通过，已合并并发布dev2预发行版 | merge `6993aa6` 与已审查/CI的 `9046f80` 同树，合并后708通过/7排除/2警告，独立wheel47契约/3策略消费者/14场景/三资源通过；[dev2](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev2) | 本行取代下方A03历史待办状态；真实供应商/embedding质量/持久环境及未来manifest仍未验收，用户待复现 |
 | A03 / Issue [#68](https://github.com/Neil558719/llm-test-framework/issues/68)：真实Embedding能力与必需策略 | dev2分支本地实现与离线验证通过，未发布 | base `a764f4e`；RED44失败/2通过，报告来源补RED1失败/3通过/46排除；定向53通过，相关169通过/2警告；根默认非UI全量一次708通过/7排除/2警告、0skip。删除真实Anthropic伪向量、typed unsupported负缓存、required默认/optional探索、强制必需入口、Mock来源展示；dev2三处metadata一致、锁依赖未变；见 `docs/evidence/A03/summary.md` | 独立审查、Push/PR/当前SHA CI、合并后验证、安装包/Release/部署/Issue跟踪及用户复现由主流程继续；未接未来manifest，不扩A04/A05 |
 | A02/A01 主流程验收接续（A03依赖） | A02已合并并完成合并后/独立安装验证；[dev1预发布](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev1)与A01 [dev0](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev0) 已发布 | 主代理报告A02 merge `f7c28b08360e6aa981ea43d677f67cba2065d31c`与base a764同树，合并后显式Mock658通过/7排除/2警告；独立dev1包14/14场景/三静态资源、隔离有效性95通过无skip；回下载wheel SHA256=`0d3096ec94b85b29c5e05a8cbae72fe8ed56715d3911dd6f2a0f235ee5a72d96`，tag指向核对一致，Issue64已关；A01 dev0回下载hash/tag校验通过，Issue61/63/65已关 | 此行更新下方历史阶段记录；本子代理未重复这些验收，不将A03本地通过当CI/发布；真实环境与用户掌握仍未验证 |
 | A01 合并与 Issue #65 安装包接续 | PR #62 已合并；发行候选安装缺陷已本地修复 | master `3bfc43a` 与已通过全部远端检查的 `4d8ff42` 同树，合并后显式Mock 563通过/7排除/2警告；独立wheel因缺web使14场景全失败，新消费者入口先RED后补package-data，三静态资源与14/14场景GREEN；见 `docs/evidence/A01/installed-wheel.md` | 本行更新下方A01历史状态；Issue #65 分支尚待独立审查、当前SHA CI、合并后安装验证、Release及环境/Issue跟踪；不得将源码或离线安装绿灯当持久部署完成 |
@@ -275,6 +277,12 @@ performance:
 | 任务 | 当前状态 | 本地证据 | 剩余交付环节 |
 | --- | --- | --- | --- |
 | A02 / Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)：评测有效性与 Judge 契约 | 分支本地实现与离线回归通过，尚未发布 | `codex/a02-validity` 起点 `4d8ff42`；首批 RED 84 failed/2 passed，补充 RED 3 failed/6 passed/86 deselected；相关 119 passed/2 warnings；默认非 UI 全量一次 658 passed/7 deselected/2 warnings，0 skipped；7 排除为 5 UI、2 Windows 系统集成。空 claims 为 inconclusive/None，必需断言阻断；严格真实 JSON；均分与显式金标准确率分离；证据 `docs/evidence/A02/summary.md` | 独立审查、Push/PR/当前 SHA CI、合并及合并后验证、Release、部署/Issue 跟踪由主流程执行；用户复现练习待完成。A01 依赖代码已验证，不标 A01 已发布；A03/A04/A05 未扩展 |
+
+本轮 A04a 状态补充（保留上方历史记录，交付状态由主流程更新）：
+
+| 任务 | 当前状态 | 本地证据 | 剩余交付环节 |
+| --- | --- | --- | --- |
+| A04a / Issue [#70](https://github.com/Neil558719/llm-test-framework/issues/70)：读取门禁与可信操作者 | 本地实现、相关验证完成；尚未发布 | `codex/a04a-auth-actor` 起点 `f7c28b0`；RED 校正后29失败/50通过，相关157通过；唯一根全量773通过/1失败/7排除/2警告，旧跨subject成功夹具迁移后定向128通过，0 skipped；没有最终全量全绿运行。四角色读取/无角色403，metrics admin；反馈/审核subject绑定，写角色和CSRF保持。见 `docs/evidence/A04a/summary.md`；版本暂保留dev1待主整合 | 独立审查、Push/PR、当前SHA CI、合并/合并后验证、Release、部署和Issue跟踪由主流程执行；用户练习待完成/掌握未评估。A04b的application授权、对象/查询/分页隔离、机器allowed application均未实施 |
 
 ## 11. 固定进度汇报格式
 
