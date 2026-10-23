@@ -17,7 +17,7 @@ def llm_judge(
     context: Optional[str] = None,
     question: Optional[str] = None,
 ) -> JudgeResult:
-    """按细则对回答打分，并把结果记入指标采集（聚合准确率）。
+    """按细则对回答打分，并把结果记入指标采集（聚合 Judge 均分）。
 
     这是测量函数；断言请用 `assert_llm_judge`。
     评判"准确性/相关性"时建议传 `question`（产生该回答的用户问题），裁判需要它核对答案是否正确。

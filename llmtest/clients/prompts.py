@@ -9,7 +9,8 @@ from __future__ import annotations
 SEMANTIC_PROMPT = """你是语义等价性评判模型。判断下面两段文本是否"语义等价"（表达的含义相同，允许措辞不同）。
 文本A（模型回答）：{actual}
 文本B（期望含义）：{expected}
-{context_note}只输出 JSON，格式：{{"equivalent": true 或 false, "score": 0.0 到 1.0 的小数, "reasoning": "一句话理由"}}
+{context_note}score >= 0.7 时 equivalent 必须为 true，否则必须为 false。
+只输出 JSON，格式：{{"equivalent": true 或 false, "score": 0.0 到 1.0 的小数, "reasoning": "一句话理由"}}
 """
 
 JUDGE_PROMPT = """你是 LLM 评测打分模型。请严格按照下面细则，给"回答"在 1~{scale} 分之间打分（只能整数）。

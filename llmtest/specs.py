@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from .evaluation import EvaluationStatus
+
 # 幻觉判定类别
 SUPPORTED = "SUPPORTED"            # 上下文支持该断言
 NOT_SUPPORTED = "NOT_SUPPORTED"    # 上下文不支持（无依据）→ 幻觉
@@ -35,7 +37,7 @@ class JudgeResult:
 
     @property
     def normalized(self) -> float:
-        """归一化到 0~1，用于跨用例聚合准确率。"""
+        """归一化到 0~1，用于聚合 Judge 分；不是金标准确率。"""
         if self.max_score <= 0:
             return 0.0
         return max(0.0, min(1.0, self.score / self.max_score))
@@ -67,6 +69,21 @@ class HallucinationReport:
     response: str = ""
     context: str = ""
     claims: List[ClaimVerdict] = field(default_factory=list)
+    status: Optional[EvaluationStatus] = None
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        if self.status is None:
+            self.status = ('failed' if self.hallucinated else 'passed') if self.claims else 'inconclusive'
+        if self.status not in ('passed', 'failed', 'inconclusive', 'error', 'not_applicable'):
+            raise ValueError('Invalid evaluation status')
+        if not self.claims and self.status in ('passed', 'failed'):
+            raise ValueError('An empty claims report cannot have a quality conclusion')
+        if self.claims and self.status == 'not_applicable':
+            raise ValueError('A factual claims report cannot be not_applicable')
+        if not self.reason:
+            self.reason = ('No factual claims were extracted; evidence is insufficient.'
+                           if not self.claims else 'Claims were checked against the supplied context.')
 
     @property
     def total(self) -> int:
@@ -85,22 +102,24 @@ class HallucinationReport:
         return [c for c in self.claims if c.verdict == CONTRADICTED]
 
     @property
-    def hallucination_rate(self) -> float:
+    def hallucination_rate(self) -> Optional[float]:
         """幻觉率 = 幻觉断言数 / 总断言数。"""
-        return len(self.hallucinated) / self.total if self.total else 0.0
+        return len(self.hallucinated) / self.total if self.total and self.status in ('passed', 'failed') else None
 
     @property
-    def support_rate(self) -> float:
-        return len(self.supported) / self.total if self.total else 0.0
+    def support_rate(self) -> Optional[float]:
+        return len(self.supported) / self.total if self.hallucination_rate is not None else None
 
     @property
-    def contradiction_rate(self) -> float:
-        return len(self.contradicted) / self.total if self.total else 0.0
+    def contradiction_rate(self) -> Optional[float]:
+        return len(self.contradicted) / self.total if self.hallucination_rate is not None else None
 
     def as_dict(self) -> dict:
         return {
             "response": self.response,
             "context": self.context,
+            "status": self.status,
+            "reason": self.reason,
             "claims": [
                 {"claim": c.claim, "verdict": c.verdict,
                  "confidence": c.confidence, "evidence": c.evidence}

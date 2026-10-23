@@ -61,6 +61,7 @@ class TestRecord:
     judge_results: List[JudgeResult] = field(default_factory=list)
     hallucination_reports: List[HallucinationReport] = field(default_factory=list)
     assertions: List[AssertionEntry] = field(default_factory=list)
+    gold_results: List[bool] = field(default_factory=list)
 
     # ---- 便捷聚合 ----
 
@@ -78,7 +79,8 @@ class TestRecord:
 
     @property
     def hallucination_rate(self) -> Optional[float]:
-        return _mean([r.hallucination_rate for r in self.hallucination_reports])
+        return _mean([r.hallucination_rate for r in self.hallucination_reports
+                      if r.hallucination_rate is not None])
 
     @property
     def last_hallucination_report(self) -> Optional[HallucinationReport]:
@@ -116,10 +118,16 @@ class Summary:
     skipped: int = 0
     error: int = 0
     duration: float = 0.0
-    accuracy: Optional[float] = None          # Judge 归一化平均（0~1）
+    accuracy: Optional[float] = None          # Explicit gold correctness only; old Judge-mean meaning deprecated
     hallucination_rate: Optional[float] = None  # 幻觉率平均
     avg_app_latency_ms: Optional[float] = None
     env: Dict[str, str] = field(default_factory=dict)
+    mean_judge_score: Optional[float] = None  # Mean of normalized Judge results (0~1)
+    evaluated_count: int = 0                 # Completed Judge + hallucination evaluations
+    inconclusive_count: int = 0
+    not_applicable_count: int = 0
+    evaluation_error_count: int = 0
+    gold_count: int = 0
 
     @property
     def pass_rate(self) -> Optional[float]:
@@ -192,6 +200,17 @@ class _Tracker:
         if rec is not None:
             rec.add_hallucination(report)
 
+    def add_gold_result(self, correct: bool) -> None:
+        """Record correctness determined against an explicit reference label.
+
+        Judge rubric names and quality scores never create a gold denominator.
+        """
+        if type(correct) is not bool:
+            raise ValueError('Gold correctness must be a boolean')
+        rec = self.active
+        if rec is not None:
+            rec.gold_results.append(correct)
+
     def add_assertion(
         self,
         name: str,
@@ -215,6 +234,7 @@ class _Tracker:
         judge_norm: List[float] = []
         hallu: List[float] = []
         app_lat: List[float] = []
+        gold: List[bool] = []
         for rec in self.records:
             if rec.outcome == "passed":
                 summary.passed += 1
@@ -224,13 +244,25 @@ class _Tracker:
                 summary.skipped += 1
             elif rec.outcome == "error":
                 summary.error += 1
-            if rec.avg_judge_normalized is not None:
-                judge_norm.append(rec.avg_judge_normalized)
+            judge_norm.extend(r.normalized for r in rec.judge_results)
+            gold.extend(rec.gold_results)
+            summary.evaluated_count += len(rec.judge_results)
+            for report in rec.hallucination_reports:
+                if report.status in ('passed', 'failed'):
+                    summary.evaluated_count += 1
+                elif report.status == 'inconclusive':
+                    summary.inconclusive_count += 1
+                elif report.status == 'not_applicable':
+                    summary.not_applicable_count += 1
+                elif report.status == 'error':
+                    summary.evaluation_error_count += 1
             if rec.hallucination_rate is not None:
                 hallu.append(rec.hallucination_rate)
             if rec.avg_app_latency is not None:
                 app_lat.append(rec.avg_app_latency)
-        summary.accuracy = _mean(judge_norm)
+        summary.mean_judge_score = _mean(judge_norm)
+        summary.gold_count = len(gold)
+        summary.accuracy = _mean(gold)
         summary.hallucination_rate = _mean(hallu)
         summary.avg_app_latency_ms = _mean(app_lat)
         return summary
