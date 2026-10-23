@@ -632,8 +632,11 @@ def _render_detail(r: TestRecord) -> str:
     metrics = []
     for m in r.metrics:
         unit = f" {_esc(m.unit)}" if m.unit else ""
+        label = m.name
+        if m.name in ("similarity_score", "embedding_coverage") and m.meta:
+            label = f"{label} · {m.meta}"
         metrics.append(
-            f'<li><span class="m-name">{_esc(m.name)}</span>'
+            f'<li><span class="m-name">{_esc(label)}</span>'
             f'<span class="m-value">{_esc(f"{m.value:.4f}")}{unit}</span></li>'
         )
     if r.app_latency_ms:

@@ -39,6 +39,11 @@ class Config:
     report_path: str = DEFAULT_REPORT_PATH
     mock_latency_ms: float = 8.0      # Mock 模式模拟的响应延迟（看板演示用；设为 0 关闭）
     pricing_table: Optional[str] = None  # JSON price table, server-side only
+    embedding_policy: str = "required"  # required | optional (exploration only)
+
+    def __post_init__(self) -> None:
+        if self.embedding_policy not in ("required", "optional"):
+            raise ValueError("embedding_policy must be required or optional")
 
     # ---- 环境变量名映射 ----
     _ENV = {
@@ -48,6 +53,7 @@ class Config:
         "base_url": "LLM_BASE_URL",
         "model": "LLM_MODEL",
         "embedding_model": "LLM_EMBEDDING_MODEL",
+        "embedding_policy": "LLM_EMBEDDING_POLICY",
         "report_path": "LLM_REPORT_PATH",
         "pricing_table": "LLM_PRICING_TABLE",
     }
@@ -73,6 +79,7 @@ class Config:
             ("llm_api_key", "api_key"),
             ("llm_base_url", "base_url"),
             ("llm_model", "model"),
+            ("embedding_policy", "embedding_policy"),
             ("report", "report_path"),
         ):
             value = getattr(options, attr, None)

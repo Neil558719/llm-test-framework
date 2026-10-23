@@ -2,6 +2,14 @@
 
 Issue [#70](https://github.com/Neil558719/llm-test-framework/issues/70)，分支 `codex/a04a-auth-actor`，起点 `f7c28b08360e6aa981ea43d677f67cba2065d31c`（A02 合并提交），开始时干净。本记录只证明工作树本地实现与离线验证；独立审查、Push/PR、当前 SHA CI、合并、合并后验证、Release 和部署由主流程接续。没有修改主 checkout、A02/A03 工作树、共享环境或依赖。
 
+## 主流程整合检查点
+
+`5d2cfe0` 已独立只读审查通过，无未解决 Critical/Important/Minor。合成身份与 spy 仓储验证了九项读取先鉴权且拒绝时零仓储调用，Cookie/Bearer 优先级、CSRF、可信 actor 与指纹均符合矩阵；没有真实 IdP 请求。主流程将已合并 A03 `6993aa6` 自动无冲突整合进本分支，保留双方行为及证据；本次迁移版本为 **0.2.0a24.dev3**，项目、锁文件与运行时版本一致，依赖未变。
+
+A03 合并后通过 708 项、7 排除、2 上游警告；独立 dev2 wheel 的 47 项能力契约、3 种策略消费退出码、14 个业务场景与三静态资源通过；[dev2 预发行版](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev2) 已发布。其 Windows 临时目录与中文路径编码失败及定向定位日志保留在主台账，未改产品代码换绿。
+
+下文的 773 通过/1 失败属于 A04a 原开发基线，夹具修正后只做相关128通过；不将A03结果或版本整合当成A04a当前树全量通过。整合后的当前SHA CI、合并后验证、安装包与Release仍待执行。A04b应用授权与过滤未实现。
+
 ## 行为与角色矩阵
 
 production 业务读取先认证，再检查是否具有任一现有有效角色。匿名、无效/撤销会话和关闭的 production runtime 返回 401；已认证但没有有效业务角色返回 403。读取不要求 CSRF。development 继续使用既有显式本地模式，不更改认证配置来让生产测试通过。

@@ -91,10 +91,11 @@ pytest tests/ \
     --llm-mode real --llm-provider openai --llm-model gpt-5.6-sol --llm-api-key $KEY
 ```
 
-> 真实模式下：语义/Judge/幻觉/JSON 都走 LLM，正常可用；`assert_similarity` 需要网关提供
-> Embedding 接口（如 `text-embedding-3-small`）。这是**框架级能力**：任何项目里，若评测客户端
-> 没有可用的 embedding 模型，`assert_similarity` 都会**自动跳过**（pytest.skip），而不是让用例失败；
-> Mock 模式用确定性伪向量始终能测。语义断言可替代它判断"意思相近"。
+> 真实模式的 `assert_similarity` 需要真实 Embedding 能力（如 `text-embedding-3-small`）。
+> 策略默认 `required`，明确缺能力时抛 `EmbeddingUnavailableError` 阻断；仅显式
+> `--embedding-policy optional` 探索允许明确不支持时 skip，并记录 `embedding_coverage=0` 和原因。
+> 单项 `required=True` 始终必需。认证、配置及限流/超时/断连错误不会转成 skip 或负能力缓存。
+> 仅 Mock 模式使用确定性伪向量，指标及报告明确标为 mock；语义与向量相似度是不同评测。
 
 ## 编写用例
 
@@ -399,9 +400,9 @@ pytest examples/model_vs_model/ --app-provider deepseek --app-model deepseek-cha
 
 1. **模型 ID 以平台为准**：`deepseek-chat`、`claude-opus-5`、`gpt-4o` 是常见写法，具体以各家控制台为准；
    写错会返回 `model not found`。`qwen2.5:7b` 是 Ollama 的模型标签。
-2. **裁判用 Anthropic 时**：语义断言、Judge、幻觉检测走 LLM 完全正常；但 Anthropic 没有原生
-   Embedding 接口，相似度断言（`assert_similarity`）会回退为关键词覆盖伪向量并打印一次警告。
-   需要精确向量相似度时，裁判改用 OpenAI 兼容提供商。
+2. **裁判用 Anthropic 时**：语义断言、Judge、幻觉检测仍走 LLM；Anthropic 没有原生
+   Embedding 接口，需通过 `AnthropicClient(config, embedding_client=真实客户端)` 显式提供真实向量能力，
+   已知 Mock 客户端会被拒绝。未提供时按上述 required/optional 策略处理，不返回伪向量。
 3. **裸模型当被测对象时没有检索来源**（`sources` 为空），幻觉检测需要把上下文写进 prompt、
    再显式传同一份上下文来核对（见 `examples/model_vs_model/test_model.py`）。
 
