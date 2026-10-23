@@ -74,7 +74,7 @@ def test_production_telemetry_human_writes_require_role_and_csrf_but_machine_ing
     assert client.post(
         "/api/traces/trace-1/feedback",
         headers={"X-CSRF-Token": "viewer-csrf"},
-        json={"category": "correct", "reporter_id": "v", "source": "ui"},
+        json={"category": "correct", "reporter_id": "viewer", "source": "ui"},
     ).status_code == 201
 
 

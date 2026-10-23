@@ -16,6 +16,7 @@ from qe_platform.auth.oidc import OidcVerifier
 from qe_platform.auth.session import SessionStore
 from qe_platform.ops import backup_database, restore_database
 from qe_platform.telemetry.api import create_telemetry_app
+from qe_platform.telemetry.redaction import fingerprint
 from qe_platform.telemetry.settings import TelemetrySettings
 from qe_platform.telemetry.sink import HttpTelemetrySink, telemetry_sink_from_environment
 from reference_agent.app import create_app
@@ -111,7 +112,14 @@ def test_production_hardening_contract_covers_authenticated_api_machine_ingest_a
         "/api/traces/contract-trace/feedback",
         headers={"X-CSRF-Token": "contract-csrf-token"},
         json={"category": "correct", "reporter_id": "reviewer", "source": "ui"},
-    ).status_code == 201
+    ).status_code == 400
+    feedback = telemetry.post(
+        "/api/traces/contract-trace/feedback",
+        headers={"X-CSRF-Token": "contract-csrf-token"},
+        json={"category": "correct", "source": "ui"},
+    )
+    assert feedback.status_code == 201
+    assert feedback.json()["reporter_fingerprint"] == fingerprint("viewer", secret_values["hash"])
     assert telemetry.get("/api/health/ready").status_code == 200
 
     store = SQLiteStore(agent_database)

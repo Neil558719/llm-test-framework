@@ -274,6 +274,12 @@ performance:
 | --- | --- | --- | --- |
 | A02 / Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)：评测有效性与 Judge 契约 | 分支本地实现与离线回归通过，尚未发布 | `codex/a02-validity` 起点 `4d8ff42`；首批 RED 84 failed/2 passed，补充 RED 3 failed/6 passed/86 deselected；相关 119 passed/2 warnings；默认非 UI 全量一次 658 passed/7 deselected/2 warnings，0 skipped；7 排除为 5 UI、2 Windows 系统集成。空 claims 为 inconclusive/None，必需断言阻断；严格真实 JSON；均分与显式金标准确率分离；证据 `docs/evidence/A02/summary.md` | 独立审查、Push/PR/当前 SHA CI、合并及合并后验证、Release、部署/Issue 跟踪由主流程执行；用户复现练习待完成。A01 依赖代码已验证，不标 A01 已发布；A03/A04/A05 未扩展 |
 
+本轮 A04a 状态补充（保留上方历史记录，交付状态由主流程更新）：
+
+| 任务 | 当前状态 | 本地证据 | 剩余交付环节 |
+| --- | --- | --- | --- |
+| A04a / Issue [#70](https://github.com/Neil558719/llm-test-framework/issues/70)：读取门禁与可信操作者 | 本地实现、相关验证完成；尚未发布 | `codex/a04a-auth-actor` 起点 `f7c28b0`；RED 校正后29失败/50通过，相关157通过；唯一根全量773通过/1失败/7排除/2警告，旧跨subject成功夹具迁移后定向128通过，0 skipped；没有最终全量全绿运行。四角色读取/无角色403，metrics admin；反馈/审核subject绑定，写角色和CSRF保持。见 `docs/evidence/A04a/summary.md`；版本暂保留dev1待主整合 | 独立审查、Push/PR、当前SHA CI、合并/合并后验证、Release、部署和Issue跟踪由主流程执行；用户练习待完成/掌握未评估。A04b的application授权、对象/查询/分页隔离、机器allowed application均未实施 |
+
 ## 11. 固定进度汇报格式
 
 当用户询问开发进度时，必须按照下列格式回答，不以模糊百分比代替事实：
