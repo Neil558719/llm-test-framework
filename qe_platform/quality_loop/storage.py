@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from qe_platform.ops.metrics import PROCESS_METRICS
+from qe_platform.application_scope import application_filter
 from qe_platform.time import Clock, utc_now
 
 import json
@@ -103,7 +104,7 @@ class SQLiteQualityRepository:
         value["checks"] = tuple(ReleaseCheck(**item) for item in value["checks"])
         return ReleaseValidation(**value)
 
-    def import_run(self, report: dict[str, Any], *, source_label: str, now: datetime | None = None) -> OfflineRun:
+    def import_run(self, report: dict[str, Any], *, source_label: str, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> OfflineRun:
         # Parse first so type, control-character, and sensitive-value checks
         # produce a consistent ValueError before path-shape validation.
         run = parse_run_report(report, source_label)
@@ -113,10 +114,14 @@ class SQLiteQualityRepository:
             raise ValueError("offline run is expired")
         payload = json.dumps(run.as_dict(), ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         with self._transaction():
+            if allowed_applications is not None and run.application not in allowed_applications:
+                raise ValueError("offline run application is not authorized")
             existing = self._connection.execute(
                 "SELECT payload FROM quality_offline_runs WHERE run_id = ?", (run.run_id,)
             ).fetchone()
             if existing is not None:
+                if allowed_applications is not None and json.loads(existing[0]).get("application") not in allowed_applications:
+                    raise KeyError("offline run not found")
                 if existing[0] != payload:
                     raise ValueError("offline run ID already contains a different report")
                 return run
@@ -136,9 +141,12 @@ class SQLiteQualityRepository:
             ).fetchone()
         return None if row is None else self._hydrate_run(row[0])
 
-    def list_runs(self, *, application: str = "", version: str = "", now: datetime | None = None) -> list[OfflineRun]:
+    def list_runs(self, *, application: str = "", version: str = "", now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[OfflineRun]:
         query = "SELECT payload FROM quality_offline_runs WHERE started_at > ?"
         params: list[Any] = [self._cutoff(now)]
+        predicate, apps = application_filter("json_extract(payload, '$.application')", allowed_applications)
+        query += " AND " + predicate
+        params.extend(apps)
         if application:
             query += " AND json_extract(payload, '$.application') = ?"
             params.append(application)
@@ -212,6 +220,7 @@ class SQLiteQualityRepository:
         offline_run_id: str = "",
         promotion_id: str = "",
         now: datetime | None = None,
+        allowed_applications: frozenset[str] | None = None,
     ) -> list[QualityLink]:
         if offline_run_id and not isinstance(offline_run_id, str):
             raise ValueError("offline_run_id must be a string")
@@ -227,6 +236,11 @@ class SQLiteQualityRepository:
         """
         cutoff = self._cutoff(now)
         params: list[Any] = [cutoff, cutoff]
+        predicate, apps = application_filter("trace.application", allowed_applications)
+        query += " AND " + predicate
+        params.extend(apps)
+        if allowed_applications is not None:
+            query += " AND trace.application = json_extract(run.payload, '$.application')"
         if offline_run_id:
             query += " AND link.offline_run_id = ?"
             params.append(offline_run_id)
@@ -271,11 +285,12 @@ class SQLiteQualityRepository:
             ).fetchone()
         return None if row is None else self._hydrate_validation(row[0])
 
-    def online_rows(self, *, now: datetime | None = None) -> list[dict[str, Any]]:
+    def online_rows(self, *, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[dict[str, Any]]:
         """Return aggregate-safe online values, never raw trace payloads."""
+        predicate, apps = application_filter("trace.application", allowed_applications)
         with self._lock:
             rows = self._connection.execute(
-                """
+                f"""
                 SELECT trace.trace_id, trace.application, trace.timestamp, trace.payload,
                        COUNT(DISTINCT feedback.feedback_id) AS feedback_count,
                        COALESCE(SUM(CASE WHEN review.status = 'confirmed'
@@ -284,11 +299,11 @@ class SQLiteQualityRepository:
                 FROM telemetry_traces AS trace
                 LEFT JOIN telemetry_feedback AS feedback ON feedback.trace_id = trace.trace_id
                 LEFT JOIN telemetry_reviews AS review ON review.feedback_id = feedback.feedback_id
-                WHERE trace.timestamp > ?
+                WHERE trace.timestamp > ? AND {predicate}
                 GROUP BY trace.trace_id, trace.application, trace.timestamp, trace.payload
                 ORDER BY trace.timestamp ASC, trace.trace_id ASC
                 """,
-                (self._cutoff(now),),
+                [self._cutoff(now), *apps],
             ).fetchall()
         result: list[dict[str, Any]] = []
         for trace_id, application, timestamp, payload_text, feedback_count, low_quality_count in rows:

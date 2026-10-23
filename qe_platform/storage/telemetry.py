@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from qe_platform.ops.metrics import PROCESS_METRICS
+from qe_platform.application_scope import application_filter
 from qe_platform.time import Clock, utc_now
 
 import json
@@ -56,15 +57,15 @@ _TRACE_FIELDS = frozenset(
 
 
 class TelemetryRepository(Protocol):
-    def upsert_trace(self, trace: TelemetryTrace) -> TelemetryTrace: ...
+    def upsert_trace(self, trace: TelemetryTrace, *, allowed_applications: frozenset[str] | None = None) -> TelemetryTrace: ...
 
     def get_trace(self, trace_id: str, *, now: datetime | None = None) -> TelemetryTrace | None: ...
 
-    def list_traces(self, query: TelemetryQuery, *, now: datetime | None = None) -> list[TelemetryTrace]: ...
+    def list_traces(self, query: TelemetryQuery, *, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[TelemetryTrace]: ...
 
     def add_feedback(self, value: FeedbackInput, trace_id: str, *, now: datetime | None = None) -> FeedbackRecord: ...
 
-    def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None) -> list[FeedbackRecord]: ...
+    def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[FeedbackRecord]: ...
 
     def get_feedback(self, feedback_id: str, *, now: datetime | None = None) -> FeedbackRecord | None: ...
 
@@ -90,6 +91,7 @@ class TelemetryRepository(Protocol):
         limit: int = 100,
         offset: int = 0,
         now: datetime | None = None,
+        allowed_applications: frozenset[str] | None = None,
     ) -> list[FeedbackReview]: ...
 
     def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None, now: datetime | None = None) -> PromotionRecord: ...
@@ -241,7 +243,7 @@ class SQLiteTelemetryRepository:
         with self._lock:
             self._connection.close()
 
-    def upsert_trace(self, trace: TelemetryTrace) -> TelemetryTrace:
+    def upsert_trace(self, trace: TelemetryTrace, *, allowed_applications: frozenset[str] | None = None) -> TelemetryTrace:
         if not isinstance(trace, TelemetryTrace):
             raise ValueError("trace must be a TelemetryTrace")
         payload = trace.as_dict()
@@ -250,6 +252,16 @@ class SQLiteTelemetryRepository:
         assert_sanitized_payload(payload)
         serialized = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         with self._transaction():
+            if allowed_applications is not None:
+                if trace.application not in allowed_applications:
+                    raise ValueError("trace application is not authorized")
+                existing = self._connection.execute(
+                    "SELECT application FROM telemetry_traces WHERE trace_id = ?", (trace.trace_id,),
+                ).fetchone()
+                if existing is not None and existing[0] not in allowed_applications:
+                    raise KeyError("trace not found")
+                if existing is not None and existing[0] != trace.application:
+                    raise ValueError("trace application cannot change")
             self._connection.execute(
                 """
                 INSERT INTO telemetry_traces(trace_id, application, timestamp, payload)
@@ -291,11 +303,14 @@ class SQLiteTelemetryRepository:
             ).fetchone()
         return None if row is None else _hydrate_trace(row[0], row[1])
 
-    def list_traces(self, query: TelemetryQuery, *, now: datetime | None = None) -> list[TelemetryTrace]:
+    def list_traces(self, query: TelemetryQuery, *, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[TelemetryTrace]:
         if not isinstance(query, TelemetryQuery):
             raise ValueError("query must be a TelemetryQuery")
         filters = ["trace.timestamp > ?"]
         parameters: list[Any] = [self._cutoff(now)]
+        predicate, apps = application_filter("trace.application", allowed_applications)
+        filters.append(predicate)
+        parameters.extend(apps)
         if query.application:
             filters.append("trace.application = ?")
             parameters.append(query.application)
@@ -347,11 +362,14 @@ class SQLiteTelemetryRepository:
             )
         return record
 
-    def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None) -> list[FeedbackRecord]:
+    def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[FeedbackRecord]:
         if not isinstance(query, FeedbackQuery):
             raise ValueError("query must be a FeedbackQuery")
         filters = ["trace.timestamp > ?"]
         parameters: list[Any] = [self._cutoff(now)]
+        predicate, apps = application_filter("trace.application", allowed_applications)
+        filters.append(predicate)
+        parameters.extend(apps)
         if query.trace_id:
             filters.append("feedback.trace_id = ?")
             parameters.append(query.trace_id)
@@ -517,6 +535,7 @@ class SQLiteTelemetryRepository:
         limit: int = 100,
         offset: int = 0,
         now: datetime | None = None,
+        allowed_applications: frozenset[str] | None = None,
     ) -> list[FeedbackReview]:
         if isinstance(status, str):
             status = ReviewStatus(status)
@@ -528,6 +547,9 @@ class SQLiteTelemetryRepository:
             raise ValueError("offset must be a nonnegative integer")
         filters = ["trace.timestamp > ?"]
         parameters: list[Any] = [self._cutoff(now)]
+        predicate, apps = application_filter("trace.application", allowed_applications)
+        filters.append(predicate)
+        parameters.extend(apps)
         if feedback_id:
             filters.append("review.feedback_id = ?")
             parameters.append(feedback_id)

@@ -242,6 +242,7 @@ performance:
 
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
+| A04b / Issue [#72](https://github.com/Neil558719/llm-test-framework/issues/72)：应用范围隔离 | 本地实现与离线验证通过，尚未交付 | base `7bc45e1`；可信subject/app策略及机器allowed apps、SQL先过滤后分页/聚合、完整归属链、同app关联、server scope快照证明；RED30失败/1通过，边界RED5失败、快照RED3失败；最终相关228通过；根默认非UI唯一一次890通过/7排除/2上游警告、0skip；见 `docs/evidence/A04b/summary.md`。版本暂dev3 | 独立审查、Push/PR、当前SHA CI、合并后验证、安装/Release、部署和Issue跟踪由主流程；用户练习待完成/掌握未评估。旧无scope生产快照默认404，需新建可信证据，不破坏性回填；A06完整性不在本轮 |
 | A04a / Issue #70：读取鉴权与可信actor接续 | 本地相关与独立审查通过；已整合A03准备当前SHA CI | `5d2cfe0` 审查无剩余项，原根773通过/1旧夹具契约冲突失败保留，修正为省略actor成功并保留伪造400负例后相关128通过；整合A03 `6993aa6`，dev3三处metadata一致、依赖未变；见 `docs/evidence/A04a/summary.md` | 当前SHA CI、合并后全量、安装包与Release待执行；本项只完成读取/actor，A04b应用对象隔离/查询过滤未实现 |
 | A03 主流程交付接续 | PR #69全部同SHA检查与复审通过，已合并并发布dev2预发行版 | merge `6993aa6` 与已审查/CI的 `9046f80` 同树，合并后708通过/7排除/2警告，独立wheel47契约/3策略消费者/14场景/三资源通过；[dev2](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev2) | 本行取代下方A03历史待办状态；真实供应商/embedding质量/持久环境及未来manifest仍未验收，用户待复现 |
 | A03 / Issue [#68](https://github.com/Neil558719/llm-test-framework/issues/68)：真实Embedding能力与必需策略 | dev2分支本地实现与离线验证通过，未发布 | base `a764f4e`；RED44失败/2通过，报告来源补RED1失败/3通过/46排除；定向53通过，相关169通过/2警告；根默认非UI全量一次708通过/7排除/2警告、0skip。删除真实Anthropic伪向量、typed unsupported负缓存、required默认/optional探索、强制必需入口、Mock来源展示；dev2三处metadata一致、锁依赖未变；见 `docs/evidence/A03/summary.md` | 独立审查、Push/PR/当前SHA CI、合并后验证、安装包/Release/部署/Issue跟踪及用户复现由主流程继续；未接未来manifest，不扩A04/A05 |

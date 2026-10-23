@@ -89,7 +89,7 @@ Trace 默认保留 `30 天`。`prune_expired` 以 Trace 时间戳计算到期边
 
 production 下，Trace/反馈业务读取必须登录，并具有 viewer、reviewer、releaser、admin 中任一现有角色；匿名返回 401，已认证但无有效业务角色返回 403。读取不需要 CSRF；机器 ingest token 不能用作人类读取凭据。`/api/metrics` 仅 admin 可读；health 保持公开。反馈写入沿用 viewer/admin 与 Cookie CSRF 校验，并绑定认证 subject。显式 development 模式保持原有本地调用方式，且仍要求调用方提供 `reporter_id`。
 
-A04a 只完成登录、角色与操作者绑定；subject 到 application 的授权、对象级隔离、查询过滤与机器 ingest 的 allowed application 校验留待 A04b。当前不能据此声称共享应用数据已隔离。迁移、角色矩阵和验证证据见 [A04a 记录](evidence/A04a/summary.md)。
+A04b 增加可信服务器 subject/application 映射、对象级授权、SQL 查询过滤和机器写入的 allowed application；production 缺配置默认拒绝，admin 也需显式授权。跨应用详情 404，显式非法 application 筛选 403，列表先授权过滤再分页。参见 [应用范围授权指南](应用范围授权指南.md)；A04a 的登录、角色、CSRF 和 actor 规则仍保持，原始证据见 [A04a 记录](evidence/A04a/summary.md)。
 
 PostgreSQL 仅保留工厂边界和错误语义。传入 `postgresql://...` 时会得到 `NotImplementedError("PostgreSQL telemetry storage is not enabled")`，当前可运行驱动为本地 SQLite。
 

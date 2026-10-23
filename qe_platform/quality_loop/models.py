@@ -199,6 +199,8 @@ class ReleaseValidation:
     checks: tuple[ReleaseCheck, ...]
     linked_count: int
     created_at: str
+    scope_application: str | None = None
+    scope_policy_version: int | None = None
 
     def __post_init__(self) -> None:
         for name in ("validation_id", "baseline_run_id", "candidate_run_id"):
@@ -209,9 +211,13 @@ class ReleaseValidation:
             raise ValueError("checks must be a nonempty tuple of ReleaseCheck")
         _count(self.linked_count, "linked_count")
         _utc(self.created_at, "created_at")
+        if self.scope_application is not None:
+            _text(self.scope_application, "scope_application")
+        if self.scope_policy_version is not None:
+            _count(self.scope_policy_version, "scope_policy_version")
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "validation_id": self.validation_id,
             "baseline_run_id": self.baseline_run_id,
             "candidate_run_id": self.candidate_run_id,
@@ -221,6 +227,11 @@ class ReleaseValidation:
             "linked_count": self.linked_count,
             "created_at": self.created_at,
         }
+        if self.scope_application is not None:
+            result["scope_application"] = self.scope_application
+        if self.scope_policy_version is not None:
+            result["scope_policy_version"] = self.scope_policy_version
+        return result
 
 
 def _scenario_values(payload: Mapping[str, Any]) -> tuple[list[Mapping[str, Any]], tuple[str, ...]]:
