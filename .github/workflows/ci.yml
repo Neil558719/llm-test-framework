@@ -49,6 +49,38 @@ jobs:
           path: reports/
           if-no-files-found: warn
 
+  installed-wheel:
+    name: Installed wheel (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install locked dependencies without the source project
+        run: uv sync --locked --extra ci --no-install-project
+      - name: Build and install wheel
+        run: |
+          uv build --wheel
+          uv pip install --python .venv/bin/python --no-deps dist/*.whl
+      - name: Verify installed web assets and packaged scenarios
+        run: .venv/bin/python scripts/verify_installed_wheel.py
+      - name: Upload installed wheel reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installed-wheel-python-${{ matrix.python-version }}
+          path: reports/installed-wheel/
+          if-no-files-found: warn
+
   production-hardening-contract:
     name: Production hardening contract (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
