@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .venv/
 .worktrees/
+.context/
 .env
 deploy/backups/
 *.db

@@ -33,9 +33,9 @@ def assert_semantic_match(
 ) -> SemanticResult:
     """断言实际回答与期望含义语义等价（分数 ≥ threshold）。失败抛 AssertionError。"""
     result = semantic_match(actual, expected, client=client, context=context)
-    passed = result.score >= threshold
+    passed = result.equivalent and result.score >= threshold
     message = (
-        f"语义断言失败: 分数 {result.score:.3f} < 阈值 {threshold:.3f}\n"
+        f"语义断言: equivalent={result.equivalent}, 分数 {result.score:.3f}, 阈值 {threshold:.3f}\n"
         f"实际回答: {actual[:200]}\n期望含义: {expected[:200]}\n理由: {result.reasoning}"
     )
     tracker.add_assertion("assert_semantic_match", passed, message, result.score, threshold)

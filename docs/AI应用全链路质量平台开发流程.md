@@ -267,6 +267,12 @@ performance:
 | M17 后生产加固（服务器迁移准备） | 离线实现、本地回归、本机 Docker 演练与仓库质量收尾完成；交付生命周期待办 | `codex/production-hardening` 分支实现 generic OIDC/OAuth2 + PKCE、四角色授权、SQLite WAL/事务/版本迁移与跨重启业务状态、备份/恢复/就绪/指标、Docker secrets 与生产 Compose 覆盖。2026-09-13 补齐包版本元数据（`0.2.0a24.dev0`）、MIT `LICENSE`、`uv.lock` 锁定依赖与 CI 的 `uv sync --locked` 可复现安装。2026-09-11 最终定向回归 `74 passed, 49 warnings`；完整非 UI 回归 `534 passed, 5 deselected, 261 warnings`；UI `5 passed, 534 deselected, 5 warnings`；本机 Docker 已验证镜像 digest `sha256:9c8d7a2f...`、schema 版本 `2`、备份 SHA-256 `d3679ef...`、迁移/恢复/跨重启/rollback 报告；`compileall`、`git diff --check`、PowerShell、POSIX shell 和 Compose config 均通过。`llmtest/` 无改动，未增加 FastGPT 文件或实现引用。证据见 `docs/deployment/evidence/2026-09-10-production-hardening.md` 与 `docs/deployment/production-readiness-runbook.md` | 先创建生产加固 Issue，再 push、PR、Actions、独立审查、合并 `master`、合并后验证和预发布。完整 Bearer Smoke、真实 IdP、HTTPS 域名、正式凭据、独立服务器与公网验收仍待正式环境；FastGPT 仍不在范围内 |
 | A01. 统一仓储/API 时钟与跨日期回归恢复 | 本地实现、独立审查与离线回归通过；PR #62 远程部分通过，容器验收另有 Issue #63 修复中 | 2026-10-20：Issue [#61](https://github.com/Neil558719/llm-test-framework/issues/61)；容器权限 Issue [#63](https://github.com/Neil558719/llm-test-framework/issues/63)；基线 `cd51114b` 在新锁定环境复现 `18 failed, 516 passed, 5 deselected`；仓储注入 UTC Clock、显式 now 优先、API 去掉墙上时间覆盖、CLI 注入 factory，保留 30 天 TTL；晋级到期校验覆盖首次与幂等重放。相关回归 `81 passed`，完整非 UI 回归 `556 passed, 5 deselected, 2 warnings`；原18项逐项 PASS；脱敏证据 `docs/evidence/A01/summary.md`，基线 `docs/remediation/baseline.md`，面试素材 `docs/interview/ledger.md` | Push、PR、Actions、独立审查、合并及合并后验证、Release、部署与 Issue 关闭均待主流程；Container Readiness 首次因 helper 挂载权限失败，已补 helper-only 用户覆盖并完成本地守卫；其他改造任务未开始 |
 
+本轮 A02 状态补充（不改变上方历史交付记录）：
+
+| 任务 | 当前状态 | 本地证据 | 剩余交付环节 |
+| --- | --- | --- | --- |
+| A02 / Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)：评测有效性与 Judge 契约 | 分支本地实现与离线回归通过，尚未发布 | `codex/a02-validity` 起点 `4d8ff42`；首批 RED 84 failed/2 passed，补充 RED 3 failed/6 passed/86 deselected；相关 119 passed/2 warnings；默认非 UI 全量一次 658 passed/7 deselected/2 warnings，0 skipped；7 排除为 5 UI、2 Windows 系统集成。空 claims 为 inconclusive/None，必需断言阻断；严格真实 JSON；均分与显式金标准确率分离；证据 `docs/evidence/A02/summary.md` | 独立审查、Push/PR/当前 SHA CI、合并及合并后验证、Release、部署/Issue 跟踪由主流程执行；用户复现练习待完成。A01 依赖代码已验证，不标 A01 已发布；A03/A04/A05 未扩展 |
+
 ## 11. 固定进度汇报格式
 
 当用户询问开发进度时，必须按照下列格式回答，不以模糊百分比代替事实：

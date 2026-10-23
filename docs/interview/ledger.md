@@ -1,5 +1,17 @@
 # 面试素材账本
 
+## A02：证据不足、质量分与金标准确率分开
+
+状态：Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)，本地实现与离线验证通过；独立审查/PR/CI/合并/Release/部署由主流程验收。用户掌握未评估，复现练习待完成。
+
+**问题与证据。** 空 claims 原本给出 0% 幻觉率；`bool('false')` 为真；真实 Judge 越界分数会被钳位；helpfulness 均分被称为准确率。首批旧行为 `84 failed, 2 passed`，首轮定向 `96 passed`。补充边界 `3 failed, 6 passed, 86 deselected`，修复后相关 `119 passed, 2 warnings`，全量一次 `658 passed, 7 deselected, 2 warnings`（5 UI、2 Windows 系统集成排除，0 skip）。完整命令和迁移见 [A02 证据](../evidence/A02/summary.md)。并非每项测试逐条先红，合法行为兼容守卫原本通过。
+
+**原理与取舍。** 率值需要有效分母；证据不足不代表业务必错，也不能证明质量通过。`inconclusive` 抛明确异常阻断必需断言；合法非事实回复须调用方显式策略标为 `not_applicable`，不混入分母。Judge 输出严格校验布尔、有限范围数字、枚举与语义结论一致性，不通过字符串转换、钳位或 embedding 回退掩盖错误。均分表示 rubric 质量，只有明确金标布尔判定才能生成正确率分母。
+
+**兼容与迁移。** `AppResponse(answer, sources)` 和已有事实计算保持；率值改为可空，旧 accuracy 均分含义 deprecated，改读 `mean_judge_score`，准确率只读显式金标。history schema v2 保留旧记录并在 Judge 列解释旧 accuracy。A03 embedding、A04 权限、A05 YAML 连接未扩展。
+
+**练习（待作答，10–20 分钟）。** 离线重现空 claims、字符串 false、NaN 三种输入，解释 inconclusive/error/not_applicable 的区别；证明不适用不增加分母；展示 helpfulness 90% 与三条金标真/假/真得到 2/3 正确率的区别。说清本地、独立审查、CI、合并与发布各自证明什么。
+
 ## A01：固定日期夹具与保留期时钟分离
 
 状态：本地修复与验证；PR/CI/合并/发布/部署尚未完成。Issue [#61](https://github.com/Neil558719/llm-test-framework/issues/61)。用户是否已理解或掌握：未评估。

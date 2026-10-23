@@ -141,6 +141,13 @@ def _append_history(reports_dir: str, summary: Summary, env_str: str) -> List[di
             "error": summary.error,
             "pass_rate": summary.pass_rate,
             "accuracy": summary.accuracy,
+            "evaluation_schema": 2,
+            "mean_judge_score": summary.mean_judge_score,
+            "gold_count": summary.gold_count,
+            "evaluated_count": summary.evaluated_count,
+            "inconclusive_count": summary.inconclusive_count,
+            "not_applicable_count": summary.not_applicable_count,
+            "evaluation_error_count": summary.evaluation_error_count,
             "hallucination_rate": summary.hallucination_rate,
             "avg_app_latency_ms": summary.avg_app_latency_ms,
             "env": env_str,
@@ -162,7 +169,11 @@ def _render_history(history: List[dict]) -> str:
     rows = []
     for e in reversed(history):  # 最新（含本次）在最上
         pass_rate = f"{e['pass_rate']:.0%}" if e.get("pass_rate") is not None else "—"
-        accuracy = f"{e['accuracy']:.0%}" if e.get("accuracy") is not None else "—"
+        # Legacy history's accuracy was a Judge mean; never relabel it as gold accuracy.
+        accuracy = (f"{e['accuracy']:.0%}" if e.get('evaluation_schema') == 2
+                    and e.get('gold_count', 0) and e.get('accuracy') is not None else '—')
+        judge = e.get('mean_judge_score') if e.get('evaluation_schema') == 2 else e.get('accuracy')
+        judge_text = f'{judge:.0%}' if judge is not None else '—'
         hallu = f"{e['hallucination_rate']:.0%}" if e.get("hallucination_rate") is not None else "—"
         latency = fmt_ms(e.get("avg_app_latency_ms"))
         stats = f"{e['passed']} ✓ / {e['total']}"
@@ -170,7 +181,7 @@ def _render_history(history: List[dict]) -> str:
             f"<tr>"
             f"<td class='t'>{_esc(e.get('ts', ''))}</td>"
             f"<td>{_esc(stats)}</td><td>{_esc(pass_rate)}</td>"
-            f"<td>{_esc(accuracy)}</td><td>{_esc(hallu)}</td>"
+            f"<td>{_esc(accuracy)}</td><td>{_esc(judge_text)}</td><td>{_esc(hallu)}</td>"
             f"<td>{_esc(latency)}</td>"
             f"<td class='env'>{_esc(e.get('env', ''))}</td>"
             f"</tr>"
@@ -181,7 +192,7 @@ def _render_history(history: List[dict]) -> str:
   <p class="chart-sub">最近 {len(history)} 次运行，最新在上、向下越旧；用于跨版本 / 跨模型回归对比。</p>
   <table class="history-table">
     <thead><tr>
-      <th>时间</th><th>通过</th><th>通过率</th><th>准确率</th><th>幻觉率</th><th>平均延迟</th><th>被测 · 裁判</th>
+      <th>时间</th><th>通过</th><th>通过率</th><th>金标准确率</th><th>Judge 均分（旧 accuracy 已 deprecated）</th><th>幻觉率</th><th>平均延迟</th><th>被测 · 裁判</th>
     </tr></thead>
     <tbody>{''.join(rows)}</tbody>
   </table>
@@ -382,13 +393,17 @@ def render_report(
 def _render_tiles(s: Summary) -> str:
     pass_rate = f"{s.pass_rate:.1%}" if s.pass_rate is not None else "—"
     accuracy = f"{s.accuracy:.1%}" if s.accuracy is not None else "—"
+    judge = f"{s.mean_judge_score:.1%}" if s.mean_judge_score is not None else "—"
     hallu = f"{s.hallucination_rate:.1%}" if s.hallucination_rate is not None else "—"
     latency = fmt_ms(s.avg_app_latency_ms)
 
     tiles = [
         ("通过率", pass_rate, f"{s.passed}/{s.total} 通过"),
-        ("准确率", accuracy, "LLM-as-Judge 平均"),
-        ("幻觉率", hallu, "越低越好"),
+        ("Judge 均分", judge, "归一化质量评分；旧 accuracy 均分含义 deprecated"),
+        ("金标准确率", accuracy, f"仅显式金标；分母 {s.gold_count}"),
+        ("幻觉率", hallu, "仅有事实且评测有效的报告；越低越好"),
+        ("评测有效性", str(s.evaluated_count),
+         f"Judge/幻觉评测已完成；inconclusive {s.inconclusive_count} · not_applicable {s.not_applicable_count} · error {s.evaluation_error_count}"),
         ("平均延迟", latency, "被测应用响应"),
     ]
     return "\n".join(
@@ -642,8 +657,10 @@ def _render_detail(r: TestRecord) -> str:
 
 
 def _render_hallucination(report) -> str:
-    if not report.claims:
-        return ""
+    if report.hallucination_rate is None:
+        return ('<div class="d-block"><h4>幻觉检测</h4>'
+                f'<p>{_esc(report.status)} · {_esc(report.reason)} · 无可用幻觉率'
+                f' · 已保留断言 {report.total} 条</p></div>')
     rows = []
     for c in report.claims:
         cls = "claim-ok" if not c.is_hallucinated else "claim-bad"
@@ -656,6 +673,7 @@ def _render_hallucination(report) -> str:
         )
     return (
         '<div class="d-block"><h4>幻觉检测</h4>'
+        f'<p>{_esc(report.status)} · {_esc(report.reason)}</p>'
         f'<p class="hallu-rate">幻觉率 {report.hallucination_rate:.1%}'
         f' · 支持 {len(report.supported)} · 幻觉 {len(report.hallucinated)}'
         f' · 矛盾 {len(report.contradicted)}</p>'

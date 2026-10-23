@@ -9,15 +9,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from ..specs import (
-    CONTRADICTED,
-    NOT_SUPPORTED,
-    SUPPORTED,
     ClaimVerdict,
     JudgeResult,
     JudgeSpec,
 )
-from ..utils import cosine_similarity
-from .base import LLMClient, extract_json
+from ..evaluation import parse_semantic, parse_judge, parse_claims, parse_verdict
+from .base import LLMClient
 from . import prompts
 
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -84,25 +81,8 @@ class OpenAIClient(LLMClient):
     def _semantic_equivalent(
         self, actual: str, expected: str, context: Optional[str] = None
     ) -> Any:
-        # 语义等价优先用 LLM 判定（对换述/近义更稳健），失败回退向量余弦
-        from ..specs import SemanticResult
-
-        try:
-            raw = self._llm_json(prompts.semantic_prompt(actual, expected, context))
-            return SemanticResult(
-                equivalent=bool(raw.get("equivalent", False)),
-                score=float(raw.get("score", 0.0)),
-                reasoning=str(raw.get("reasoning", "")),
-            )
-        except ValueError:
-            a = self.embed(actual)
-            b = self.embed(expected)
-            score = cosine_similarity(a, b)
-            return SemanticResult(
-                equivalent=score >= 0.75,
-                score=score,
-                reasoning=f"LLM 判定失败，回退向量余弦 {score:.3f}（阈值 0.75）",
-            )
+        raw = self._llm_json(prompts.semantic_prompt(actual, expected, context))
+        return parse_semantic(raw)
 
     def _judge(
         self,
@@ -114,32 +94,12 @@ class OpenAIClient(LLMClient):
         raw = self._llm_json(
             prompts.judge_prompt(response, spec.criteria, spec.scale, context, question)
         )
-        score = float(raw.get("score", 0.0))
-        return JudgeResult(
-            score=min(max(score, 1.0), float(spec.scale)),
-            max_score=float(spec.scale),
-            reasoning=str(raw.get("reasoning", "")),
-            spec_name=spec.name,
-        )
+        return parse_judge(raw, spec)
 
     def _extract_claims(self, text: str) -> List[str]:
         raw = self._llm_json(prompts.claim_extraction_prompt(text))
-        if isinstance(raw, list):
-            return [str(x).strip() for x in raw if str(x).strip()]
-        return super()._extract_claims(text)
+        return parse_claims(raw)
 
     def _verify_claim(self, claim: str, context: str) -> ClaimVerdict:
         raw = self._llm_json(prompts.claim_verify_prompt(claim, context))
-        verdict = str(raw.get("verdict", NOT_SUPPORTED)).upper()
-        if verdict not in (SUPPORTED, NOT_SUPPORTED, CONTRADICTED):
-            verdict = NOT_SUPPORTED
-        try:
-            confidence = float(raw.get("confidence", 1.0))
-        except (TypeError, ValueError):
-            confidence = 1.0
-        return ClaimVerdict(
-            claim=claim,
-            verdict=verdict,
-            confidence=confidence,
-            evidence=str(raw.get("evidence", "")),
-        )
+        return parse_verdict(raw, claim)
