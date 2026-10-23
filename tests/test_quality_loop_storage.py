@@ -31,7 +31,7 @@ def _promoted(repo: SQLiteTelemetryRepository, *, trace_timestamp: str = "2026-0
 
 
 def test_offline_run_import_is_idempotent_and_filters_sensitive_payload(tmp_path):
-    repository = SQLiteQualityRepository(tmp_path / "telemetry.db")
+    repository = SQLiteQualityRepository(tmp_path / "telemetry.db", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     first = repository.import_run(_report_payload(), source_label="fixture")
     second = repository.import_run(_report_payload(), source_label="fixture")
     assert first == second
@@ -58,9 +58,9 @@ def test_offline_run_import_is_idempotent_and_filters_sensitive_payload(tmp_path
 
 def test_link_requires_matching_unexpired_promotion_and_scenario(tmp_path):
     database = tmp_path / "telemetry.db"
-    telemetry = SQLiteTelemetryRepository(database, retention_days=30, hash_key="test-key")
+    telemetry = SQLiteTelemetryRepository(database, retention_days=30, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     promotion = _promoted(telemetry)
-    quality = SQLiteQualityRepository(database, retention_days=30)
+    quality = SQLiteQualityRepository(database, retention_days=30, clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     quality.import_run(_report_payload(), source_label="fixture")
 
     link = quality.create_link(promotion.promotion_id, "run-candidate", now=utc("2026-09-01T00:00:00+00:00"))
@@ -77,12 +77,12 @@ def test_link_requires_matching_unexpired_promotion_and_scenario(tmp_path):
 
 def test_link_hides_expired_online_chain_but_keeps_offline_run(tmp_path):
     database = tmp_path / "telemetry.db"
-    telemetry = SQLiteTelemetryRepository(database, retention_days=30, hash_key="test-key")
+    telemetry = SQLiteTelemetryRepository(database, retention_days=30, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     promotion = _promoted(telemetry)
     with sqlite3.connect(database) as connection:
         connection.execute("UPDATE telemetry_traces SET timestamp = ?", ("2026-07-01T00:00:00.000000Z",))
         connection.commit()
-    quality = SQLiteQualityRepository(database, retention_days=30)
+    quality = SQLiteQualityRepository(database, retention_days=30, clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     quality.import_run(_report_payload(), source_label="fixture")
     with pytest.raises(KeyError, match="promotion"):
         quality.create_link(promotion.promotion_id, "run-candidate", now=utc("2026-09-01T00:00:00+00:00"))
@@ -91,7 +91,7 @@ def test_link_hides_expired_online_chain_but_keeps_offline_run(tmp_path):
 
 
 def test_release_validation_is_persisted_and_hydrated(tmp_path):
-    repository = SQLiteQualityRepository(tmp_path / "telemetry.db")
+    repository = SQLiteQualityRepository(tmp_path / "telemetry.db", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     value = ReleaseValidation(
         validation_id="validation-1",
         baseline_run_id="baseline",
@@ -108,14 +108,14 @@ def test_release_validation_is_persisted_and_hydrated(tmp_path):
 
 
 def test_storage_rejects_invalid_validation_id(tmp_path):
-    repository = SQLiteQualityRepository(tmp_path / "telemetry.db")
+    repository = SQLiteQualityRepository(tmp_path / "telemetry.db", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     with pytest.raises(ValueError):
         repository.get_validation("")
 
 
 def test_quality_repository_uses_the_same_file_for_sqlite_uri(tmp_path):
     uri = f"sqlite:///{(tmp_path / 'uri.db').as_posix()}"
-    telemetry = create_telemetry_repository(uri, hash_key="test-key")
+    telemetry = create_telemetry_repository(uri, hash_key="test-key", clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     telemetry.upsert_trace(trace_at("2026-08-29T00:00:00+00:00"))
     quality = SQLiteQualityRepository(uri)
     assert quality.online_rows(now=utc("2026-09-01T00:00:00+00:00"))[0]["trace_id"] == "trace-1"

@@ -164,14 +164,14 @@ def create_telemetry_app(
         except ValueError:
             bad_request()
         try:
-            return JSONResponse({"traces": [trace.as_dict() for trace in repo.list_traces(query, now=datetime.now(timezone.utc))]})
+            return JSONResponse({"traces": [trace.as_dict() for trace in repo.list_traces(query)]})
         except Exception:
             return Response(status_code=500)
 
     @app.get("/api/traces/{trace_id}")
     def get_trace(trace_id: str) -> Response:
         try:
-            trace = repo.get_trace(trace_id, now=datetime.now(timezone.utc))
+            trace = repo.get_trace(trace_id)
         except ValueError:
             bad_request()
         except Exception:
@@ -235,7 +235,7 @@ def create_telemetry_app(
         except ValueError:
             bad_request()
         try:
-            return JSONResponse({"feedback": [record.as_dict() for record in repo.list_feedback(query, now=datetime.now(timezone.utc))]})
+            return JSONResponse({"feedback": [record.as_dict() for record in repo.list_feedback(query)]})
         except Exception:
             return Response(status_code=500)
 
@@ -248,7 +248,7 @@ def create_telemetry_app(
         if not all(isinstance(payload[key], str) for key in payload):
             bad_request()
         try:
-            existing = repo.list_reviews(feedback_id=feedback_id, now=datetime.now(timezone.utc))
+            existing = repo.list_reviews(feedback_id=feedback_id)
             review = repo.upsert_review(
                 feedback_id,
                 payload["reviewer_id"],
@@ -281,7 +281,6 @@ def create_telemetry_app(
                 status=parse_review_status(status) if status else None,
                 limit=parse_int(limit, minimum=1, maximum=100),
                 offset=parse_int(offset, minimum=0),
-                now=datetime.now(timezone.utc),
             )
         except HTTPException:
             raise
@@ -294,7 +293,7 @@ def create_telemetry_app(
     @app.get("/api/reviews/{review_id}")
     def get_review(review_id: str) -> Response:
         try:
-            review = repo.get_review(review_id, now=datetime.now(timezone.utc))
+            review = repo.get_review(review_id)
         except ValueError:
             bad_request()
         except Exception:
@@ -303,7 +302,7 @@ def create_telemetry_app(
             raise HTTPException(status_code=404, detail="review not found")
         payload = review.as_dict()
         try:
-            promotion = repo.get_promotion_for_review(review.review_id, now=datetime.now(timezone.utc))
+            promotion = repo.get_promotion_for_review(review.review_id)
         except Exception:
             return Response(status_code=500)
         if promotion is not None:
@@ -318,10 +317,10 @@ def create_telemetry_app(
         if set(payload) != {"scenario"} or not isinstance(payload["scenario"], Mapping):
             bad_request()
         try:
-            review = repo.get_review(review_id, now=datetime.now(timezone.utc))
+            review = repo.get_review(review_id)
             if review is None:
                 raise HTTPException(status_code=404, detail="review not found")
-            feedback = repo.get_feedback(review.feedback_id, now=datetime.now(timezone.utc))
+            feedback = repo.get_feedback(review.feedback_id)
             if feedback is None:
                 raise HTTPException(status_code=404, detail="feedback not found")
             generated = promote_review(review, feedback, payload["scenario"])
@@ -342,7 +341,7 @@ def create_telemetry_app(
     @app.get("/api/promotions/{promotion_id}")
     def get_promotion(promotion_id: str) -> Response:
         try:
-            promotion = repo.get_promotion(promotion_id, now=datetime.now(timezone.utc))
+            promotion = repo.get_promotion(promotion_id)
         except ValueError:
             bad_request()
         except Exception:
@@ -392,7 +391,7 @@ def create_telemetry_app(
         if not isinstance(source_label, str):
             bad_request()
         try:
-            existing = quality_repo.get_run(payload.get("run_id", ""), now=datetime.now(timezone.utc)) if isinstance(payload.get("run_id"), str) else None
+            existing = quality_repo.get_run(payload.get("run_id", "")) if isinstance(payload.get("run_id"), str) else None
             run = quality_repo.import_run(payload, source_label=source_label)
         except ValueError:
             bad_request()
@@ -417,13 +416,11 @@ def create_telemetry_app(
             existing = quality_repo.list_links(
                 promotion_id=payload["promotion_id"],
                 offline_run_id=payload["offline_run_id"],
-                now=datetime.now(timezone.utc),
             )
             link = quality_repo.create_link(
                 payload["promotion_id"],
                 payload["offline_run_id"],
                 scenario_id=payload.get("scenario_id"),
-                now=datetime.now(timezone.utc),
             )
         except KeyError:
             raise HTTPException(status_code=404, detail="quality link source not found")

@@ -69,8 +69,14 @@ def _validate_compatibility(actual: Mapping[str, int], expected: Mapping[str, in
 
 
 @measured("restore")
-def restore_database(backup: Path, target: Path, expected_versions: Mapping[str, int]) -> RestoreResult:
-    """Verify a backup completely before atomically replacing ``target``."""
+def restore_database(
+    backup: Path,
+    target: Path,
+    expected_versions: Mapping[str, int],
+    *,
+    owner: tuple[int, int] | None = None,
+) -> RestoreResult:
+    """Verify and optionally set POSIX ownership before atomically replacing target."""
     backup = Path(backup)
     target = Path(target)
     if not backup.is_file():
@@ -98,6 +104,8 @@ def restore_database(backup: Path, target: Path, expected_versions: Mapping[str,
         shutil.copyfile(backup, staging)
         if not _integrity_check(staging) or schema_versions(staging) != actual_versions:
             raise RestoreError("backup integrity check failed")
+        if owner is not None:
+            os.chown(staging, *owner)
         os.replace(staging, target)
     finally:
         if staging.exists():

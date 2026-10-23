@@ -205,6 +205,16 @@ def test_backup_integrity_checks_use_immutable_read_only_sqlite_uri():
     assert "file:/backup/${targetName}?mode=ro&immutable=1" in powershell_backup
 
 
+def test_linux_backup_restore_helpers_override_non_root_service_user_only():
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    backup = (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8")
+    restore = (ROOT / "deploy" / "restore.sh").read_text(encoding="utf-8")
+
+    assert 'user: "10001:10001"' in compose
+    assert '--user "0:0"' in backup
+    assert '--user "0:0"' in restore
+
+
 def test_linux_backup_and_restore_scripts_are_available_for_server_migration():
     backup = (ROOT / "deploy" / "backup.sh").read_text(encoding="utf-8")
     restore = (ROOT / "deploy" / "restore.sh").read_text(encoding="utf-8")

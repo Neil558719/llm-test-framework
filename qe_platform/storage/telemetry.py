@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from qe_platform.ops.metrics import PROCESS_METRICS
+from qe_platform.time import Clock, utc_now
 
 import json
 import sqlite3
@@ -8,7 +9,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Protocol
 from urllib.parse import unquote, urlparse
@@ -61,7 +62,7 @@ class TelemetryRepository(Protocol):
 
     def list_traces(self, query: TelemetryQuery, *, now: datetime | None = None) -> list[TelemetryTrace]: ...
 
-    def add_feedback(self, value: FeedbackInput, trace_id: str) -> FeedbackRecord: ...
+    def add_feedback(self, value: FeedbackInput, trace_id: str, *, now: datetime | None = None) -> FeedbackRecord: ...
 
     def list_feedback(self, query: FeedbackQuery, *, now: datetime | None = None) -> list[FeedbackRecord]: ...
 
@@ -74,6 +75,8 @@ class TelemetryRepository(Protocol):
         status: ReviewStatus | str,
         attribution: ReviewAttribution | str,
         priority: ReviewPriority | str,
+        *,
+        now: datetime | None = None,
     ) -> FeedbackReview: ...
 
     def get_review(self, review_id: str, *, now: datetime | None = None) -> FeedbackReview | None: ...
@@ -89,7 +92,7 @@ class TelemetryRepository(Protocol):
         now: datetime | None = None,
     ) -> list[FeedbackReview]: ...
 
-    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None) -> PromotionRecord: ...
+    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None, now: datetime | None = None) -> PromotionRecord: ...
 
     def get_promotion(self, promotion_id: str, *, now: datetime | None = None) -> PromotionRecord | None: ...
 
@@ -205,11 +208,13 @@ class SQLiteTelemetryRepository:
         *,
         retention_days: int = 30,
         hash_key: str = "qe-telemetry-local-default",
+        clock: Clock = utc_now,
     ) -> None:
         if not isinstance(hash_key, str) or not hash_key:
             raise ValueError("hash_key must be nonempty")
         self.retention_days = _positive_retention(retention_days)
         self._hash_key = hash_key
+        self._clock = clock
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(str(database), check_same_thread=False, isolation_level=None)
         with self._lock:
@@ -263,8 +268,11 @@ class SQLiteTelemetryRepository:
             )
         return trace
 
+    def _now(self, now: datetime | None = None) -> datetime:
+        return _utc(self._clock() if now is None else now)
+
     def _cutoff(self, now: datetime | None) -> str:
-        current = datetime.now(timezone.utc) if now is None else _utc(now)
+        current = self._now(now)
         return _timestamp(current - timedelta(days=self.retention_days))
 
     def get_trace(self, trace_id: str, *, now: datetime | None = None) -> TelemetryTrace | None:
@@ -308,7 +316,7 @@ class SQLiteTelemetryRepository:
             rows = self._connection.execute(sql, parameters).fetchall()
         return [_hydrate_trace(row[0], row[1]) for row in rows]
 
-    def add_feedback(self, value: FeedbackInput, trace_id: str) -> FeedbackRecord:
+    def add_feedback(self, value: FeedbackInput, trace_id: str, *, now: datetime | None = None) -> FeedbackRecord:
         if not isinstance(value, FeedbackInput):
             raise ValueError("value must be a FeedbackInput")
         if not isinstance(trace_id, str) or not trace_id:
@@ -320,7 +328,7 @@ class SQLiteTelemetryRepository:
             ).fetchone()
             if exists is None:
                 raise KeyError("trace not found")
-            record = FeedbackRecord.from_input(uuid.uuid4().hex, trace_id, value, self._hash_key)
+            record = FeedbackRecord.from_input(uuid.uuid4().hex, trace_id, value, self._hash_key, created_at=self._now(now))
             payload = record.as_dict()
             self._connection.execute(
                 """
@@ -404,9 +412,12 @@ class SQLiteTelemetryRepository:
         status: ReviewStatus | str,
         attribution: ReviewAttribution | str,
         priority: ReviewPriority | str,
+        *,
+        now: datetime | None = None,
     ) -> FeedbackReview:
         if not isinstance(feedback_id, str) or not feedback_id:
             raise ValueError("feedback_id must be nonempty")
+        now = self._now(now)
         with self._transaction():
             source = self._connection.execute(
                 "SELECT feedback_id, trace_id FROM telemetry_feedback WHERE feedback_id = ?",
@@ -421,7 +432,7 @@ class SQLiteTelemetryRepository:
                 JOIN telemetry_traces AS trace ON trace.trace_id = feedback.trace_id
                 WHERE feedback.feedback_id = ? AND trace.timestamp > ?
                 """,
-                (feedback_id, self._cutoff(None)),
+                (feedback_id, self._cutoff(now)),
             ).fetchone()
             if source is None:
                 raise KeyError("feedback not found")
@@ -430,7 +441,7 @@ class SQLiteTelemetryRepository:
                 (feedback_id,),
             ).fetchone()
             review_id = existing[0] if existing is not None else uuid.uuid4().hex
-            created_at = _parse_timestamp(existing[1]) if existing is not None else datetime.now(timezone.utc)
+            created_at = _parse_timestamp(existing[1]) if existing is not None else self._now(now)
             review = FeedbackReview.from_input(
                 review_id,
                 source[0],
@@ -442,7 +453,7 @@ class SQLiteTelemetryRepository:
                 self._hash_key,
                 created_at=created_at,
             )
-            updated_at = datetime.now(timezone.utc)
+            updated_at = self._now(now)
             self._connection.execute(
                 """
                 INSERT INTO telemetry_reviews(
@@ -543,14 +554,17 @@ class SQLiteTelemetryRepository:
             ).fetchall()
         return [_hydrate_review(row) for row in rows]
 
-    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None) -> PromotionRecord:
+    def create_promotion(self, review_id: str, scenario_id: str, scenario_yaml: str, *, promotion_id: str | None = None, now: datetime | None = None) -> PromotionRecord:
         if not isinstance(review_id, str) or not review_id:
             raise ValueError("review_id must be nonempty")
         if not isinstance(scenario_id, str) or not scenario_id:
             raise ValueError("scenario_id must be nonempty")
         if not isinstance(scenario_yaml, str) or not scenario_yaml:
             raise ValueError("scenario_yaml must be nonempty")
+        now = self._now(now)
         with self._transaction():
+            if self.get_review(review_id, now=now) is None:
+                raise KeyError("review not found")
             existing = self._connection.execute(
                 """
                 SELECT promotion_id, review_id, feedback_id, trace_id,
@@ -592,7 +606,7 @@ class SQLiteTelemetryRepository:
                 source[2],
                 scenario_id,
                 scenario_yaml,
-                datetime.now(timezone.utc),
+                self._now(now),
             )
             payload = record.as_dict()
             self._connection.execute(
@@ -705,12 +719,13 @@ def create_telemetry_repository(
     *,
     retention_days: int = 30,
     hash_key: str = "qe-telemetry-local-default",
+    clock: Clock = utc_now,
 ) -> TelemetryRepository:
     _positive_retention(retention_days)
     if isinstance(database, str) and urlparse(database).scheme in {"postgres", "postgresql"}:
         raise NotImplementedError("PostgreSQL telemetry storage is not enabled")
     return SQLiteTelemetryRepository(
-        _sqlite_path(database), retention_days=retention_days, hash_key=hash_key
+        _sqlite_path(database), retention_days=retention_days, hash_key=hash_key, clock=clock
     )
 
 
