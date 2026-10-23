@@ -169,6 +169,8 @@ def test_html_preserves_empty_evaluation_reason_and_correct_score_label():
     assert 'Judge 均分' in rendered
     assert 'deprecated' in rendered
     assert '金标' in rendered
+    assert '聚合为准确率' not in rendered
+    assert '归一化得分（得分/满分），聚合为 Judge 均分' in rendered
 
 
 def test_error_with_partial_claims_renders_without_a_rate():

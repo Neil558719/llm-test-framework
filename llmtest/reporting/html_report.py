@@ -537,7 +537,7 @@ def _render_charts(records: List[TestRecord]) -> str:
     judge = _hbar_svg(judge_rows, scale_max=1.0, fmt=lambda v: f"{v:.0%}")
     charts.append(
         _chart_block(
-            "LLM-as-Judge 分数（按用例）", "归一化得分（得分/满分），聚合为准确率",
+            "LLM-as-Judge 分数（按用例）", "归一化得分（得分/满分），聚合为 Judge 均分",
             judge or '<p class="empty">无 Judge 打分数据。</p>', "",
         )
     )

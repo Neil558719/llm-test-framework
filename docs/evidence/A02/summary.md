@@ -33,7 +33,7 @@ Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)。分支
 | `related-green.log` | 上述三个文件，加 `test_m11_observability/test_response_envelope/test_run_reporting/test_quality_loop_reporting/test_loadtest_reporting.py` | **119 passed, 2 warnings** |
 | `full-offline.log` | `-q -k 'not windows_startup_task_registration_is_idempotent_and_removable and not windows_watcher_survives_failed_refresh_and_retries_next_env_save'`，默认排除 UI | **658 passed, 7 deselected, 2 warnings**，30.34 秒 |
 
-共 **5 次 pytest 调用**，全量只执行一次。最终 A02 文件有 95 个参数化实例，相关集回归另含 24 项现有用例。RED 是分批运行，不声称每项新测试都逐条先红：首批两个合法行为守卫原本通过，补充批次六项已实现路径也直接通过。部分旧路径抛 AttributeError 而非受控 ValueError，同样不满足输出错误契约。补充 RED 的完整日志先落盘，随后控制台 GBK 编码打印失败；已读取原始日志核实真实 pytest 结果并修复运行器 stdout 编码，未覆盖 RED 日志。
+初次交接前共 **5 次 pytest 调用**，全量只执行一次。最终 A02 文件有 95 个参数化实例，相关集回归另含 24 项现有用例。RED 是分批运行，不声称每项新测试都逐条先红：首批两个合法行为守卫原本通过，补充批次六项已实现路径也直接通过。部分旧路径抛 AttributeError 而非受控 ValueError，同样不满足输出错误契约。补充 RED 的完整日志先落盘，随后控制台 GBK 编码打印失败；已读取原始日志核实真实 pytest 结果并修复运行器 stdout 编码，未覆盖 RED 日志。
 
 另执行一次 `python -m compileall -q llmtest tests/test_evaluation_validity.py`，退出 0；`git diff --check` 通过。自审生产 diff、新测试、状态表和迁移说明，确认新增 prompts 仅明确真实语义契约，judge/evaluator 只纠正“准确率”旧文案。`.context/` 已验证被 Git 忽略；原始 RED/GREEN 和全量日志全部保留。
 
@@ -42,3 +42,7 @@ Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)。分支
 ## 用户复现练习（待完成，掌握未评估）
 
 用 10–20 分钟完成：让离线真实客户端替代输出依次返回 `[]`、`{"equivalent":"false","score":0.9}`、`{"score":NaN}`，解释为什么它们分别属于证据不足或输出错误；给合法问候显式声明不适用，证明不会增加幻觉分母；记录 helpfulness 90/100 但没有金标，再记录三项金标真/假/真，对照均分与 2/3 正确率。最后说明本地通过为什么还不足以声称完成发布。
+
+## 独立审查补充：Judge 图表副标题
+
+独立 reviewer 在 `51237ff` 发现 Minor：Judge 图表副标题仍写“聚合为准确率”。主代理授权仅修本文案、加强既有 HTML 契约并窄验证。现在统一为“归一化得分（得分/满分），聚合为 Judge 均分”；测试验证旧误导文案不存在及新标签正确。`review-subtitle-red.log` 对应 `-q tests/test_evaluation_validity.py -k html_preserves_empty`，**1 failed, 94 deselected**；`review-subtitle-green.log` 对应 `-q tests/test_evaluation_validity.py -k 'html or history'`，**2 passed, 93 deselected**。`git diff --check` 通过。累计 **7 次 pytest 调用**；此文案修复没有重跑全量，上方全量结果归属原提交 `51237ff`。其余独立审查结果、CI 与交付仍待主流程。

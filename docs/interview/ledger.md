@@ -10,6 +10,8 @@
 
 **兼容与迁移。** `AppResponse(answer, sources)` 和已有事实计算保持；率值改为可空，旧 accuracy 均分含义 deprecated，改读 `mean_judge_score`，准确率只读显式金标。history schema v2 保留旧记录并在 Judge 列解释旧 accuracy。A03 embedding、A04 权限、A05 YAML 连接未扩展。
 
+**独立审查补充。** Reviewer 发现 Judge 图表副标题遗留“聚合为准确率”，已统一为 Judge 均分，既有 HTML 契约加强后先 `1 failed/94 deselected`，修复后 HTML/历史窄验证 `2 passed/93 deselected`。累计7次pytest，原全量结果归属 `51237ff`，文案修复未重复全量；其余审查和发布仍待主流程。
+
 **练习（待作答，10–20 分钟）。** 离线重现空 claims、字符串 false、NaN 三种输入，解释 inconclusive/error/not_applicable 的区别；证明不适用不增加分母；展示 helpfulness 90% 与三条金标真/假/真得到 2/3 正确率的区别。说清本地、独立审查、CI、合并与发布各自证明什么。
 
 ## A01：固定日期夹具与保留期时钟分离
