@@ -27,3 +27,11 @@
 **面试表达。** “容器服务必须非 root，但迁移 helper 需要向宿主挂载目录写临时 SQLite 文件。我先读完整堆栈确认失败在 helper 写入边界，再用最小的 helper-only 用户覆盖修复，避免把应用改回 root。”
 
 **练习（尚未作答）。** 解释为什么修改 compose 的应用 `user` 是更大风险；指出 backup helper 的写入挂载与 integrity checker 的只读挂载差异；说出 CI 远程复跑通过前为什么只能说“本地修复”。
+
+### 2026-10-23 补充：root helper 产物的交接
+
+首轮 root helper 修复后的远程 run `39448584021` 仍因 host runner 无法读取私有 root-owned 备份失败，artifact 上传也 EACCES。根因是 mkstemp 的私有权限与运行身份跨边界，而非 SQLite 备份内容错误。最终补充修复将备份及 manifest 交还调用脚本的 host UID/GID，从镜像可信 appuser 解析应用 UID/GID，在恢复 staging 校验后、原子替换前设置属主，保持应用非 root 与私有文件模式。
+
+新增3项回归先在旧脚本 `3 failed`；独立审查又发现旧 root-owned 目标与替换后 chown 失败两种边界，补负例初稿 `4 failed, 1 passed, 8 deselected`。最终相关回归 `58 passed, 2 deselected, 2 warnings`；限定复审无剩余阻断项。测试运行真实 SQLite/payload；Windows 仅替代 chown/pwd 边界，真实 Linux 容器演练待验证。完整证据见 `../evidence/A01/container-ownership.md`。当前 SHA CI、合并、Release 与部署仍单独记录。
+
+**取舍与练习（待作答）。** 仅能写成功不等于能完成交付；按 runner→helper→应用三种身份逐一验证文件读取和替换。说明为什么把备份 chmod 成全员可读写会增加风险，以及原子替换为什么可能改变文件属主。用户掌握未评估。

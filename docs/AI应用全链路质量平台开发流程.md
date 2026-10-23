@@ -242,6 +242,7 @@ performance:
 
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
+| A01 / Issue #63 接续（2026-10-23） | PR #62 当前远程容器失败；补充修复已本地验证、独立复审通过 | `9ad1fbd` 的 run `39448584021` 暴露 root-owned 私有备份导致 host 读取/上传失败；交还 backup/manifest 给 host，并从可信 appuser 解析UID/GID在恢复原子替换前设置属主；含旧root-owned目标和权限失败保留原DB负例，最终相关58通过、2 Windows系统集成项排除、2上游警告；见 `docs/evidence/A01/container-ownership.md` | 本行更新先前 A01 行交付状态：PR 已创建；补充修复仍需提交、Push、当前SHA CI、合并后验证、Release与部署跟踪；不得标交付完成 |
 | 0. 基线冻结与兼容性清单 | 已完成 | 2026-08-30：`.venv\\Scripts\\python.exe -m pytest -q` 结果为 `9 passed, 1 skipped`；现有模块和适配器已评估 | 后续变更需持续回归 |
 | 1. 统一领域模型与结果协议 | 已完成 | `llmtest/specs.py` 新增 `ToolCall`、`TokenUsage`、`LatencyMetrics`、`ResponseEnvelope`；`tests/test_response_envelope.py` 定向结果 `3 passed`；2026-08-30 全量结果 `12 passed, 1 skipped` | 进入里程碑 2：创建独立 `reference_agent` 模块 |
 | 2. Agent 骨架、健康检查和 SQLite | 已完成 | 新增 `reference_agent` 的 FastAPI 应用工厂、LangGraph 最小状态图、SQLite 会话存储和 `/api/health`、`/api/chat`；`tests/test_reference_agent_core.py` 定向结果 `3 passed`；2026-08-30 全量结果 `15 passed, 1 skipped` | 进入里程碑 3：实现 Mock 用户、资产、工单、审批、知识库服务 |

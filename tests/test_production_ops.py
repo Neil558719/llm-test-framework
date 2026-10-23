@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from contextlib import closing
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -12,7 +14,7 @@ from qe_platform.ops.restore import RestoreError, restore_database
 
 
 def _database(path, *, version: int = 1) -> None:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute("CREATE TABLE records (value TEXT NOT NULL)")
         connection.execute("INSERT INTO records(value) VALUES ('kept')")
         connection.execute(
@@ -90,6 +92,51 @@ def test_restore_validates_backup_and_replaces_target_atomically(tmp_path):
     assert result.integrity_ok is True
     with sqlite3.connect(target) as connection:
         assert connection.execute("SELECT value FROM records").fetchone()[0] == "kept"
+
+
+def test_restore_sets_requested_owner_before_publishing_database(tmp_path, monkeypatch):
+    source, backup, target = (tmp_path / name for name in ("source.db", "backup.db", "target.db"))
+    _database(source)
+    _database(target)
+    with closing(sqlite3.connect(target)) as connection, connection:
+        connection.execute("UPDATE records SET value = 'old'")
+    backup_database(source, backup)
+    ownership_changes = []
+
+    def change_owner(path, uid, gid):
+        path = Path(path)
+        assert path != target
+        assert path.parent == target.parent
+        with closing(sqlite3.connect(target)) as connection:
+            assert connection.execute("SELECT value FROM records").fetchone() == ("old",)
+        ownership_changes.append((uid, gid))
+
+    monkeypatch.setattr(os, "chown", change_owner, raising=False)
+    restore_database(backup, target, {"reference_agent": 1}, owner=(10001, 10002))
+
+    assert ownership_changes == [(10001, 10002)]
+    with sqlite3.connect(target) as connection:
+        assert connection.execute("SELECT value FROM records").fetchone() == ("kept",)
+
+
+def test_restore_owner_failure_keeps_original_database(tmp_path, monkeypatch):
+    source, backup, target = (tmp_path / name for name in ("source.db", "backup.db", "target.db"))
+    _database(source)
+    _database(target)
+    with closing(sqlite3.connect(target)) as connection, connection:
+        connection.execute("UPDATE records SET value = 'old'")
+    original = target.read_bytes()
+    backup_database(source, backup)
+
+    def denied_owner_change(path, uid, gid):
+        raise PermissionError("simulated chown failure")
+
+    monkeypatch.setattr(os, "chown", denied_owner_change, raising=False)
+    with pytest.raises(PermissionError, match="simulated chown failure"):
+        restore_database(backup, target, {"reference_agent": 1}, owner=(10001, 10002))
+
+    assert target.read_bytes() == original
+    assert not list(tmp_path.glob("*.restore"))
 
 
 def test_restore_reads_backup_through_an_immutable_read_only_connection(tmp_path, monkeypatch):

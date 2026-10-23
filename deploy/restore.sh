@@ -31,6 +31,7 @@ docker compose stop reference-agent
 stopped=1
 
 docker compose run --pull "$pull_policy" --user "0:0" --rm --no-deps -v "$backup_dir:/backup:ro" --entrypoint python reference-agent -c '
+import pwd
 import sqlite3
 import sys
 from pathlib import Path
@@ -38,6 +39,8 @@ from qe_platform.ops import restore_database
 from reference_agent.storage import _MIGRATIONS
 
 backup, target = map(Path, sys.argv[1:])
+# Resolve the trusted image account, including recovery of root-owned targets.
+application = pwd.getpwnam("appuser")
 if target.exists():
     connection = sqlite3.connect(str(target))
     try:
@@ -47,7 +50,7 @@ if target.exists():
     for suffix in ("-wal", "-shm"):
         Path(str(target) + suffix).unlink(missing_ok=True)
 expected = {"reference_agent": max(migration.version for migration in _MIGRATIONS)}
-restore_database(backup, target, expected)
+restore_database(backup, target, expected, owner=(application.pw_uid, application.pw_gid))
 ' "/backup/$backup_name" "$database_path"
 
 docker run --rm -v "$volume:/data:ro" python:3.12-alpine python -c "import sqlite3,sys; result=sqlite3.connect(sys.argv[1]).execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)" "$database_path"

@@ -27,11 +27,17 @@ trap cleanup EXIT INT TERM
 
 # The helper uses SQLite's online backup API, so a healthy service remains available.
 docker compose run --pull "$pull_policy" --user "0:0" --rm --no-deps -v "$output_dir:/backup" --entrypoint python reference-agent -c '
+import os
 import sys
 from pathlib import Path
 from qe_platform.ops import backup_database
-backup_database(Path(sys.argv[1]), Path(sys.argv[2]))
-' "$database_path" "/backup/$target"
+target = Path(sys.argv[2])
+backup_database(Path(sys.argv[1]), target)
+# Keep private file modes while allowing the invoking host user to read them.
+owner = (int(sys.argv[3]), int(sys.argv[4]))
+for path in (target, target.with_suffix(target.suffix + ".manifest.json")):
+    os.chown(path, *owner)
+' "$database_path" "/backup/$target" "$(id -u)" "$(id -g)"
 test -f "$output_dir/$target"
 test -f "$output_dir/$target.manifest.json"
 docker run --rm -v "$output_dir:/backup:ro" python:3.12-alpine python -c "import sqlite3,sys; result=sqlite3.connect('file:/backup/$target?mode=ro&immutable=1', uri=True).execute('PRAGMA integrity_check').fetchone()[0]; sys.exit(0 if result == 'ok' else 1)"
