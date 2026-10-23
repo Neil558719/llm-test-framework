@@ -27,6 +27,14 @@ SOURCE_APP = "app"          # 被测应用的响应延迟（complete）
 SOURCE_FRAMEWORK = "framework"  # 框架自身的评测调用
 
 
+class EmbeddingUnavailableError(RuntimeError):
+    """The provider explicitly does not support the required embedding capability.
+
+    Authentication, configuration and transient transport failures must retain
+    their original error types; they are not capability declarations.
+    """
+
+
 def extract_json(text: str) -> Any:
     """从 LLM 输出中稳健地提取第一个 JSON 对象或数组。"""
     if not text:
@@ -116,19 +124,31 @@ class LLMClient(ABC):
     def embed(self, text: str) -> List[float]:
         """文本向量。"""
         with self._timed(SOURCE_FRAMEWORK):
-            return self._embed(text)
+            if getattr(self, "_embed_available", None) is False:
+                raise EmbeddingUnavailableError(f"{self.provider} embedding capability is unavailable")
+            try:
+                return self._embed(text)
+            except (EmbeddingUnavailableError, NotImplementedError) as exc:
+                self._embed_available = False
+                if isinstance(exc, EmbeddingUnavailableError):
+                    raise
+                raise EmbeddingUnavailableError(f"{self.provider} does not implement embeddings") from exc
+
+    @property
+    def embedding_source(self) -> str:
+        """Metric provenance: deterministic Mock vectors are explicitly mock."""
+        return "mock" if self.is_mock else self.provider
 
     def embedding_available(self) -> bool:
-        """Embedding 接口是否可用（首次调用时探测一次并缓存）。
+        """探测能力；只缓存成功或明确不支持，其他错误保留类型并允许重探。
 
-        网关未开通 embedding 模型（如 OpenAI 兼容网关只有聊天模型）时返回 False，
-        供相似度断言等据此优雅跳过，而不是每次调用都抛错。
+        HTTP 状态码本身不能证明能力缺失，例如404也可能是模型/URL配置错误。
         """
         if not hasattr(self, "_embed_available"):
             try:
-                self._embed("ping")
+                self.embed("ping")
                 self._embed_available = True
-            except Exception:
+            except EmbeddingUnavailableError:
                 self._embed_available = False
         return self._embed_available
 

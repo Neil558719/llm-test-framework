@@ -1,5 +1,21 @@
 # 面试素材账本
 
+## A03：能力不支持与瞬时故障分开，覆盖缺失不能冒充通过
+
+状态：Issue [#68](https://github.com/Neil558719/llm-test-framework/issues/68)，迁移版本 `0.2.0a24.dev2`；分支本地实现与离线验证通过，尚待独立审查/PR/CI/合并/Release/部署。用户掌握未评估，复现练习待完成。
+
+**问题与证据。** 真实Anthropic原本返回确定性伪向量，能力探测吞全部异常永久缓存False，断言再无条件skip。初始RED44失败/2通过；首轮定向53通过；Mock报告来源补RED1失败/3通过/46排除；相关169通过/2警告；根全量一次708通过/7排除/2警告、0skip。5条顶层pytest命令，内含12个受控消费子进程（3种策略×4批），不把它们重复累加为根通过数。原始日志保留，详见 [A03证据](../evidence/A03/summary.md)。
+
+**原理与取舍。** 明确unsupported可负缓存；认证、配置、429/网络等故障保留原异常并允许恢复，HTTP404/501本身也不能证明接口能力缺失。默认required缺能力非零；optional仅探索明确不支持，记录coverage=0与skip原因，不生成伪score。`required=True`强制单项必需，False不能降低默认required。当前无质量manifest接线模型，只提供未来必需评测入口，不扩A05。Anthropic可显式注入真实embedding_client，已知Mock拒绝；Mock指标和HTML仍明确标mock。
+
+**兼容与版本。** AppResponse和A02规则保持；默认行为有意收紧。`EmbeddingUnavailableError`保留原导入路径并从包根公开；dev2三处version结构验证一致，锁依赖未变，不改共享Python。compileall和diff检查通过；metadata动作后未重跑全量。真实SDK/供应商、Linux/3.12/3.14、UI、安装包、CI及发布部署仍待独立验收。
+
+**练习（待作答，10–20分钟）。** 模拟timeout后恢复、明确NotImplemented负缓存与401不skip；解释404配置失败和能力不支持的区别；对照required/optional/optional+required三种退出及覆盖记录；说明为什么Mock余弦1不代表真实embedding质量。
+
+### 主流程依赖验收接续
+
+主代理确认A02已合并 `f7c28b08360e6aa981ea43d677f67cba2065d31c`（与A03 base a764同树），合并后658通过/7排除/2警告；独立dev1安装包14/14场景、三静态资源及隔离A02有效性95通过且无skip。[dev1预发布](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev1) 已完成，回下载wheel SHA256=`0d3096ec94b85b29c5e05a8cbae72fe8ed56715d3911dd6f2a0f235ee5a72d96`、tag指向核对一致，Issue64已关。A01 [dev0](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev0) 已发布并验证回下载hash/tag，Issue61/63/65已关闭。下方A02/A01章节保留历史阶段记录；此处是主流程提供的接续证据，本子代理没有重复执行。真实环境与用户掌握仍未验证。
+
 ## A02：证据不足、质量分与金标准确率分开
 
 状态：Issue [#64](https://github.com/Neil558719/llm-test-framework/issues/64)，本地实现与离线验证通过；独立审查/PR/CI/合并/Release/部署由主流程验收。用户掌握未评估，复现练习待完成。

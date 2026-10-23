@@ -20,11 +20,11 @@
     )
 """
 
-__version__ = "0.2.0a24.dev1"
+__version__ = "0.2.0a24.dev2"
 
 from .assertions.schema import assert_valid_json, assert_json_schema
 from .assertions.semantic import assert_semantic_match, semantic_match
-from .assertions.similarity import assert_similarity, similarity
+from .assertions.similarity import assert_similarity, similarity, EmbeddingUnavailableError
 from .assertions.judge import assert_llm_judge
 from .hallucination.detector import detect_hallucination, assert_hallucination_rate
 from .judge.evaluator import llm_judge, JudgeSpec
@@ -39,6 +39,7 @@ __all__ = [
     "semantic_match",
     "assert_similarity",
     "similarity",
+    "EmbeddingUnavailableError",
     "assert_valid_json",
     "assert_json_schema",
     "assert_llm_judge",
