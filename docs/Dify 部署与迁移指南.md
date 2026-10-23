@@ -249,5 +249,7 @@ Ollama bge-m3             ← ollama pull bge-m3
 - **sources 为空（幻觉检测跳过）**：应用没挂知识库，或索引未完成、检索没命中。
 - **Dify 知识库索引失败**：embedding 模型没配好（回看第 2.2 节，Ollama 地址必须是
   `host.docker.internal`）。
-- **裁判侧相似度跳过**：框架级能力——网关无 embedding 时 `assert_similarity` 自动跳过，
-  不影响其它断言。
+- **裁判侧相似度缺能力**：`assert_similarity` 默认 required，明确缺能力抛错阻断；仅显式
+  `--embedding-policy optional` 探索允许明确不支持时 skip，并记录 `embedding_coverage=0` 和原因，
+  `required=True` 强制项仍必需。认证、配置、429/超时/断连等错误不skip、不负缓存为不支持。
+  真实Anthropic须显式注入真实 `embedding_client` 且拒绝已知Mock；伪向量仅Mock使用并明确标mock。

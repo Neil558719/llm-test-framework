@@ -53,3 +53,7 @@ A03尚未验证：真实SDK/模型/embedding provider、实际HTTP错误体与�
 ## 用户复现练习（待完成，掌握未评估）
 
 10–20分钟离线完成：用一次TimeoutError后恢复向量的替身证明能力可重探；再返回明确NotImplementedError观察负缓存；列出404为什么可能是配置错误；对照默认required、optional、optional+required=True三种pytest退出码及HTML coverage；解释为何Mock cosine=1不能当真实模型质量证据。最后说清本地通过、独立审查、CI与已发布的区别。
+
+## 独立审查文档补充
+
+Reviewer发现README、使用手册、术语手册及Dify部署迁移指南仍指引自动skip或真实Anthropic回退伪向量。已统一为required默认阻断、optional仅明确unsupported可skip且记录coverage、真实Anthropic需显式真实embedding_client并拒Mock，以及认证/配置/瞬时错误不skip不负缓存；保留清楚标注仅Mock的伪向量教学。相邻术语对照表同步移除已失效的真实语义判定回退说明。仅文档迁移、`git diff --check`验证，没有源码/依赖/provider/YAML/manifest改动，也没有新增pytest或全量；本地验证计数保持。
