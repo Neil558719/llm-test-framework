@@ -1,12 +1,11 @@
 """AnthropicClient —— 调用 Claude 系列模型。
 
-注意：Anthropic 没有原生 Embedding 接口，`embed()` 回退为确定性伪向量
-（近似 token 覆盖），并在首次使用时打印警告；语义/Judge/幻觉判定走 LLM，不受影响。
+Anthropic 没有原生 Embedding 接口；需要显式注入真实 embedding_client。
+未注入时报告能力不可用；语义/Judge/幻觉判定仍走 Anthropic LLM。
 """
 
 from __future__ import annotations
 
-import sys
 from typing import Any, Dict, List, Optional
 
 from ..specs import (
@@ -15,9 +14,8 @@ from ..specs import (
     JudgeSpec,
     SemanticResult,
 )
-from ..utils import deterministic_embedding
 from ..evaluation import parse_semantic, parse_judge, parse_claims, parse_verdict
-from .base import LLMClient
+from .base import LLMClient, EmbeddingUnavailableError
 from . import prompts
 
 DEFAULT_MODEL = "claude-sonnet-5"
@@ -27,10 +25,14 @@ class AnthropicClient(LLMClient):
     provider = "anthropic"
     name = "anthropic"
 
-    def __init__(self, config):
+    def __init__(self, config, *, embedding_client: Optional[LLMClient] = None):
         super().__init__(config)
+        if embedding_client is not None and (
+            embedding_client.is_mock or embedding_client.provider == "mock"
+        ):
+            raise ValueError("A real Anthropic client requires a real embedding client, not Mock")
         self._client: Any = None
-        self._embed_warned = False
+        self._embedding_client = embedding_client
 
     # ------------------------------------------------------------------
 
@@ -85,18 +87,15 @@ class AnthropicClient(LLMClient):
         return "".join(parts)
 
     def _embed(self, text: str) -> List[float]:
-        if not self._embed_warned:
-            print(
-                "警告: Anthropic 无原生 Embedding 接口，相似度计算回退为确定性伪向量"
-                "（基于关键词覆盖，仅供近似）。需要精确向量请改用 OpenAI 兼容提供商。",
-                file=sys.stderr,
+        if self._embedding_client is None:
+            raise EmbeddingUnavailableError(
+                "Anthropic has no native embedding API; configure an explicit real embedding client"
             )
-            self._embed_warned = True
-        return deterministic_embedding(text)
+        return self._embedding_client.embed(text)
 
-    def embedding_available(self) -> bool:
-        # Anthropic 无原生 embedding，但始终回退确定性伪向量，视为可用（避免探测触发警告）
-        return True
+    @property
+    def embedding_source(self) -> str:
+        return self._embedding_client.embedding_source if self._embedding_client is not None else self.provider
 
     def _semantic_equivalent(
         self, actual: str, expected: str, context: Optional[str] = None

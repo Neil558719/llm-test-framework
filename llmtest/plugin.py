@@ -51,6 +51,13 @@ def pytest_addoption(parser):
         help="裁判模型 API key。可用 LLM_API_KEY（推荐，避免泄漏进命令历史）。",
     )
     group.addoption(
+        "--embedding-policy",
+        action="store",
+        default=None,
+        choices=["required", "optional"],
+        help="Embedding policy: required (default), optional (exploration only). LLM_EMBEDDING_POLICY.",
+    )
+    group.addoption(
         "--report",
         action="store",
         default=None,
@@ -165,6 +172,7 @@ def pytest_sessionfinish(session, exitstatus):
         "被测对象": describe_app_under_test(session.config.option),
         "裁判": cfg.describe(),
         "裁判模型": cfg.model or "默认",
+        "Embedding 策略": cfg.embedding_policy,
         "报告路径": report_path,
     }
     summary = tracker.summarize(env)
