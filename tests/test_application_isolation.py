@@ -3,6 +3,7 @@
 from datetime import timedelta
 from dataclasses import replace
 import json
+import sqlite3
 
 import pytest
 from fastapi import HTTPException
@@ -348,3 +349,64 @@ def test_server_scope_proof_is_persisted_verified_and_cannot_be_supplied_by_requ
         unknown = isolation["quality"].save_validation(replace(stored, validation_id=f"unknown-{version}",
             scope_policy_version=version, scope_application=application))
         assert api.get(f"/api/quality/release-validations/{unknown.validation_id}").status_code == 404
+
+
+@pytest.mark.parametrize("operation", ["get", "post"])
+@pytest.mark.parametrize("damage", ["string", "boolean", "object", "array", "unknown-field", "missing-checks", "invalid-json"])
+def test_persisted_malformed_validation_is_hidden(isolation, operation, damage):
+    original = isolation["objects"]["app-a"]
+    payload = {**original, "validation_id": "malformed-proof"}
+    versions = {"string": "1", "boolean": True, "object": {}, "array": []}
+    if damage in versions:
+        payload["scope_policy_version"] = versions[damage]
+    elif damage == "unknown-field":
+        payload["unknown_schema_field"] = 1
+    elif damage == "missing-checks":
+        del payload["checks"]
+    serialized = "{" if damage == "invalid-json" else json.dumps(payload)
+    # Insert a distinct persisted artifact: model construction correctly rejects these values.
+    with sqlite3.connect(isolation["settings"].database) as connection:
+        connection.execute(
+            "INSERT INTO quality_release_validations (validation_id, baseline_run_id, candidate_run_id, created_at, payload) VALUES (?, ?, ?, ?, ?)",
+            ("malformed-proof", original["baseline_run_id"], original["candidate_run_id"], original["created_at"], serialized),
+        )
+    if damage in versions:
+        assert isolation["dev"].get("/api/quality/release-validations/malformed-proof").status_code == 400
+    authenticated = isolation["client"]()
+    api = TestClient(authenticated.app, raise_server_exceptions=False)
+    api.cookies.update(authenticated.cookies)
+    if operation == "get":
+        response = api.get("/api/quality/release-validations/malformed-proof")
+    else:
+        response = api.post("/api/quality/release-validations", headers=isolation["csrf"], json={
+            "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate",
+            "validation_id": "malformed-proof", "max_low_quality_rate_increase": 1.0,
+        })
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("version", ["1", True, {}, []])
+def test_request_malformed_scope_proof_remains_bad_request(isolation, version):
+    response = isolation["client"]().post("/api/quality/release-validations", headers=isolation["csrf"], json={
+        "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate",
+        "scope_application": "app-a", "scope_policy_version": version,
+    })
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize("operation", ["get", "post"])
+def test_validation_programming_error_is_not_hidden_as_missing(isolation, monkeypatch, operation):
+    def fail(_identifier):
+        raise RuntimeError("unexpected programming error")
+
+    monkeypatch.setattr(isolation["quality"], "get_validation", fail)
+    authenticated = isolation["client"]()
+    api = TestClient(authenticated.app, raise_server_exceptions=False)
+    api.cookies.update(authenticated.cookies)
+    if operation == "get":
+        response = api.get("/api/quality/release-validations/existing")
+    else:
+        response = api.post("/api/quality/release-validations", headers=isolation["csrf"], json={
+            "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate", "validation_id": "existing",
+        })
+    assert response.status_code == 500

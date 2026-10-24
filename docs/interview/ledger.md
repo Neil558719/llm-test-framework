@@ -92,7 +92,9 @@ A01 PR #62 已合并为 `3bfc43a`，当前代码树与 CI 全绿的 `4d8ff42` �
 
 进一步发现：旧发布快照的计数可能已混入跨app数据，当前links不证明历史。选择新gate完成单app计算后由server持久化scope_application/version，HTTP不能自证；旧无证明生产404，dev保留，不能重算旧快照冒充旧结果。两可选JSON字段None不输出，无表迁移；回退旧严格读取器要配套快照，不能删标记或关闭鉴权。没有扩A06完整性方案。
 
-证据：初始RED30失败/1通过；畸形app/过期ID RED5失败；历史scope RED3失败。最终相关228通过，根默认非UI唯一全量890通过/7排除/2上游警告、0skip。9顶层pytest含一次错误路径no tests ran，另继承3消费者子pytest，合计12进程；探索预期skip不当根覆盖成功。66项新测试分批验证，其余27守卫未逐项先红。无真实IdP/provider/模型/Docker/UI、部署或收益百分比。
+证据：初始RED30失败/1通过；畸形app/过期ID RED5失败；历史scope RED3失败。审查前相关228通过，根默认非UI唯一全量890通过/7排除/2上游警告、0skip，归属 `e00c361`。原9顶层pytest含一次错误路径no tests ran，另继承3消费者子pytest；本轮审查修复新增2次，累计11顶层/14进程。探索预期skip不当根覆盖成功。原66项新测试分批验证，其余27守卫未逐项先红。无真实IdP/provider/模型/Docker/UI、部署或收益百分比。
+
+独立审查Minor：持久化proof类型错误在hydration阶段先失败，GET原400、POST复用ID原500，未满足保守404契约。14个真实持久化GET/POST负例先红，6个HTTP自报400/程序异常500守卫原本通过；修复仅在两处持久化读取捕获ValueError/TypeError/KeyError，生产404，development及意外RuntimeError原行为保留，storage/models未动。新增20项后隔离测试86项，相关248通过/2上游警告，详见证据中的准确命令及review-proof日志。没有重复全量，890通过不冒充修复后全量；独立复审、合并树全量和后续交付由主流程接续，A05暂停。
 
 10–20分钟练习（待完成）：同角色A/B身份复现200/404，显式外app403、匿名401；admin只给A和给A/B作对比，仍拒绝A promotion→B run。页大小1看offset0/1/2，解释SQL先过滤的重要性；说明actor绑定与app授权、空集合与None、当前关系与历史scope证明的差异。指出从本地通过到发行部署还缺哪些证据。
 

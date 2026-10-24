@@ -31,7 +31,7 @@ Issue [#72](https://github.com/Neil558719/llm-test-framework/issues/72)，分支
 
 解释器为既有 `work/env-a/Scripts/python.exe`（Python3.13）。运行器 `.context/A04b/run_tests.py` 断言llmtest来自该树，清真实配置，仅子进程mock/development默认及PYTHONUTF8=1/UTF8输出；生产fixture显式构造production runtime。每批独立 `.context/A04b/<batch>-temp` 避免全局Temp竞态。固定UTC、临时SQLite、本地会话/测试签名、进程内TestClient，无真实IdP/API/SDK/provider/模型/Docker/UI/外部服务，无共享pip或环境改写。
 
-全部原始命令/输出/退出码在gitignored `.context/A04b/`，共 **9次顶层pytest**：
+全部原始命令/输出/退出码在gitignored `.context/A04b/`，审查前 **9次顶层pytest**，本轮审查修复新增2次，累计 **11次顶层pytest**：
 
 | 日志 | 范围及真实结果 |
 | --- | --- |
@@ -45,11 +45,32 @@ Issue [#72](https://github.com/Neil558719/llm-test-framework/issues/72)，分支
 | snapshot-related-green.log | 最终66项+A04a/auth/生产契约/quality模型API引擎存储报告CLI闭环：**228 passed、2 warnings** |
 | full-offline.log | 根默认非UI唯一全量：**890 passed、7 deselected、2 warnings、0 skipped，60.87秒** |
 
-根全量包含最终代码/测试。根回归继承A03的3个消费者子pytest（required失败、optional探索预期1skip、显式required失败，外层均成功断言），所以共 **12个pytest进程**。消费者禁止_get_client实际SDK，配置名real不代表provider调用；其探索skip不计入根0skip，不当覆盖成功。7排除=5UI+2Windows计划任务/持久watcher系统集成，两个warning来自Starlette/AnyIO与LangGraph。没有rerun挑绿。
+根全量归属审查前提交 `e00c361c5b02685667bc6567b6a5446cd375b66c`，不代表下方审查修复后的树已全量验证。根回归继承A03的3个消费者子pytest（required失败、optional探索预期1skip、显式required失败，外层均成功断言），审查前共12个pytest进程，连同本轮2次累计 **14个pytest进程**。消费者禁止_get_client实际SDK，配置名real不代表provider调用；其探索skip不计入根0skip，不当覆盖成功。7排除=5UI+2Windows计划任务/持久watcher系统集成，两个warning来自Starlette/AnyIO与LangGraph。没有rerun挑绿。
 
 初始31项跑过旧RED，另5边界和3快照分批先红，其余27守卫直接验证，不宣称66项逐项先红。合法生产fixture显式配置映射/机器范围，并新建Trace/run归属一致的样本；初始合法快照由真实scoped gate新建，旧无marker/cross样本单列负例，不改旧业务记录掩盖失败。A04a认证/角色/CSRF/actor伪造400负例保留。
 
 `static-checks.log` 确认12个变更Python文件compileall通过，AST/TOML三处版本仍dev3、pyproject/uv.lock及依赖未改、`.context`已忽略、全部业务GET/POST路由清单和git diff --check通过。最终提交状态见交接记录。主整合后统一dev4。真实OIDC/HTTPS、Linux/其他Python、UI、当前SHA CI、安装/部署待对应条件，本地通过不代表交付完成。
+
+## 独立审查 Minor：持久化 proof hydration 的保守拒绝
+
+畸形持久化 `scope_policy_version`（`"1"`、`true`、`{}`、`[]`）会在模型 hydration 阶段失败，早于 scope 校验。旧 GET 返回400；POST复用已有 validation_id 的读取在原 try 外，返回500。仅在这两次 `get_validation` 调用范围捕获预期 `ValueError`（含JSON解析）、`TypeError`（未知schema字段）、`KeyError`（缺schema字段），生产统一404。HTTP自报proof仍400，合法未知版本999和旧缺proof仍404；development原ValueError400及其他解析错误500保留。RuntimeError仍500，不把程序异常当作不存在；storage/models和其他存储逻辑未改。
+
+负例向临时SQLite插入独立畸形记录，不替换合法 fixture 或改写旧业务快照。新增20项：4种proof类型、未知字段、缺checks、坏JSON各GET/POST共14项在旧行为真实失败；4项HTTP自报400和2项程序异常500原本通过。修复后应用隔离测试共86项，包含development畸形proof仍400守卫。
+
+准确命令（在本工作树，用既有解释器 `C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.exe`；运行器清配置/断言源码/固定mock，展开后的pytest完整命令也在各日志首行）：
+
+```powershell
+& 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.exe' -X utf8 .context/A04b/run_tests.py review-proof-red -q tests/test_application_isolation.py -k 'persisted_malformed_validation or request_malformed_scope_proof or validation_programming_error'
+& 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.exe' -X utf8 .context/A04b/run_tests.py review-proof-related-green -q tests/test_application_isolation.py tests/test_telemetry_access.py tests/test_auth_api.py tests/test_production_hardening_contract.py tests/test_quality_loop_models.py tests/test_quality_loop_api.py tests/test_quality_loop_engine.py tests/test_quality_loop_storage.py tests/test_quality_loop_reporting.py tests/test_quality_loop_cli.py tests/test_quality_loop_contract.py
+```
+
+| 日志 | 本轮结果 |
+| --- | --- |
+| review-proof-red.log | **14 failed、6 passed、66 deselected、2 warnings**；GET实际400/500，POST实际500 |
+| review-proof-related-green.log | **248 passed、2 warnings，48.54秒**；上述20项及既有相关回归，无skip |
+| review-proof-static.log | 两个改动Python文件compileall、diff检查通过；storage/models、三处版本与依赖保持不变 |
+
+本轮仅上述2次pytest；没有重跑全量、push、外部调用或A05实现。独立复审仍由主流程接续，主在合并树执行唯一全量；当前修复SHA的CI、发行/安装、部署和真实环境验收均未完成。用户掌握仍未评估。
 
 ## 用户复现（10–20分钟，待完成/掌握未评估）
 

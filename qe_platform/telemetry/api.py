@@ -587,7 +587,10 @@ def create_telemetry_app(
                     bad_request()
             validation_id = payload.get("validation_id")
             if isinstance(validation_id, str) and validation_id:
-                existing_validation = quality_repo.get_validation(validation_id)
+                try:
+                    existing_validation = quality_repo.get_validation(validation_id)
+                except (ValueError, TypeError, KeyError):
+                    raise HTTPException(status_code=404, detail="not found") from None
                 if existing_validation is not None:
                     validation_scope(existing_validation, apps)
             apps = frozenset({candidate.application})
@@ -623,8 +626,12 @@ def create_telemetry_app(
         apps = read_scope(request)
         try:
             value = quality_repo.get_validation(validation_id)
-        except ValueError:
-            bad_request()
+        except (ValueError, TypeError, KeyError) as error:
+            if apps is not None:
+                raise HTTPException(status_code=404, detail="not found") from None
+            if isinstance(error, ValueError):
+                bad_request()
+            return Response(status_code=500)
         except Exception:
             return Response(status_code=500)
         if value is None:
