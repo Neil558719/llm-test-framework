@@ -118,6 +118,12 @@ def write_html(report: RunReport, path: str | Path) -> Path:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     rows = []
+    def escaped(value):
+        return html.escape(str(value))
+
+    def json_value(value):
+        return html.escape(json.dumps(value, ensure_ascii=False, sort_keys=True))
+
     for scenario in report.scenarios:
         status = "PASSED" if scenario["passed"] else "FAILED"
         failures = "<br>".join(html.escape(item.get("message", "")) for item in scenario["failed_assertions"]) or "-"
@@ -125,7 +131,23 @@ def write_html(report: RunReport, path: str | Path) -> Path:
         model = (scenario.get("model_versions") or [{}])[0].get("model", "-")
         usage = scenario.get("usage") or {}
         cost = scenario.get("cost") or {}
-        rows.append(f"<tr><td>{html.escape(scenario['scenario_id'])}</td><td>{status}</td><td>{tools}</td><td>{html.escape(model)}</td><td>{usage.get('total_tokens', '-')}</td><td>{cost.get('total', '-')}</td><td>{failures}</td></tr>")
+        differences = "".join(
+            f"<li>{escaped(item.get('assertion_type', ''))} {escaped(item.get('path', ''))}: "
+            f"expected <code>{json_value(item.get('expected'))}</code>; actual <code>{json_value(item.get('actual'))}</code></li>"
+            for item in scenario["failed_assertions"]
+        )
+        quality = "".join(
+            f"<li>{escaped(check['metric'])}{' (Judge rubric; not gold accuracy)' if check['metric'] == 'accuracy' else ''}: "
+            f"{escaped(check['status'])}; required={escaped(check.get('required', True))}; "
+            f"score={escaped(check.get('score'))}; threshold={escaped(check.get('threshold'))}; "
+            f"reason={escaped(check.get('reason', ''))}; {escaped(check.get('message', ''))}; "
+            f"provider={escaped(check.get('provider', ''))}; model={escaped(check.get('model', ''))}; "
+            f"evaluator version={escaped(check.get('version', ''))}</li>"
+            for check in scenario.get("quality_checks", [])
+        )
+        traces = ", ".join(escaped(step["response"].get("trace_id", "")) for step in scenario["steps"] if step.get("response")) or "-"
+        details = f"<details><summary>Evidence</summary><p>Trace: {traces}</p><p>Complete: {escaped(scenario['complete'])}</p><ul>{differences}</ul><p>Quality</p><ul>{quality}</ul></details>"
+        rows.append(f"<tr><td>{html.escape(scenario['scenario_id'])}</td><td>{status}</td><td>{tools}</td><td>{html.escape(model)}</td><td>{escaped(usage.get('total_tokens', '-'))}</td><td>{escaped(cost.get('total', '-'))}</td><td>{failures}{details}</td></tr>")
     body = "".join(rows)
     document = f"<!doctype html><html><head><meta charset='utf-8'><title>V1 Run Report</title><style>body{{font:15px system-ui;margin:2rem}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:.5rem;text-align:left}}.ok{{color:green}}.bad{{color:#b00}}</style></head><body><h1>V1 API E2E Run Report</h1><p>Run: <code>{html.escape(report.run_id)}</code></p><p>Total: {report.total} | Passed: <span class='ok'>{report.passed}</span> | Failed: <span class='bad'>{report.failed}</span> | Gate: {str(report.gate_passed).lower()}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Tool calls</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Failed assertions</th></tr></thead><tbody>{body}</tbody></table></body></html>"
     target.write_text(document, encoding="utf-8")

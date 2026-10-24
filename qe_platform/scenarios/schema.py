@@ -4,9 +4,16 @@ SCENARIO_SCHEMA = {
         "id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1},
         "tags": {"type": "array", "items": {"type": "string"}},
         "setup": {"$ref": "#/$defs/setup"}, "conversation": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/step"}},
-        "expect": {"$ref": "#/$defs/expect"}, "quality": {"type": "object"},
+        "expect": {"$ref": "#/$defs/expect"}, "quality": {"$ref": "#/$defs/quality"},
     },
     "$defs": {
+        "quality": {"type": "object", "additionalProperties": False, "properties": {
+            **{name: {"$ref": "#/$defs/quality_score"} for name in ("accuracy", "relevance", "faithfulness", "helpfulness")},
+            "hallucination": {"type": "object", "required": ["max_rate"], "additionalProperties": False,
+                              "properties": {"max_rate": {"type": "number", "minimum": 0, "maximum": 1}}},
+        }},
+        "quality_score": {"type": "object", "required": ["min_score"], "additionalProperties": False,
+                          "properties": {"min_score": {"type": "number", "minimum": 0, "maximum": 1}}},
         "setup": {"type": "object", "additionalProperties": False, "properties": {"user_id": {"type": "string"}, "session_id": {"type": ["string", "null"]}, "users": {"type": "array", "items": {"$ref": "#/$defs/user"}}, "assets": {"type": "array", "items": {"$ref": "#/$defs/asset"}}, "knowledge": {"type": "array", "items": {"$ref": "#/$defs/knowledge"}}, "failures": {"type": "object", "additionalProperties": False, "properties": {name: {"$ref": "#/$defs/failure"} for name in ("user", "asset", "ticket", "approval", "knowledge")}}}},
         "user": {"type": "object", "required": ["user_id"], "additionalProperties": False, "properties": {"user_id": {"type": "string"}, "name": {"type": "string"}}},
         "asset": {"type": "object", "required": ["asset_id", "owner_id"], "additionalProperties": False, "properties": {"asset_id": {"type": "string"}, "owner_id": {"type": "string"}, "status": {"type": "string"}}},

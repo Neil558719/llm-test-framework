@@ -1,5 +1,19 @@
 # 面试素材账本
 
+## A05：执行完成、质量通过与证据来源（Issue #73）
+
+base `2356b1e`（已复审A04b接续、dev4），A05最终冻结源 `be21c8d` 经有限复审无剩余项、唯一根全量1024通过/7排除/2上游警告、0skip，主流程交付待接续。主已合并A04b为 `55b22550`，PR74同head34项检查、全量910、wheel202鉴权隔离/14场景/3资源通过；dev4已发布并核验回下载hash/tag/三附件，Issue72关闭。本任务未重复A04b验证，真实IdP/HTTPS/持久部署未验收。见[A05证据](../evidence/A05/summary.md)和[场景质量指南](../场景质量评测指南.md)。用户练习待完成、掌握未评估。
+
+问题：YAML任意quality只是未执行占位，场景passed忽略质量；已有run gate检查complete，不能说旧整轮门禁一直放行。严格五指标声明全部required；无显式Judge继续not_executed并阻断，有合法失败是执行完整但不通过；error/inconclusive/not_executed不完整。只评最终实际回答/问题/sources，执行中断不能借前轮响应证明质量；缺grounding由平台阻断相关检查，callback不能改声明集/required/threshold。
+
+初稿证据：纠正测试错误后初始57真实RED；补12边界真实RED，非法测量先于tracker拒绝，JSON明确rubric。新87项中另18守卫未逐条先红；7条顶层pytest保留两次测试夹具错误与一次117通过/2旧契约失败，不伪装成功。初稿相关21文件310通过，当时无全量记录；无真实模型/SDK/IdP/Docker/环境改写。旧位置字段/AppResponse保持，底层Judge仍1..100、DSL0..1；accuracy是rubric而非gold，A02 mean_judge_score和金标分母保留。Mock来源明确，仅离线接线，不代表真实效果。
+
+审查窄修阶段：0Critical/1Important/1Minor，分别为显式自定义client畸形claims/verdict被误计零幻觉、测量前读取冷默认/陈旧model。UNKNOWN与NaN分别真实负例，26失败/1合法空claims原本通过；仅新wrapper复用A02严格解析并核对ClaimVerdict/claim，本次测量后读取Judge来源，不改内核。新增27后共114项，定向27通过，6文件相关226通过/2警告；当时累计10顶层pytest，没有重复原310或全量，重新冻结待有限复审。合法空claims仍None/inconclusive，不得把缺证据变error或零幻觉通过。两客户端来源测试是本地fakefactory，无SDK/真实调用。
+
+最终检查点：`be21c8d`有限复审关闭两项，无剩余；其冻结源唯一finalroot为1024通过/7排除/2警告、69.91秒、根0skip。累计11顶层pytest，加根继承3个消费者=14进程，optional子进程预期skip不计根覆盖。随后仅docs提交，源码/测试不再变，不重复pytest；Push/CI/合并/独立安装发行部署由主接续，不能把本地全绿称为已发布或真实效果。
+
+10–20分钟练习（待完成）：同一声明比较无Judge、显式Mock、合法failed、缺context、空claims和中断执行；解释80/100映射0.8与hallucination max_rate方向。让callback删指标/改required/返NaN，追到报告error；通过Trace与转义expected/actual找到失败。说明为什么不能把所有用户问题拼成轨迹、为何今天的Mock通过不等于真实模型有效；分清本地、独立审查、CI、wheel、发行和部署各自证据。
+
 ## A03：能力不支持与瞬时故障分开，覆盖缺失不能冒充通过
 
 状态：Issue [#68](https://github.com/Neil558719/llm-test-framework/issues/68)，迁移版本 `0.2.0a24.dev2`；分支本地实现与离线验证通过，尚待独立审查/PR/CI/合并/Release/部署。用户掌握未评估，复现练习待完成。

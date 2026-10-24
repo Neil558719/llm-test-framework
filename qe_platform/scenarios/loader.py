@@ -78,10 +78,14 @@ def _expect(raw: Optional[Dict[str, Any]], source: str, path: str) -> Expectatio
 
 
 def _parse(item: Dict[str, Any], source: str) -> ScenarioSpec:
+    try:
+        quality = QualityExpectation(item.get("quality", {}))
+    except ValueError as exc:
+        _fail(source, "quality", str(exc))
     setup = item.get("setup", {})
     setup_obj = SetupSpec(setup.get("user_id", "test-user"), setup.get("session_id"), setup.get("users", []), setup.get("assets", []), setup.get("knowledge", []), setup.get("failures", {}))
     conversation = [ConversationStep(step["user"], _expect(step.get("expect"), source, "conversation[%d].expect" % index) if step.get("expect") else None) for index, step in enumerate(item["conversation"])]
-    return ScenarioSpec(item["id"], item["name"], conversation, item.get("tags", []), setup_obj, _expect(item.get("expect"), source, "expect"), QualityExpectation(item.get("quality", {})), source)
+    return ScenarioSpec(item["id"], item["name"], conversation, item.get("tags", []), setup_obj, _expect(item.get("expect"), source, "expect"), quality, source)
 
 
 def load_scenario_text(text: str, *, source: str = "<memory>") -> List[ScenarioSpec]:

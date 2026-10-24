@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any, Dict, List, Mapping, Optional
 
 
@@ -70,9 +71,28 @@ class ConversationStep:
         return {"user": self.user, "expect": self.expect.as_dict() if self.expect else None}
 
 
+QUALITY_THRESHOLDS = {"accuracy": "min_score", "relevance": "min_score", "faithfulness": "min_score",
+                      "helpfulness": "min_score", "hallucination": "max_rate"}
+
+
+def validate_quality_metrics(metrics: Any) -> None:
+    if not isinstance(metrics, dict):
+        raise ValueError("quality must be an object")
+    for metric, expectation in metrics.items():
+        key = QUALITY_THRESHOLDS.get(metric)
+        if key is None or not isinstance(expectation, dict) or set(expectation) != {key}:
+            raise ValueError("quality has an unknown metric or threshold field")
+        value = expectation[key]
+        if type(value) not in (int, float) or not 0 <= value <= 1 or not math.isfinite(value):
+            raise ValueError("quality thresholds must be finite numbers in [0, 1]")
+
+
 @dataclass(frozen=True)
 class QualityExpectation:
     metrics: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        validate_quality_metrics(self.metrics)
 
     def as_dict(self) -> Dict[str, Any]:
         return {"metrics": self.metrics}
