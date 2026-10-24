@@ -1,6 +1,6 @@
 # A05：执行 YAML 质量声明与聚合证据
 
-Issue [#73](https://github.com/Neil558719/llm-test-framework/issues/73)，分支 `codex/a05-scenario-quality`，base `2356b1e2d1d80e2266b021e43fb098ce642b5ed4`。保留dev4，不改pyproject/uv.lock/共享环境。根台账由主维护。主流程最新依赖检查点：A04b已无剩余审查项并合并 `55b22550e9beb35693a19f8a50135cb08f7d7f25`，同树全量910通过/7排除/2警告、独立wheel202鉴权隔离+14场景/3静态资源通过，dev4发布中。这些是主流程提供的证据，本任务未重复执行，也不计入A05覆盖。
+Issue [#73](https://github.com/Neil558719/llm-test-framework/issues/73)，分支 `codex/a05-scenario-quality`，base `2356b1e2d1d80e2266b021e43fb098ce642b5ed4`。保留dev4，不改pyproject/uv.lock/共享环境。根台账由主维护。主流程最新依赖检查点：PR74 head2356b1e的34项checks全SUCCESS，A04b无剩余审查项并合并 `55b22550e9beb35693a19f8a50135cb08f7d7f25`，同树全量910通过/7排除/2警告、独立wheel202鉴权隔离+14场景/3静态资源通过。[dev4](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev4) 已发布并回下载hash/tag/三附件验证，wheel SHA256=`1dae6182a3fd8c64059aec759eb4905539da1e9be2e886e06ac672b919cea946`，Issue72已关闭。这些是主流程提供的证据，本任务未重复执行，也不计入A05覆盖；真实IdP/HTTPS/持久部署未验收。
 
 ## 实现边界
 

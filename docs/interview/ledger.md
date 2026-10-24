@@ -2,7 +2,7 @@
 
 ## A05：执行完成、质量通过与证据来源（Issue #73）
 
-base `2356b1e`（已复审A04b接续、dev4），本地相关回归310通过/2上游警告，尚待独立审查后唯一全量及主流程交付。主已合并A04b为 `55b22550`，全量910通过，wheel202鉴权隔离/14场景/3资源通过，dev4发布中；本任务未重复验证。见[A05证据](../evidence/A05/summary.md)和[场景质量指南](../场景质量评测指南.md)。用户练习待完成、掌握未评估。
+base `2356b1e`（已复审A04b接续、dev4），本地相关回归310通过/2上游警告，源码/测试冻结在审查候选 `3345ea5`，尚待独立审查后唯一全量及主流程交付。主已合并A04b为 `55b22550`，PR74同head34项检查、全量910、wheel202鉴权隔离/14场景/3资源通过；dev4已发布并核验回下载hash/tag/三附件，Issue72关闭。本任务未重复验证，真实IdP/HTTPS/持久部署未验收。见[A05证据](../evidence/A05/summary.md)和[场景质量指南](../场景质量评测指南.md)。用户练习待完成、掌握未评估。
 
 问题：YAML任意quality只是未执行占位，场景passed忽略质量；已有run gate检查complete，不能说旧整轮门禁一直放行。严格五指标声明全部required；无显式Judge继续not_executed并阻断，有合法失败是执行完整但不通过；error/inconclusive/not_executed不完整。只评最终实际回答/问题/sources，执行中断不能借前轮响应证明质量；缺grounding由平台阻断相关检查，callback不能改声明集/required/threshold。
 
