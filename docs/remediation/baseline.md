@@ -10,6 +10,8 @@
 
 A05审查接续：初稿源3345ea5/docsf6c42b1发现1Important自定义测量证据边界、1Minor测量前取model。新增27项，26真实RED+1合法空claims兼容通过；仅quality wrapper校验claims/ClaimVerdict/枚举/finite confidence/evidence并读本次测量后的Judge来源，合法[]仍inconclusive/None。定向27、相关6文件226通过/2警告，累计10顶层pytest，现114项；未重复原310/未root，源重新冻结待有限复审，版本依赖与内核不改。当前树不冒称旧310或全量通过。
 
+A05最终接续：冻结源 `be21c8d6b916e3f9b6589db7b1b94df753befdaf` 有限复审无剩余项，随后唯一默认非UI根全量1024通过/7排除/2上游警告、0skip、69.91秒；7排除为5UI+2Windows系统副作用集成。累计11顶层pytest，加3继承消费者=14进程；子进程optional预期skip不冒充根覆盖。结果归属冻结源，之后仅docs提交，无源码/测试更改或重复测试；命令/日志见A05证据。版本仍dev4，主整合统一dev5并负责CI/合并/安装Release/部署，本地检查点不等于交付完成。
+
 - 日期：2026-10-20；源 revision：`cd51114bdd38275c28e5dd527895bcdc65cf904b`。
 - Issue：[A01 #61](https://github.com/Neil558719/llm-test-framework/issues/61)；隔离分支：`codex/a01-clock`。
 - 环境：Windows x64，Python 3.13.15，uv 0.12.9；新建仓库专用虚拟环境，不复用其他仓库安装。

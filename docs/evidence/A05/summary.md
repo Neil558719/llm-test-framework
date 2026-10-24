@@ -14,7 +14,7 @@ helper显式复用llm_judge/detect_hallucination，保留Judge1..100量纲；非
 
 Windows x64/Python3.13既有 `work/env-a/Scripts/python.exe -X utf8`；私有运行器 `.context/A05/run_tests.py` 断言llmtest.__file__属于本树，清LLM_/OPENAI_/ANTHROPIC_/DIFY_/QE_/REFERENCE_AGENT_/OIDC_/AUTH_真实配置，子进程强制mock/development/UTF8。每批新basetemp。本地固定/临时SQLite、TestClient、确定性替身；A02真实客户端解析测试替换model I/O并禁止SDK。零真实Judge/provider/SDK/IdP调用，未Docker/pip/push或创建子代理。没有用全局Temp复用结果。
 
-原始完整命令、stdout/stderr、退出码均保存在gitignored `.context/A05/<batch>.log`。初稿7次，加下方审查修复3次，累计 **10次顶层pytest，未运行全量**，这些批次没有消费者子pytest：
+原始完整命令、stdout/stderr、退出码均保存在gitignored `.context/A05/<batch>.log`。初稿7次、审查修复3次、最终唯一全量1次，累计 **11次顶层pytest**；前10批没有消费者子pytest，最后全量继承A03的3个受控子pytest，共 **14个pytest进程**。
 
 | batch | 退出码与结果 | 解释 |
 | --- | --- | --- |
@@ -61,11 +61,21 @@ $a05Python = 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.ex
 & $a05Python -X utf8 .context/A05/run_tests.py review-related-green -q tests/test_scenario_quality.py tests/test_evaluation_validity.py tests/test_workflow_runner.py tests/test_v1_gate.py tests/test_run_reporting.py tests/test_response_envelope.py --tb=short
 ```
 
-没有重复原21文件310或全量；310仅归属初稿，当前树以226相关为证据。静态核对记录 `review-static-checks.log`，新冻结哈希 `review-source-freeze.json`；旧源哈希保留供审查追溯。等待有限复审，无剩余项后才执行唯一finalroot。
+修复阶段没有重复原21文件310或全量；310仅归属初稿，修后相关226。静态核对记录 `review-static-checks.log`，新冻结哈希 `review-source-freeze.json`；旧源哈希保留供审查追溯。
+
+## 有限复审与唯一 final root
+
+独立有限复审确认 `be21c8d6b916e3f9b6589db7b1b94df753befdaf` / tree `cad29914ef5ada2c64abca413f4539a6ec684ade` 的原Important/Minor均关闭，无剩余Critical/Important/Minor；审查未重跑pytest/full/probe。确认源/测试哈希后，在该冻结源上执行唯一默认非UI全量：
+
+```powershell
+& $a05Python -X utf8 .context/A05/run_tests.py full-offline -q -k 'not windows_startup_task_registration_is_idempotent_and_removable and not windows_watcher_survives_failed_refresh_and_retries_next_env_save' --tb=short
+```
+
+`full-offline.log`：**exit0；1024 passed、7 deselected、2 warnings、0 skipped，69.91秒**。7排除为5UI和2项Windows计划任务/持久watcher系统副作用集成；两警告来自Starlette/AnyIO与LangGraph。根回归继承3种A03消费者（required缺能力失败、optional探索预期1skip、显式required失败，外层均成功断言且禁止SDK）；子进程探索skip不计作根覆盖或根0skip。没有真实Judge/provider/SDK/IdP调用，没有重复finalroot。此后仅docs收口，不变更冻结源/测试，不把最终docs提交说成另跑一次全量。
 
 ## 当前检查点与未完成项
 
-本地相关回归及审查窄修验证完成，源码/测试重新冻结待有限复审；审查收敛后才运行唯一final root。初稿 `& $a05Python -X utf8 .context/A05/static_checks.py` 退出0，12个变更Python文件compileall、git diff --check通过；本轮同脚本加review参数核对两个窄修Python文件。三处版本dev4，llmtest内核/依赖/原场景资产不变，scratch已忽略。当前没有本任务全量通过证据，A04b结果不计作A05覆盖。Push/PR/当前SHA CI、合并及合并树验证、wheel/安装/Release、部署与Issue追踪由主流程接续。本地或显式Mock通过不代表真实质量；真实provider、其他Python/Linux、UI及持久生产部署未验收，用户掌握未评估。
+本地相关/窄修、独立复审、最终冻结源唯一全量通过，分支源码继续冻结。初稿 `& $a05Python -X utf8 .context/A05/static_checks.py` 退出0，12个变更Python文件compileall、git diff --check通过；修复阶段同脚本加review参数核对两个窄修Python文件。三处版本dev4，llmtest内核/依赖/原场景资产不变，scratch已忽略。A04b结果不计作A05覆盖。Push/PR/当前SHA CI、合并及合并树验证、wheel/安装/Release、部署与Issue追踪由主流程接续，尚不满足交付完成条件。主后续统一dev5；本地或显式Mock通过不代表真实质量，真实provider、其他Python/Linux、UI及持久生产部署未验收，用户练习待完成、掌握未评估。
 
 ## 10–20分钟复现练习（待完成）
 
