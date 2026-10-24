@@ -14,7 +14,7 @@ helper显式复用llm_judge/detect_hallucination，保留Judge1..100量纲；非
 
 Windows x64/Python3.13既有 `work/env-a/Scripts/python.exe -X utf8`；私有运行器 `.context/A05/run_tests.py` 断言llmtest.__file__属于本树，清LLM_/OPENAI_/ANTHROPIC_/DIFY_/QE_/REFERENCE_AGENT_/OIDC_/AUTH_真实配置，子进程强制mock/development/UTF8。每批新basetemp。本地固定/临时SQLite、TestClient、确定性替身；A02真实客户端解析测试替换model I/O并禁止SDK。零真实Judge/provider/SDK/IdP调用，未Docker/pip/push或创建子代理。没有用全局Temp复用结果。
 
-原始完整命令、stdout/stderr、退出码均保存在gitignored `.context/A05/<batch>.log`。目前 **7次顶层pytest，未运行全量**，这些批次没有消费者子pytest：
+原始完整命令、stdout/stderr、退出码均保存在gitignored `.context/A05/<batch>.log`。初稿7次，加下方审查修复3次，累计 **10次顶层pytest，未运行全量**，这些批次没有消费者子pytest：
 
 | batch | 退出码与结果 | 解释 |
 | --- | --- | --- |
@@ -41,9 +41,31 @@ $a05Python = 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.ex
 & $a05Python -X utf8 .context/A05/run_tests.py related-green -q tests/test_scenario_quality.py tests/test_scenario_loader.py tests/test_workflow_runner.py tests/test_v1_gate.py tests/test_run_reporting.py tests/test_evaluation_validity.py tests/test_response_envelope.py tests/test_tool_contracts.py tests/test_business_assertions.py tests/test_contract_integration.py tests/test_dify_adapter.py tests/test_dify_adapter_config.py tests/test_dify_gate.py tests/test_m14_dify_assets.py tests/test_quality_loop_models.py tests/test_quality_loop_engine.py tests/test_quality_loop_api.py tests/test_quality_loop_storage.py tests/test_quality_loop_cli.py tests/test_quality_loop_reporting.py tests/test_quality_loop_contract.py --tb=short
 ```
 
+## 独立审查修复：自定义测量证据与本次Judge来源
+
+独立审查源 `3345ea5`、文档接续 `f6c42b1`，结果0 Critical / 1 Important / 1 Minor。Important：wrapper的claims/verdict原本直通自定义client，UNKNOWN枚举或NaN confidence会被底层视为非幻觉而产出0率；Minor：测量前读取model会把冷默认OpenAI/Anthropic报成client名称，也可能复用前次来源。
+
+仅窄改 `workflow_runner/quality.py`：复用A02 `parse_claims`、`parse_verdict`，强制claims为list且每项为非空字符串，合法空list仍no_factual_claims/inconclusive/None；核对ClaimVerdict类型和claim匹配，允许三枚举，confidence严格有限0..1数值非bool，evidence为字符串，非法保留error/None。测量实际返回后读取本次Judge metadata，未完成测量不借前次model。版本仍指llmtest接线版本，未使用SUT元数据；未改llmtest内核/依赖/版本。
+
+新增27项，现114项：21种claims/verdict畸形、2类客户端×2种测量的冷默认/后续模型及失败前旧model共26项真实先红；合法空claims兼容守卫原本通过。UNKNOWN枚举与SUPPORTED+NaNconfidence分别独立负例，未混归因。模型来源测试替换整个_get_client工厂，以本地SimpleNamespace驱动真实客户端格式路径，不导SDK或访问供应商。
+
+| batch | 退出码与结果 |
+| --- | --- |
+| review-red | 1；26 failed、1 passed、87 deselected、2 warnings |
+| review-green | 0；27 passed、87 deselected、2 warnings |
+| review-related-green | 0；226 passed、2 warnings，3.15秒；A05/A02/runner/gate/report/AppResponse共6文件 |
+
+```powershell
+& $a05Python -X utf8 .context/A05/run_tests.py review-red -q tests/test_scenario_quality.py -k 'explicit_client_rejects or explicit_client_legal_empty or evaluator_records_model_after or failed_measurement_does_not' --tb=short
+& $a05Python -X utf8 .context/A05/run_tests.py review-green -q tests/test_scenario_quality.py -k 'explicit_client_rejects or explicit_client_legal_empty or evaluator_records_model_after or failed_measurement_does_not' --tb=short
+& $a05Python -X utf8 .context/A05/run_tests.py review-related-green -q tests/test_scenario_quality.py tests/test_evaluation_validity.py tests/test_workflow_runner.py tests/test_v1_gate.py tests/test_run_reporting.py tests/test_response_envelope.py --tb=short
+```
+
+没有重复原21文件310或全量；310仅归属初稿，当前树以226相关为证据。静态核对记录 `review-static-checks.log`，新冻结哈希 `review-source-freeze.json`；旧源哈希保留供审查追溯。等待有限复审，无剩余项后才执行唯一finalroot。
+
 ## 当前检查点与未完成项
 
-本地相关回归完成，源码/测试已冻结，待独立审查；审查收敛后才运行唯一final root。`& $a05Python -X utf8 .context/A05/static_checks.py` 退出0，12个变更Python文件compileall、git diff --check通过；三处版本dev4，llmtest内核/依赖/原场景资产不变，scratch已忽略。结果在 `static-checks.log`，冻结哈希在 `source-freeze.json`。当前没有本任务全量通过证据，A04b结果不计作A05覆盖。Push/PR/当前SHA CI、合并及合并树验证、wheel/安装/Release、部署与Issue追踪由主流程接续。本地或显式Mock通过不代表真实质量；真实provider、其他Python/Linux、UI及持久生产部署未验收，用户掌握未评估。
+本地相关回归及审查窄修验证完成，源码/测试重新冻结待有限复审；审查收敛后才运行唯一final root。初稿 `& $a05Python -X utf8 .context/A05/static_checks.py` 退出0，12个变更Python文件compileall、git diff --check通过；本轮同脚本加review参数核对两个窄修Python文件。三处版本dev4，llmtest内核/依赖/原场景资产不变，scratch已忽略。当前没有本任务全量通过证据，A04b结果不计作A05覆盖。Push/PR/当前SHA CI、合并及合并树验证、wheel/安装/Release、部署与Issue追踪由主流程接续。本地或显式Mock通过不代表真实质量；真实provider、其他Python/Linux、UI及持久生产部署未验收，用户掌握未评估。
 
 ## 10–20分钟复现练习（待完成）
 

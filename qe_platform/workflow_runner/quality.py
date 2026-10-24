@@ -5,7 +5,8 @@ from dataclasses import replace
 import math
 
 from llmtest import JudgeSpec, ResponseEnvelope, __version__, detect_hallucination, llm_judge
-from llmtest.specs import JudgeResult
+from llmtest.evaluation import parse_claims, parse_verdict
+from llmtest.specs import ClaimVerdict, JudgeResult
 from qe_platform.scenarios.models import QUALITY_THRESHOLDS, QualityExpectation, ScenarioSpec, validate_quality_metrics
 
 from .models import QualityCheckResult
@@ -86,16 +87,32 @@ class _ExplicitClient:
 
     def __init__(self, client):
         self.client = client
+        self.measured = False
 
     def __getattr__(self, name):
         return getattr(self.client, name)
 
+    def _measure(self, method, *args):
+        value = getattr(self.client, method)(*args)
+        self.measured = True
+        return value
+
     def judge(self, answer, spec, context, question):
-        measured = self.client.judge(answer, spec, context, question)
+        measured = self._measure("judge", answer, spec, context, question)
         if (not isinstance(measured, JudgeResult) or not _number(measured.max_score, 1, float("inf"))
                 or measured.max_score != spec.scale or not _number(measured.score, 1, measured.max_score)):
             raise ValueError("invalid_judge_score")
         return measured
+
+    def extract_claims(self, answer):
+        return parse_claims(self._measure("extract_claims", answer))
+
+    def verify_claim(self, claim, context):
+        measured = self._measure("verify_claim", claim, context)
+        if not isinstance(measured, ClaimVerdict) or not isinstance(measured.claim, str) or measured.claim != claim:
+            raise ValueError("invalid_claim_verdict")
+        return parse_verdict({"verdict": measured.verdict, "confidence": measured.confidence,
+                              "evidence": measured.evidence}, claim)
 
 
 def evaluate_scenario_quality(scenario: ScenarioSpec, response: ResponseEnvelope, client=None) -> list[QualityCheckResult]:
@@ -107,13 +124,11 @@ def evaluate_scenario_quality(scenario: ScenarioSpec, response: ResponseEnvelope
     checks = pending_quality(scenario.quality.metrics)
     if client is None:
         return checks
-    explicit = _ExplicitClient(client)
     question = scenario.conversation[-1].user
     context = "\n".join(response.sources or [])
     for check in checks:
+        explicit = _ExplicitClient(client)
         check.provider = "mock" if getattr(client, "is_mock", False) else getattr(client, "provider", "injected")
-        model_version = getattr(client, "last_model_version", None)
-        check.model = getattr(model_version, "model", "") or getattr(client, "name", type(client).__name__)
         check.version = __version__
         if check.metric in ("faithfulness", "hallucination") and not context.strip():
             check.status, check.reason = "inconclusive", "missing_grounding_context"
@@ -136,4 +151,10 @@ def evaluate_scenario_quality(scenario: ScenarioSpec, response: ResponseEnvelope
         except Exception:
             # An injected evaluator is an external boundary; retain a controlled reason only.
             check.status, check.score, check.reason = "error", None, "evaluation_error"
+        finally:
+            if explicit.measured:
+                model_version = getattr(client, "last_model_version", None)
+                check.model = getattr(model_version, "model", "") or getattr(client, "name", type(client).__name__)
+                if not getattr(client, "is_mock", False):
+                    check.provider = getattr(model_version, "provider", "") or check.provider
     return checks

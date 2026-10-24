@@ -1,12 +1,15 @@
 """Declared quality is required evidence, with explicit offline evaluator injection."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
 from llmtest import Config, ResponseEnvelope, ToolCall
 from llmtest.clients.mock_client import MockLLMClient
+from llmtest.clients.openai_client import OpenAIClient
+from llmtest.clients.anthropic_client import AnthropicClient
 from llmtest.metrics.tracker import tracker
 from llmtest.specs import ClaimVerdict, JudgeResult
 from qe_platform.reporting import build_run_report, write_html
@@ -308,3 +311,76 @@ def test_runner_evaluates_once_using_final_executed_question_and_response():
     assert result.passed and result.complete
     assert len(client.calls) == 1
     assert client.calls[0][1] == "final" and client.calls[0][3:] == ("final source", "final question")
+
+
+@pytest.mark.parametrize("claims", ["claim", "", ("claim",), [""], ["  "], [1], [None], [True], [{}]])
+def test_explicit_client_rejects_malformed_extracted_claims(claims):
+    client = RecordingJudge(claims=claims)
+    check = evaluate(scenario({"hallucination": {"max_rate": 0}}), ResponseEnvelope(answer="answer", sources=["context"]), client)[0]
+    assert check.status == "error" and check.score is None
+    assert not any(call[0] == "verify" for call in client.calls)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("verdict", "UNKNOWN"), ("verdict", ["SUPPORTED"]),
+    ("confidence", float("nan")), ("confidence", True), ("confidence", float("inf")),
+    ("confidence", -.1), ("confidence", 1.1), ("confidence", "1"),
+    ("claim", "different claim"), ("claim", 1), ("evidence", None), ("evidence", []),
+])
+def test_explicit_client_rejects_malformed_verdict_evidence(field, value):
+    class MalformedJudge(RecordingJudge):
+        def verify_claim(self, claim, context):
+            verdict = ClaimVerdict(claim, "SUPPORTED", 1.0, "actual evidence")
+            setattr(verdict, field, value)
+            return verdict
+    result = run(scenario({"hallucination": {"max_rate": 0}}), lambda s, r: evaluate(s, r, MalformedJudge()))
+    assert result.quality_checks[0].status == "error" and result.quality_checks[0].score is None
+    assert not result.passed and not result.complete
+
+
+def test_explicit_client_legal_empty_claims_stays_inconclusive():
+    client = RecordingJudge(claims=[])
+    check = evaluate(scenario({"hallucination": {"max_rate": 0}}), ResponseEnvelope(answer="answer", sources=["context"]), client)[0]
+    assert check.status == "inconclusive" and check.score is None and check.reason == "no_factual_claims"
+    assert [call[0] for call in client.calls] == ["extract"]
+
+
+@pytest.mark.parametrize("client_type,default_model", [(OpenAIClient, "gpt-4o-mini"), (AnthropicClient, "claude-sonnet-5")])
+@pytest.mark.parametrize("metric", ["relevance", "hallucination"])
+def test_evaluator_records_model_after_current_measurement(client_type, default_model, metric, monkeypatch):
+    client = client_type(Config(mode="real"))
+    calls = []
+    content = ({"score": 90, "reasoning": "local fake"} if metric == "relevance" else ["claim"])
+    def create(**params):
+        calls.append(params)
+        if metric == "hallucination":
+            payload = ["claim"] if len(calls) % 2 else {"verdict": "SUPPORTED", "confidence": 1, "evidence": "context"}
+        else:
+            payload = content
+        text = json.dumps(payload)
+        return SimpleNamespace(usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
+                               content=[SimpleNamespace(type="text", text=text)])
+    # Replace the lazy SDK factory entirely: no SDK import, network or provider call.
+    factory = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)), messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(client, "_get_client", lambda: factory)
+    key = "max_rate" if metric == "hallucination" else "min_score"
+    spec = scenario({metric: {key: .8}})
+    response = ResponseEnvelope(answer="answer", sources=["context"])
+    first = evaluate(spec, response, client)[0]
+    assert first.status == "passed" and first.model == default_model
+    assert first.provider == client.provider and first.version
+    assert calls[-1]["model"] == first.model
+    client.config.model = "current-model"
+    second = evaluate(spec, response, client)[0]
+    assert second.status == "passed" and second.model == "current-model"
+    assert calls[-1]["model"] == second.model
+
+
+def test_failed_measurement_does_not_reuse_previous_model(monkeypatch):
+    client = RecordingJudge()
+    client.last_model_version = SimpleNamespace(model="previous-model", provider="previous-provider")
+    def fail(*args, **kwargs):
+        raise RuntimeError("failed before a current measurement")
+    monkeypatch.setattr(client, "judge", fail)
+    check = evaluate(scenario(), ResponseEnvelope(answer="answer"), client)[0]
+    assert check.status == "error" and check.model == ""
