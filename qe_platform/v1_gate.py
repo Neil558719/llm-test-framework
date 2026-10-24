@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Callable
 
 from qe_platform.adapters import ReferenceAgentAdapter
 from qe_platform.reporting import build_run_report, write_html, write_json
 from qe_platform.scenarios import load_scenarios
-from qe_platform.workflow_runner import ScenarioRunner
+from qe_platform.scenarios import ScenarioSpec
+from llmtest import ResponseEnvelope
+from qe_platform.workflow_runner import QualityCheckResult, ScenarioRunner
 
 
 def run_gate(
@@ -20,11 +23,12 @@ def run_gate(
     release_id: str = "",
     version: str = "",
     environment: str = "offline",
+    quality_evaluator: Callable[[ScenarioSpec, ResponseEnvelope], list[QualityCheckResult]] | None = None,
 ) -> int:
     scenarios = load_scenarios(asset_dir)
     if scenario_ids is not None:
         scenarios = [item for item in scenarios if item.id in scenario_ids]
-    results = [ScenarioRunner(ReferenceAgentAdapter.from_setup).run(item) for item in scenarios]
+    results = [ScenarioRunner(ReferenceAgentAdapter.from_setup, quality_evaluator=quality_evaluator).run(item) for item in scenarios]
     report = build_run_report(
         results,
         application=application,

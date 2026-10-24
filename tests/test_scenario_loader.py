@@ -128,9 +128,11 @@ def test_loader_rejects_duplicate_ids_in_one_document():
 
 
 def test_loader_normalizes_yaml_dates_to_json_values():
-    scenario = load_scenario_text("id: x\nname: X\nconversation: [{user: hi}]\nquality: {release_date: 2026-09-02}\n")[0]
+    scenario = load_scenario_text("id: x\nname: X\nconversation: [{user: hi}]\nsetup: {knowledge: [{document_id: 2026-09-02, title: KB, content: text}]}\n")[0]
     json.dumps(scenario.as_dict())
-    assert scenario.quality.metrics["release_date"] == "2026-09-02"
+    assert scenario.setup.knowledge[0]["document_id"] == "2026-09-02"
+    with pytest.raises(ScenarioLoadError):
+        load_scenario_text("id: x\nname: X\nconversation: [{user: hi}]\nquality: {release_date: 2026-09-02}\n")
 
 
 def test_loader_wraps_unreadable_file(monkeypatch, tmp_path):

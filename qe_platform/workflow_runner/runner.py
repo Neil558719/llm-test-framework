@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, List, Optional
 
@@ -13,23 +14,28 @@ from qe_platform.contracts import (
 from qe_platform.scenarios import ConversationStep, ExpectedToolCall, ScenarioSpec
 
 from .models import QualityCheckResult, ScenarioRunResult, StepResult
+from .quality import pending_quality, run_quality_callback
 
 
 class ScenarioRunner:
-    def __init__(self, adapter_factory: Callable[[Any], Any]):
+    def __init__(self, adapter_factory: Callable[[Any], Any], *, quality_evaluator: Callable[[ScenarioSpec, ResponseEnvelope], list[QualityCheckResult]] | None = None):
         self.adapter_factory = adapter_factory
+        self.quality_evaluator = quality_evaluator
 
     def run(self, scenario: ScenarioSpec) -> ScenarioRunResult:
+        metrics = deepcopy(scenario.quality.metrics)
         session_id = scenario.setup.session_id or str(uuid.uuid4())
         user_id = scenario.setup.user_id
         started_at = datetime.now(timezone.utc).isoformat()
         result = ScenarioRunResult(
             scenario.id, scenario.name, scenario.source, session_id, started_at,
             expected_step_count=len(scenario.conversation),
+            quality_checks=pending_quality(metrics),
         )
         try:
             adapter = self.adapter_factory(scenario.setup)
         except Exception as exc:
+            result.quality_checks = pending_quality(metrics, "execution_incomplete")
             result.steps.append(StepResult(index=0, user="", status="error", error=str(exc)))
             result.final_assertions.append(AssertionResult("execution", False, str(exc), path="adapter"))
             result.finished_at = datetime.now(timezone.utc).isoformat()
@@ -54,7 +60,10 @@ class ScenarioRunner:
         final_response = result.steps[-1].response if result.steps and result.steps[-1].response else None
         execution_error = next((step.error for step in result.steps if step.status == "error"), "")
         result.final_assertions.extend(self._check_expectation(scenario.expect, final_response, result.tool_calls, execution_error=execution_error))
-        result.quality_checks = [QualityCheckResult(metric=name, expectation=value) for name, value in scenario.quality.metrics.items()]
+        if final_response is None or execution_error or len(result.steps) != len(scenario.conversation):
+            result.quality_checks = pending_quality(metrics, "execution_incomplete")
+        elif metrics and self.quality_evaluator is not None:
+            result.quality_checks = run_quality_callback(scenario, final_response, metrics, self.quality_evaluator)
         result.finished_at = datetime.now(timezone.utc).isoformat()
         return result
 

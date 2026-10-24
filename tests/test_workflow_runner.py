@@ -34,7 +34,7 @@ quality:
     result = ScenarioRunner(lambda setup: adapter).run(scenario)
 
     assert adapter.calls[0][2] == adapter.calls[1][2] == result.session_id
-    assert result.passed is True
+    assert result.passed is False
     assert result.complete is False
     assert result.quality_checks[0].status == "not_executed"
     assert result.as_dict()["quality_checks"][0]["metric"] == "relevance"

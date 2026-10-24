@@ -1,5 +1,13 @@
 # P00 / A01 本地运行基线
 
+## A05 当前接续（Issue #73）
+
+隔离分支 `codex/a05-scenario-quality`，base `2356b1e2d1d80e2266b021e43fb098ce642b5ed4`；本任务版本保持dev4，不改pyproject/uv.lock/共享env，后续dev5由主统一。主最新依赖验收：A04b已合并 `55b22550`，同树全量910通过/7排除/2警告，独立wheel202鉴权隔离+14场景/3资源通过，dev4发布中；不当作本任务覆盖或重复执行。
+
+严格五指标/规范化阈值、显式evaluator、required状态聚合、最终回答/问题/sources、缺grounding不委托、callback结果校验、转义报告及程序gate接线已本地验证。纠正测试错误后57初始RED、12边界RED；旧契约冲突117通过/2失败后迁移，相关21文件310通过/2上游警告。新87项、累计7次顶层pytest，无全量；准确失败与命令见[A05证据](../evidence/A05/summary.md)。无真实provider/SDK/模型/Docker/pip/push，AppResponse/底层Judge量纲和A02 gold分母不改。代码冻结后先独立review再唯一finalroot；CI/合并/安装发行/部署与用户复现尚未完成。
+
+下方A01及其他章节保留历史阶段记录。
+
 - 日期：2026-10-20；源 revision：`cd51114bdd38275c28e5dd527895bcdc65cf904b`。
 - Issue：[A01 #61](https://github.com/Neil558719/llm-test-framework/issues/61)；隔离分支：`codex/a01-clock`。
 - 环境：Windows x64，Python 3.13.15，uv 0.12.9；新建仓库专用虚拟环境，不复用其他仓库安装。

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any, List, Optional
 
 from llmtest import ResponseEnvelope, ToolCall
@@ -32,10 +33,24 @@ class QualityCheckResult:
     status: str = "not_executed"
     score: Optional[float] = None
     message: str = ""
+    required: bool = True
+    threshold: Optional[float] = None
+    reason: str = ""
+    provider: str = ""
+    model: str = ""
+    version: str = ""
+
+    @property
+    def evaluated(self) -> bool:
+        return (self.status in ("passed", "failed") and self.required is True
+                and type(self.score) in (int, float) and 0 <= self.score <= 1 and math.isfinite(self.score))
 
     def as_dict(self) -> dict[str, Any]:
         return {"metric": self.metric, "expectation": self.expectation,
-                "status": self.status, "score": self.score, "message": self.message}
+                "status": self.status, "score": self.score, "message": self.message,
+                "required": self.required, "threshold": self.threshold, "reason": self.reason,
+                "provider": self.provider, "model": self.model, "version": self.version,
+                "score_kind": "hallucination_rate" if self.metric == "hallucination" else "judge_rubric"}
 
 
 @dataclass
@@ -70,7 +85,9 @@ class ScenarioRunResult:
 
     @property
     def passed(self) -> bool:
-        return bool(self.steps) and all(step.status == "passed" for step in self.steps) and all(item.passed for item in self.final_assertions)
+        return (self.complete and bool(self.steps) and all(step.status == "passed" for step in self.steps)
+                and all(item.passed for item in self.final_assertions)
+                and all(item.evaluated and item.status == "passed" for item in self.quality_checks))
 
     @property
     def complete(self) -> bool:
@@ -78,7 +95,7 @@ class ScenarioRunResult:
             len(self.steps) == self.expected_step_count
             and all(step.status != "error" for step in self.steps)
         )
-        return execution_complete and all(item.status != "not_executed" for item in self.quality_checks)
+        return execution_complete and all(item.evaluated for item in self.quality_checks)
 
     def as_dict(self) -> dict[str, Any]:
         return {
