@@ -72,6 +72,10 @@ Issue [#72](https://github.com/Neil558719/llm-test-framework/issues/72)，分支
 
 本轮仅上述2次pytest；没有重跑全量、push、外部调用或A05实现。独立复审仍由主流程接续，主在合并树执行唯一全量；当前修复SHA的CI、发行/安装、部署和真实环境验收均未完成。用户掌握仍未评估。
 
+## 主流程审查与整合检查点
+
+主流程整合检查点：`e00c361` 初次独立审查为0 Critical/0 Important/1 Minor；`3b68332b6ce30397729dd9e34a2ae5f264e0671d` 窄复审关闭Minor，无剩余发现，审查tree `fba1668afec69a302fefe44da76400aa1edb5313`。审查仅用只读diff和纯内存合成，不重跑pytest，不代表真实IdP/部署。主将已发布master `0cdc713` 无冲突整合，项目/lock/runtime统一 `0.2.0a24.dev4`，依赖不变；后续当前head CI、合并后全量、独立安装和发布另行验收，不把初稿890算作窄修全量。
+
 ## 用户复现（10–20分钟，待完成/掌握未评估）
 
 同为viewer的alice/bob分别授予A/B，复现自身200、外对象404、显式外app筛选403、匿名401；admin先只授予A，再明确授予A/B，说明为何仍不能把A promotion关联B run。用页大小1与offset0/1/2解释过滤须先于分页，比较空集合/None。比较旧无scope快照与新server证明，解释为何不能拿当前links证明旧聚合；复现客户端自报marker400。最后区分本地测试、review、CI、发行和部署能证明什么。
