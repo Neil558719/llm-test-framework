@@ -44,6 +44,7 @@ def build_trends(
     start: datetime | None = None,
     end: datetime | None = None,
     now: datetime | None = None,
+    allowed_applications: frozenset[str] | None = None,
 ) -> list[TrendPoint]:
     start = _utc(start)
     end = _utc(end)
@@ -68,7 +69,7 @@ def build_trends(
         parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone.utc)
         return not ((start is not None and parsed < start) or (end is not None and parsed > end))
 
-    for row in repository.online_rows(now=now):
+    for row in repository.online_rows(now=now, allowed_applications=allowed_applications):
         if application and row["application"] != application:
             continue
         if version and row["version"] != version:
@@ -85,7 +86,7 @@ def build_trends(
         group["total_tokens"] += row["total_tokens"]
         group["total_cost"] += row["total_cost"]
 
-    for run in repository.list_runs(application=application, version=version, now=now):
+    for run in repository.list_runs(application=application, version=version, now=now, allowed_applications=allowed_applications):
         if not include(run.started_at):
             continue
         key = (_bucket(run.started_at), run.application, run.version)
@@ -135,8 +136,9 @@ def build_quality_links(
     offline_run_id: str = "",
     promotion_id: str = "",
     now: datetime | None = None,
+    allowed_applications: frozenset[str] | None = None,
 ) -> list[QualityLink]:
-    return repository.list_links(offline_run_id=offline_run_id, promotion_id=promotion_id, now=now)
+    return repository.list_links(offline_run_id=offline_run_id, promotion_id=promotion_id, now=now, allowed_applications=allowed_applications)
 
 
 def _linked_low_quality_rate(
@@ -144,11 +146,12 @@ def _linked_low_quality_rate(
     run_id: str,
     *,
     now: datetime | None,
+    allowed_applications: frozenset[str] | None = None,
 ) -> float:
-    links = repository.list_links(offline_run_id=run_id, now=now)
+    links = repository.list_links(offline_run_id=run_id, now=now, allowed_applications=allowed_applications)
     if not links:
         return 0.0
-    rows = {row["trace_id"]: row for row in repository.online_rows(now=now)}
+    rows = {row["trace_id"]: row for row in repository.online_rows(now=now, allowed_applications=allowed_applications)}
     feedback = sum(rows[link.trace_id]["feedback_count"] for link in links if link.trace_id in rows)
     low_quality = sum(rows[link.trace_id]["confirmed_low_quality_count"] for link in links if link.trace_id in rows)
     return low_quality / feedback if feedback else 0.0
@@ -163,6 +166,7 @@ def validate_release(
     *,
     validation_id: str | None = None,
     now: datetime | None = None,
+    allowed_applications: frozenset[str] | None = None,
 ) -> ReleaseValidation:
     now = repository.current_time(now)
     baseline = repository.get_run(baseline_run_id, now=now)
@@ -171,14 +175,19 @@ def validate_release(
         raise KeyError("baseline run not found")
     if candidate is None:
         raise KeyError("candidate run not found")
+    if allowed_applications is not None and (
+        baseline.application != candidate.application or allowed_applications != frozenset({candidate.application})
+        or (policy.application and policy.application != candidate.application)
+    ):
+        raise ValueError("scoped validation requires one matching application")
     baseline_pass_rate = baseline.passed / baseline.total if baseline.total else 0.0
     candidate_pass_rate = candidate.passed / candidate.total if candidate.total else 0.0
     candidate_failure_rate = candidate.failed / candidate.total if candidate.total else 1.0
     pass_rate_drop = max(0.0, baseline_pass_rate - candidate_pass_rate)
     low_quality_increase = max(
         0.0,
-        _linked_low_quality_rate(repository, candidate_run_id, now=now)
-        - _linked_low_quality_rate(repository, baseline_run_id, now=now),
+        _linked_low_quality_rate(repository, candidate_run_id, now=now, allowed_applications=allowed_applications)
+        - _linked_low_quality_rate(repository, baseline_run_id, now=now, allowed_applications=allowed_applications),
     )
     checks = (
         ReleaseCheck(
@@ -238,8 +247,10 @@ def validate_release(
         policy,
         all(item.passed for item in checks),
         checks,
-        len(repository.list_links(offline_run_id=candidate_run_id, now=now)),
+        len(repository.list_links(offline_run_id=candidate_run_id, now=now, allowed_applications=allowed_applications)),
         now.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
+        scope_application=candidate.application if allowed_applications is not None else None,
+        scope_policy_version=1 if allowed_applications is not None else None,
     )
     saved = repository.save_validation(result)
     PROCESS_METRICS.increment("quality_gate_passed_total" if saved.passed else "quality_gate_denied_total")

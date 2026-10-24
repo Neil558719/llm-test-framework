@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from qe_platform.production.secrets import SecretSource
+from qe_platform.application_scope import application_set, load_grants
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,10 @@ class TelemetrySettings:
     hash_key: str
     ingest_token: str
     retention_days: int = 30
+    allowed_applications: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "allowed_applications", application_set(self.allowed_applications))
 
     @classmethod
     def from_environment(
@@ -37,4 +42,7 @@ class TelemetrySettings:
             raise ValueError("QE_TELEMETRY_RETENTION_DAYS must be a positive integer") from exc
         if str(retention_text).strip() != str(retention_days) or retention_days <= 0:
             raise ValueError("QE_TELEMETRY_RETENTION_DAYS must be a positive integer")
-        return cls(database, hash_key, ingest_token, retention_days)
+        allowed = load_grants(values.get("QE_TELEMETRY_ALLOWED_APPLICATIONS", "[]"))
+        if not isinstance(allowed, list):
+            raise ValueError("QE_TELEMETRY_ALLOWED_APPLICATIONS must be a JSON array")
+        return cls(database, hash_key, ingest_token, retention_days, application_set(allowed))

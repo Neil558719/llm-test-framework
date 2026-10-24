@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from qe_platform.auth.dependencies import AuthRuntime
+from qe_platform.auth.access import ApplicationAccessPolicy
 from qe_platform.auth.models import RoleMapper
 from qe_platform.auth.oidc import OidcVerifier
 from qe_platform.auth.session import SessionStore
@@ -97,8 +98,9 @@ def test_production_hardening_contract_covers_authenticated_api_machine_ingest_a
     )
     telemetry = TestClient(
         create_telemetry_app(
-            TelemetrySettings(str(telemetry_database), secret_values["hash"], secret_values["token"], 30),
+            TelemetrySettings(str(telemetry_database), secret_values["hash"], secret_values["token"], 30, frozenset({"service-desk"})),
             auth_runtime=runtime,
+            access_policy=ApplicationAccessPolicy({"viewer": ["service-desk"]}),
         )
     )
     assert telemetry.post("/api/traces", json=safe_payload("contract-trace")).status_code == 401

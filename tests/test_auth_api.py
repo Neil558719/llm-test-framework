@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from qe_platform.auth.dependencies import AuthRuntime, install_auth_routes, require_csrf, require_role, require_user
+from qe_platform.auth.access import ApplicationAccessPolicy
 from qe_platform.auth.models import AuthenticatedPrincipal
 from qe_platform.auth.models import RoleMapper
 from qe_platform.auth.oidc import OidcVerifier
@@ -62,7 +63,8 @@ def test_production_telemetry_human_writes_require_role_and_csrf_but_machine_ing
     viewer = store.create("viewer", {"viewer"}, expires_at=NOW + timedelta(minutes=5), csrf_token="viewer-csrf")
     runtime = AuthRuntime(session_store=store, cookie_name="qe_session", environment="production", verifier=None)
     app = create_telemetry_app(
-        TelemetrySettings(str(tmp_path / "telemetry.db"), "hash", "machine-token", 30), auth_runtime=runtime
+        TelemetrySettings(str(tmp_path / "telemetry.db"), "hash", "machine-token", 30, frozenset({"service-desk"})),
+        auth_runtime=runtime, access_policy=ApplicationAccessPolicy({"viewer": ["service-desk"]}),
     )
     client = TestClient(app)
 

@@ -6,9 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from qe_platform.auth.dependencies import AuthRuntime, install_auth_routes
+from qe_platform.auth.access import ApplicationAccessPolicy
 from qe_platform.auth.models import AuthenticatedPrincipal
 from qe_platform.auth.session import SessionStore
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
+from qe_platform.quality_loop.engine import validate_release
+from qe_platform.quality_loop.models import ReleaseGatePolicy
 from qe_platform.storage import SQLiteTelemetryRepository
 from qe_platform.telemetry.api import create_telemetry_app
 from qe_platform.telemetry.redaction import fingerprint
@@ -33,7 +36,7 @@ ROLES = ("viewer", "reviewer", "releaser", "admin")
 def access(tmp_path):
     now = utc("2026-09-10T00:00:00+00:00")
     database = tmp_path / "telemetry.db"
-    settings = TelemetrySettings(str(database), HASH_KEY, INGEST_TOKEN, 30)
+    settings = TelemetrySettings(str(database), HASH_KEY, INGEST_TOKEN, 30, frozenset({"service-desk"}))
     repo = SQLiteTelemetryRepository(database, hash_key=HASH_KEY, clock=lambda: now)
     quality = SQLiteQualityRepository(database, clock=lambda: now)
     development = TestClient(create_telemetry_app(
@@ -43,15 +46,14 @@ def access(tmp_path):
     headers = {"X-QE-Telemetry-Token": INGEST_TOKEN}
     for run_id in ("baseline", "candidate"):
         assert development.post("/api/quality/offline-runs", headers=headers,
-                                json=_report_payload(run_id=run_id)).status_code == 201
-    validation = development.post("/api/quality/release-validations", headers=headers, json={
-        "baseline_run_id": "baseline", "candidate_run_id": "candidate",
-        "max_low_quality_rate_increase": 1.0,
-    })
-    assert validation.status_code == 201
+                                json=_report_payload(run_id=run_id, application="service-desk")).status_code == 201
+    validation = validate_release(quality, "baseline", "candidate", ReleaseGatePolicy(max_low_quality_rate_increase=1.0),
+                                  allowed_applications=frozenset({"service-desk"}))
     store = SessionStore(tmp_path / "auth.db", clock=lambda: now)
     runtime = AuthRuntime(session_store=store, verifier=None, environment="production")
-    app = create_telemetry_app(settings, repo, quality, auth_runtime=runtime)
+    app = create_telemetry_app(settings, repo, quality, auth_runtime=runtime, access_policy=ApplicationAccessPolicy({
+        "signed-in-subject": ["service-desk"], "verified-bearer-subject": ["service-desk"],
+    }))
     install_auth_routes(app, runtime)
     client = TestClient(app)
 
@@ -65,7 +67,7 @@ def access(tmp_path):
         "client": client, "development": development, "login": login, "runtime": runtime,
         "review_id": promotion["review_id"], "promotion_id": promotion["promotion_id"],
         "feedback_id": development.get("/api/feedback?trace_id=trace-1").json()["feedback"][0]["feedback_id"],
-        "validation_id": validation.json()["validation_id"], "tmp_path": tmp_path,
+        "validation_id": validation.validation_id, "tmp_path": tmp_path,
     }
 
 
@@ -196,7 +198,7 @@ def test_cookie_write_role_matrix_and_csrf_are_preserved(access, role, kind, req
         "review": (f"/api/feedback/{access['feedback_id']}/review",
                    {"status": "confirmed", "attribution": "model", "priority": "high"}),
         "promote": (f"/api/reviews/{access['review_id']}/promote", {"scenario": SCENARIO}),
-        "run": ("/api/quality/offline-runs", _report_payload(run_id="another-run")),
+        "run": ("/api/quality/offline-runs", _report_payload(run_id="another-run", application="service-desk")),
         "link": ("/api/quality/links", {"promotion_id": access["promotion_id"], "offline_run_id": "candidate"}),
         "validation": ("/api/quality/release-validations", {
             "baseline_run_id": "baseline", "candidate_run_id": "candidate", "max_low_quality_rate_increase": 1.0,
@@ -218,7 +220,7 @@ def test_machine_token_is_not_a_human_read_or_actor_credential(access):
     assert client.post("/api/traces/trace-1/feedback", headers=headers,
                        json={"category": "correct", "source": "ui", "reporter_id": "forged"}).status_code == 401
     assert client.post("/api/quality/offline-runs", headers=headers,
-                       json=_report_payload(run_id="machine-run")).status_code == 201
+                       json=_report_payload(run_id="machine-run", application="service-desk")).status_code == 201
 
 
 def test_verified_bearer_subject_is_used_without_cookie_csrf(access):
