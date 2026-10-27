@@ -19,3 +19,11 @@
 & $a06Python -X utf8 .context/A06/run_tests.py experimental-metadata-red -q tests/test_release_report_integrity.py -k safe_projection_records --tb=short
 & $a06Python -X utf8 .context/A06/run_tests.py pre-review-related -q tests/test_release_report_integrity.py tests/test_quality_loop_models.py tests/test_quality_loop_storage.py tests/test_quality_loop_engine.py tests/test_quality_loop_api.py tests/test_quality_loop_cli.py tests/test_quality_loop_contract.py tests/test_quality_loop_reporting.py tests/test_run_reporting.py tests/test_application_isolation.py tests/test_storage_migrations.py tests/test_health_readiness.py tests/test_scenario_quality.py tests/test_production_ops.py tests/test_v1_gate.py tests/test_workflow_runner.py tests/test_builtin_scenarios.py tests/test_scenario_loader.py tests/test_response_envelope.py tests/test_tool_contracts.py tests/test_business_assertions.py --tb=short
 ```
+
+## 独立审查窄修
+
+```powershell
+& $a06Python -X utf8 .context/A06/run_tests.py review-red -q tests/test_release_report_integrity.py tests/test_application_isolation.py -k 'native_v2_preserves or incomparable_runs or unknown_persisted_run_proof or run_loading_programming_error' --tb=short
+& $a06Python -X utf8 .context/A06/run_tests.py review-green -q tests/test_release_report_integrity.py tests/test_application_isolation.py -k 'native_v2_preserves or incomparable_runs or unknown_persisted_run_proof or run_loading_programming_error' --tb=short
+& $a06Python -X utf8 .context/A06/run_tests.py review-related-green -q tests/test_release_report_integrity.py tests/test_application_isolation.py tests/test_quality_loop_api.py tests/test_quality_loop_storage.py tests/test_quality_loop_engine.py tests/test_quality_loop_cli.py tests/test_v1_gate.py tests/test_workflow_runner.py tests/test_scenario_quality.py tests/test_telemetry_api.py tests/test_auth_api.py --tb=short
+```

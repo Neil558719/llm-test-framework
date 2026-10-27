@@ -395,21 +395,47 @@ def test_request_malformed_scope_proof_remains_bad_request(isolation, version):
     assert response.status_code == 400
 
 
-@pytest.mark.parametrize("operation", ["get", "post"])
-def test_unknown_persisted_run_proof_is_hidden_from_production_validation(isolation, operation):
+@pytest.mark.parametrize("operation", ["get", "post", "import"])
+@pytest.mark.parametrize("damage", ["schema", "null-ids", "numeric-ids"])
+def test_unknown_persisted_run_proof_is_hidden_from_production_validation(isolation, operation, damage):
     quality = isolation["quality"]
     row = quality._connection.execute("SELECT payload FROM quality_offline_runs WHERE run_id='app-a-candidate'").fetchone()
     payload = json.loads(row[0])
-    payload["evidence"]["schema_version"] = "qe-evidence-v999"
+    if damage == "schema":
+        payload["evidence"]["schema_version"] = "qe-evidence-v999"
+    else:
+        payload["scenario_ids"] = None if damage == "null-ids" else 123
     quality._connection.execute("UPDATE quality_offline_runs SET payload=? WHERE run_id='app-a-candidate'", (json.dumps(payload),))
-    api = isolation["client"]()
+    authenticated = isolation["client"]()
+    api = TestClient(authenticated.app, raise_server_exceptions=False)
+    api.cookies.update(authenticated.cookies)
     if operation == "get":
         response = api.get(f"/api/quality/release-validations/{isolation['objects']['app-a']['validation_id']}")
-    else:
+    elif operation == "post":
         response = api.post("/api/quality/release-validations", headers=isolation["csrf"], json={
             "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate", "max_low_quality_rate_increase": 1.0,
         })
+    else:
+        response = api.post("/api/quality/offline-runs", headers=isolation["csrf"], json=verified_payload(run_id="app-a-candidate", application="app-a"))
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize("operation", ["get", "post", "import"])
+def test_run_loading_programming_error_is_not_hidden_as_missing(isolation, monkeypatch, operation):
+    def fail(_identifier):
+        raise RuntimeError("unexpected programming error")
+    monkeypatch.setattr(isolation["quality"], "get_run", fail)
+    authenticated = isolation["client"]()
+    api = TestClient(authenticated.app, raise_server_exceptions=False)
+    api.cookies.update(authenticated.cookies)
+    if operation == "get":
+        response = api.get(f"/api/quality/release-validations/{isolation['objects']['app-a']['validation_id']}")
+    elif operation == "post":
+        response = api.post("/api/quality/release-validations", headers=isolation["csrf"], json={
+            "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate"})
+    else:
+        response = api.post("/api/quality/offline-runs", headers=isolation["csrf"], json=verified_payload(run_id="app-a-candidate", application="app-a"))
+    assert response.status_code == 500
 
 
 @pytest.mark.parametrize("operation", ["get", "post"])

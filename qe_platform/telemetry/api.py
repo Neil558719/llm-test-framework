@@ -92,7 +92,7 @@ def create_telemetry_app(
         if apps is not None and application not in apps:
             raise HTTPException(status_code=404 if hidden else 403, detail="not found" if hidden else "forbidden")
 
-    def scoped_record(loader, identifier: str, apps: frozenset[str]):
+    def scoped_record(loader, identifier: str, apps: frozenset[str], *, allow_missing: bool = False):
         try:
             record = loader(identifier)
         except ValueError:
@@ -102,6 +102,8 @@ def create_telemetry_app(
         except Exception:
             raise HTTPException(status_code=500, detail="internal error") from None
         if record is None:
+            if allow_missing:
+                return None
             raise HTTPException(status_code=404, detail="not found")
         if hasattr(record, "application"):
             check_application(record.application, apps, hidden=True)
@@ -513,18 +515,20 @@ def create_telemetry_app(
     ) -> Response:
         apps = require_machine_or_human(request, x_qe_telemetry_token, "releaser")
         payload = dict(await read_mapping(request))
+        existing = None
         if apps is not None:
             check_application(payload.get("application", ""), apps)
             run_id = payload.get("run_id")
-            if isinstance(run_id, str) and run_id and quality_repo.get_run(run_id) is not None:
-                scoped_record(quality_repo.get_run, run_id, apps)
+            if isinstance(run_id, str) and run_id:
+                existing = scoped_record(quality_repo.get_run, run_id, apps, allow_missing=True)
         source_label = payload.pop("source_label", "api-report")
         if "expected_manifest" in payload:
             bad_request()
         if not isinstance(source_label, str):
             bad_request()
         try:
-            existing = quality_repo.get_run(payload.get("run_id", "")) if isinstance(payload.get("run_id"), str) else None
+            if apps is None:
+                existing = quality_repo.get_run(payload.get("run_id", "")) if isinstance(payload.get("run_id"), str) else None
             from copy import deepcopy
             expected_manifest = trusted_manifest_resolver(deepcopy(payload)) if trusted_manifest_resolver is not None else None
             run = quality_repo.import_run(payload, source_label=source_label, allowed_applications=apps, expected_manifest=expected_manifest)

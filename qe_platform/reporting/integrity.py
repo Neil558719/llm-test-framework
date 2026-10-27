@@ -235,7 +235,7 @@ def validate_v2_report(payload: Mapping[str, Any], expected_manifest: RunManifes
                 raise ValueError("executed user input differs from controlled asset")
             assertions = _assertions(step.get("assertions"))
             if status == "error":
-                if step is not steps[-1] or step.get("response") is not None or not step.get("error") or assertions:
+                if step is not steps[-1] or step.get("response") is not None or assertions:
                     raise ValueError("invalid interrupted execution evidence")
                 response = None
             else:
@@ -255,13 +255,14 @@ def validate_v2_report(payload: Mapping[str, Any], expected_manifest: RunManifes
                                "assertions_passed": all(a["passed"] for a in assertions),
                                "model_version": _safe_labels(response.model_version.as_dict()) if response is not None and response.model_version else None})
         error = steps[-1].get("error", "")
-        executed = len(steps) == len(plan["expected_steps"]) and not error
-        if not executed and not error:
+        interrupted = steps[-1]["status"] == "error"
+        executed = len(steps) == len(plan["expected_steps"]) and not interrupted
+        if not executed and not interrupted:
             raise ValueError("missing steps without interrupted execution evidence")
         final = _assertions(row.get("final_assertions"))
         adapter_failed = len(steps) == 1 and steps[0]["status"] == "error" and steps[0]["user"] == ""
         actual_final = [] if adapter_failed else [a.as_dict() for a in checker._check_expectation(_expect(controls["expect"], "manifest", "expect"), responses[-1], calls, execution_error=error)]
-        if error:
+        if interrupted:
             if not final or final[0].get("assertion_type") != "execution" or final[0]["passed"]:
                 raise ValueError("interruption requires failed execution evidence")
             final = final[1:]

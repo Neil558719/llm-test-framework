@@ -2,6 +2,8 @@
 
 ## A06 当前接续（Issue #76，2026-10-27）
 
+2026-10-28接续：独审5ffde058发现2Important/1Minor，新增14后86项；真实RED9失败/13已绿，定向22通过，11相关文件329通过/2警告/42.06秒，累计18顶层pytest/18进程，0root。仅status中断识别、局部hydration数组校验及统一已有run作用域预检三生产文件窄修；空消息错误可写但不可绿、持久化未知proof三入口404、真正RuntimeError500，app/env用双verified-v2对照。重新冻结待有限复审；下方387/15命令仅归首冻结历史。
+
 分支 codex/a06-report-integrity，base725a413/dev5，版本/锁/依赖/共享环境不变。当前21文件相关387通过/2上游警告；新增70完整性+2隔离守卫，共72项；15顶层pytest/15进程，无finalroot。初始旧入口9失败/3原守卫已绿；接口缺失、夹具/实现错误与旧断言迁移单列，完整命令见[A06证据](../evidence/A06/summary.md)。源码准备冻结给独立k64，收敛后唯一根回归；主CI/合并树/独立安装/发行/部署尚待接续，不把本地绿灯当交付完成。
 
 先冻结独立ScenarioSpec计划，native/import/read核对步骤与quality并重算结论；自报manifest无外部信任只能只读。baseline/candidate不同ID、同应用/环境、完整verified_v2和同控制资产；SUT模型/prompt实验版本不强制相同。schema2保留旧payload/links/验证，不回填证明；readiness动态要求2，合成质量库备份恢复用expected_versions=2，旧reader需配套旧快照。Agent专用部署restore不误改。零真实Judge/provider/SDK/IdP、无Docker/pip/push或用户DB操作。

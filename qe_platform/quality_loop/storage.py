@@ -78,7 +78,10 @@ class SQLiteQualityRepository:
         value = json.loads(payload)
         if not isinstance(value, dict):
             raise ValueError("stored offline run has invalid payload")
-        value["scenario_ids"] = tuple(value.get("scenario_ids", ()))
+        scenario_ids = value.get("scenario_ids")
+        if not isinstance(scenario_ids, list):
+            raise ValueError("stored offline run scenario_ids must be an array")
+        value["scenario_ids"] = tuple(scenario_ids)
         value.pop("release_eligible", None)
         try:
             run = OfflineRun(**value)

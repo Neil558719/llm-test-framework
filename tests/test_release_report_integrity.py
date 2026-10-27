@@ -67,16 +67,23 @@ def test_existing_import_id_cannot_erase_changed_valid_execution(tmp_path):
 
 @pytest.mark.parametrize("mismatch", ["self", "application", "environment"])
 def test_existing_direct_release_rejects_incomparable_runs(tmp_path, mismatch):
-    repository, baseline, _ = _setup_database(tmp_path)
+    from tests.report_integrity_fixtures import verified_payload, trusted_plan
+    repository, baseline, candidate = _setup_database(tmp_path)
     try:
+        policy = ReleaseGatePolicy(max_low_quality_rate_increase=1)
+        now = utc("2026-09-01T00:00:00Z")
+        assert baseline.release_eligible and candidate.release_eligible
+        assert validate_release(repository, baseline.run_id, candidate.run_id, policy, now=now).passed
         candidate_id = baseline.run_id
         if mismatch != "self":
             overrides = {"run_id": "incomparable"}
             overrides["application" if mismatch == "application" else "environment"] = "other"
-            candidate_id = repository.import_run(_report_payload(**overrides), source_label="fixture").run_id
-        with pytest.raises(ValueError):
-            validate_release(repository, baseline.run_id, candidate_id, ReleaseGatePolicy(max_low_quality_rate_increase=1),
-                             now=utc("2026-09-01T00:00:00Z"))
+            incompatible = repository.import_run(verified_payload(**overrides), source_label="fixture", expected_manifest=trusted_plan())
+            assert incompatible.release_eligible and incompatible.asset_fingerprint == baseline.asset_fingerprint
+            candidate_id = incompatible.run_id
+        reason = {"self": "distinct runs", "application": "applications differ", "environment": "environments differ"}[mismatch]
+        with pytest.raises(ValueError, match=reason):
+            validate_release(repository, baseline.run_id, candidate_id, policy, now=now)
     finally:
         repository.close()
 
@@ -396,7 +403,7 @@ def test_v2_projection_persists_hashes_not_questions_answers_or_sources():
     assert "private answer unique" not in serialized and "hello" not in serialized
 
 
-@pytest.mark.parametrize("failure", ["adapter", "middle", "inconclusive"])
+@pytest.mark.parametrize("failure", ["adapter", "middle", "inconclusive", "adapter-empty", "middle-empty", "adapter-timeout", "middle-timeout"])
 def test_native_v2_preserves_real_incomplete_execution_evidence(failure):
     from qe_platform.reporting.integrity import freeze_run_manifest
     from qe_platform.workflow_runner import QualityCheckResult
@@ -410,21 +417,28 @@ expect: {response: {contains: [answer]}}
 quality: {relevance: {min_score: 0.8}}
 """)[0]
     plan = freeze_run_manifest([spec])
+    stage = failure.split("-")[0]
+    def fail():
+        if failure.endswith("-empty"):
+            raise RuntimeError()
+        if failure.endswith("-timeout"):
+            raise TimeoutError()
+        raise RuntimeError("controlled execution failure")
     class Adapter:
         count = 0
         def send(self, *args, **kwargs):
             self.count += 1
-            if failure == "middle" and self.count == 2:
-                raise RuntimeError("controlled execution failure")
+            if stage == "middle" and self.count == 2:
+                fail()
             return ResponseEnvelope(answer="answer")
     def factory(_):
-        if failure == "adapter":
-            raise RuntimeError("controlled adapter failure")
+        if stage == "adapter":
+            fail()
         return Adapter()
     result = ScenarioRunner(factory, quality_evaluator=lambda *args: [QualityCheckResult("relevance", {"min_score": .8}, "inconclusive")]).run(spec)
     payload = build_run_report([result], manifest=plan, application="app", release_id="next", version="v1").as_dict()
     assert not payload["complete"] and not payload["gate_passed"]
-    assert len(payload["scenarios"][0]["steps"]) == {"adapter": 1, "middle": 2, "inconclusive": 3}[failure]
+    assert len(payload["scenarios"][0]["steps"]) == {"adapter": 1, "middle": 2, "inconclusive": 3}[stage]
     assert not parse_run_report(payload, "fixture", expected_manifest=plan).release_eligible
     forged = deepcopy(payload)
     forged["scenarios"][0].update(complete=True, passed=True)

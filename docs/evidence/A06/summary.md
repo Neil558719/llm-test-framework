@@ -55,3 +55,19 @@ schema_requirements 动态要求 quality_loop=2，readiness 按该要求检查�
 冻结前相关通过，下一步独立 k64 审查，收敛后只跑一次最终根回归。尚不能称交付完成：独立审查/finalroot、当前 SHA CI、主合并树验收、独立 wheel/安装/预发行及部署/Issue 跟踪待主串行接续。真实模型效果、Linux/其他 Python、UI 以及持久环境未在本任务验收；主根台账不由本任务修改。
 
 10–20 分钟练习（待完成，掌握未评估）：执行前冻结一个计划，比较缺步骤、篡改 required、缺 grounding 和合法业务失败；说明自携 manifest 为什么不等于信任。更改模型/prompt 版本与更改同 ID 输入/rubric，解释不同 baseline 处理；导入两份同 ID 不同回答，定位冲突。用临时 schema1 库演示迁移失败回滚及匹配快照恢复；解释 Reported gate、complete、verification、release_eligible 和最终发布门禁的区别。不写收益百分比。
+
+## 2026-10-28 独立审查与窄修（取代上述待首审检查点）
+
+k64 对冻结 `5ffde0589d34460e606d2161c131949687f57cbc` 实际只读 diff 审查并核对17文件哈希，0新pytest/probe。发现0 Critical / 2 Important / 1 Minor，未发现已确认的发布误放行：R1 空消息异常被错误依赖 error 文本非空的 validator 拒绝，无法写失败报告；R2 scenario_ids=null/数字在局部转换外触发TypeError，且import既有ID另有裸get_run，生产部分路径500而非404；R3 app/env测试候选仍legacy，可能由无资格提前阻断而误绿。
+
+只改三个生产文件：integrity 按最后step.status==error识别中断，仍严格要求error是str但允许空消息，完整性及execution assertion剥离使用同一状态，复算仍与现runner一致；storage 在tuple之前局部要求scenario_ids是数组；api 已有run预检共用scoped_record(allow_missing=True)，缺记录允许新建，损坏/越权404，取消先裸读，真正RuntimeError仍500。未改runner、未吞所有校验异常或回填旧proof。
+
+R1 新增空消息 RuntimeError/TimeoutError×adapter/middle四守卫，均保留失败报告、不完整/无资格和伪造通过拒绝；原有带消息/中途/inconclusive保留。R2 null/数字IDs及未知evidence schema×GET validation/POST validation/同IDPOST import共9项，其中旧2项保留，另加3项真正get_run编程错误500守卫。R3先断言两份complete verified_v2在同plan下真实通过release，再只改候选app/env并匹配具体拒绝原因；self同样匹配原因，legacy独立拒绝守卫仍在。新文件现74项、隔离新增12项，共86新增；其中14项为本轮增加，不把原先通过项重新计作缺陷RED。
+
+| batch | pytest exit / 实际结果 |
+| --- | --- |
+| review-red | 1；9 failed / 13 passed / 150 deselected / 2 warnings，8.14s；R1四个空消息、R2五个500路径真实失败，其余对照已绿 |
+| review-green | 0；22 passed / 150 deselected / 2 warnings，6.58s |
+| review-related-green | 0；329 passed / 2 warnings，42.06s；11文件，含完整性/作用域/quality/runner/gate/质量API与旧telemetry/auth API |
+
+当前累计18顶层pytest/18进程，仍0 root；旧21文件387归首冻结源，不冒称修后重复全量。原始日志与源码检查点保留；修后哈希 `.context/A06/review-source-freeze.json`，静态结果 `review-static-checks.log`。原15条命令和新3条均可逐项与日志对照。恢复后的本地源/测试修改只限上述发现；版本、依赖、真实调用及发行边界保持。重新冻结交k64有限复审，关闭后才唯一finalroot，无需再请求授权。
