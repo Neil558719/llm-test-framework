@@ -88,3 +88,7 @@ k64 对 `5b17bd1a267e3395687f5ae23165cfb1bc7e6b27` 有限复审，R1/R2/R3全部
 累计 **20条顶层pytest**，只有一次root；继承A03三种受控消费者子pytest，共 **23个pytest进程**。optional消费者预期skip是子进程探索结果，不计根通过或根0skip。根7排除为5UI+2Windows计划任务/持久watcher系统副作用集成；两警告为Starlette/AnyIO与LangGraph上游提示。没有重复本任务root；主明确最终当前head CI全回归绿后才可merge，随后主唯一mergedfull作为独立检查点。本地不得标localfullpassed。
 
 原review源17哈希继续保持；两处额外测试文件加入最终19Python冻结哈希 `.context/A06/final-source-freeze.json`，静态结果 `final-static-checks.log` 对照全部20条命令。两文件夹具diff及138结果交k64有限确认，不重审无关源。最终CI/主合并树full、独立安装/Release、真实环境与用户练习仍待主，dev5/依赖/共享环境保持不变。
+
+最终有限确认：k64已核对 `3135b46813944ec0828ca82c9ad060847653d5be` clean、两测试+docs窄diff、原17哈希及138日志，确认无剩余finding，0新增pytest/probe。此后仅本尾注文档提交，19Python哈希继续一致，无额外测试或root。本地交接条件已收口；当前head CI完整回归、主合并树唯一full、安装/发行及持久环境仍独立待验，唯一root失败历史不改写。
+
+最终docs-only静态脚本首次exit1：Git默认引用中文路径使 `.md` 后缀断言误判；19Python哈希已通过。改为只读 `git -c core.quotepath=false diff --name-only` 核对真实路径后完成提交，不涉及源码或额外pytest。
