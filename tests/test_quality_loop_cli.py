@@ -7,6 +7,7 @@ from qe_platform.quality_loop.cli import main as cli_main
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
 from qe_platform.storage import SQLiteTelemetryRepository
 from tests.test_quality_loop_models import _report_payload
+from tests.report_integrity_fixtures import verified_payload, trusted_plan
 from tests.test_telemetry_storage import trace_at, utc
 
 
@@ -37,15 +38,17 @@ def _create_promotion(database):
 def test_quality_loop_cli_runs_import_link_trends_and_validation(tmp_path):
     database = tmp_path / "telemetry.db"
     promotion = _create_promotion(database)
-    baseline = _report_payload(run_id="run-baseline", release_id="alpha-22", version="old", started_at="2026-08-28T00:00:00Z", finished_at="2026-08-28T00:00:02Z")
-    candidate = _report_payload(run_id="run-candidate", release_id="alpha-23", version="new")
+    baseline = verified_payload(run_id="run-baseline", release_id="alpha-22", version="old", started_at="2026-08-28T00:00:00Z", finished_at="2026-08-28T00:00:02Z")
+    candidate = verified_payload(run_id="run-candidate", release_id="alpha-23", version="new")
     baseline_path = tmp_path / "baseline.json"
     candidate_path = tmp_path / "candidate.json"
     baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
     candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
 
-    assert main(["import-run", "--database", str(database), "--report", str(baseline_path), "--source-label", "fixture"]) == 0
-    assert main(["import-run", "--database", str(database), "--report", str(candidate_path), "--source-label", "fixture"]) == 0
+    manifest_path = tmp_path / "trusted-manifest.json"
+    manifest_path.write_text(json.dumps(trusted_plan().as_dict()), encoding="utf-8")
+    assert main(["import-run", "--database", str(database), "--report", str(baseline_path), "--manifest", str(manifest_path), "--source-label", "fixture"]) == 0
+    assert main(["import-run", "--database", str(database), "--report", str(candidate_path), "--manifest", str(manifest_path), "--source-label", "fixture"]) == 0
     assert main(["link", "--database", str(database), "--promotion-id", promotion.promotion_id, "--offline-run-id", "run-candidate"]) == 0
 
     trend_json = tmp_path / "trends.json"

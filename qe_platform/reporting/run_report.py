@@ -20,6 +20,11 @@ class RunReport:
     release_id: str = ""
     version: str = ""
     environment: str = "offline"
+    manifest: Any = None
+
+    @property
+    def complete(self) -> bool:
+        return bool(self.scenarios) and all(item["complete"] for item in self.scenarios)
 
     @property
     def total(self) -> int:
@@ -58,7 +63,7 @@ class RunReport:
                 "price_version": versions.pop() if len(versions) == 1 else "MIXED"}
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "run_id": self.run_id,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -74,6 +79,14 @@ class RunReport:
             "cost": self.cost,
             "scenarios": self.scenarios,
         }
+        if self.manifest is not None:
+            from .integrity import validate_v2_report
+            payload.update(schema_version="qe-run-v2", manifest=self.manifest.as_dict(), complete=self.complete)
+            proof = validate_v2_report(payload, self.manifest)
+            payload.update(verification=proof["verification"], release_eligible=self.complete)
+        else:
+            payload.update(verification="legacy_unverified", release_eligible=False)
+        return payload
 
 
 def _scenario_payload(result: ScenarioRunResult) -> dict[str, Any]:
@@ -91,11 +104,15 @@ def build_run_report(
     release_id: str = "",
     version: str = "",
     environment: str = "offline",
+    manifest: Any = None,
 ) -> RunReport:
     values = list(results)
+    scenario_ids = [item.scenario_id for item in values]
+    if len(scenario_ids) != len(set(scenario_ids)):
+        raise ValueError("scenario IDs must be unique")
     started = min((item.started_at for item in values), default="")
     finished = max((item.finished_at for item in values), default="")
-    return RunReport(
+    report = RunReport(
         run_id or str(uuid.uuid4()),
         started,
         finished,
@@ -104,7 +121,11 @@ def build_run_report(
         release_id=release_id,
         version=version,
         environment=environment,
+        manifest=manifest,
     )
+    if manifest is not None:
+        report.as_dict()
+    return report
 
 
 def write_json(report: RunReport, path: str | Path) -> Path:
@@ -115,6 +136,7 @@ def write_json(report: RunReport, path: str | Path) -> Path:
 
 
 def write_html(report: RunReport, path: str | Path) -> Path:
+    snapshot = report.as_dict()
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -150,5 +172,10 @@ def write_html(report: RunReport, path: str | Path) -> Path:
         rows.append(f"<tr><td>{html.escape(scenario['scenario_id'])}</td><td>{status}</td><td>{tools}</td><td>{html.escape(model)}</td><td>{escaped(usage.get('total_tokens', '-'))}</td><td>{escaped(cost.get('total', '-'))}</td><td>{failures}{details}</td></tr>")
     body = "".join(rows)
     document = f"<!doctype html><html><head><meta charset='utf-8'><title>V1 Run Report</title><style>body{{font:15px system-ui;margin:2rem}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:.5rem;text-align:left}}.ok{{color:green}}.bad{{color:#b00}}</style></head><body><h1>V1 API E2E Run Report</h1><p>Run: <code>{html.escape(report.run_id)}</code></p><p>Total: {report.total} | Passed: <span class='ok'>{report.passed}</span> | Failed: <span class='bad'>{report.failed}</span> | Gate: {str(report.gate_passed).lower()}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Tool calls</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Failed assertions</th></tr></thead><tbody>{body}</tbody></table></body></html>"
+    verification = html.escape(snapshot["verification"])
+    eligibility = str(snapshot["release_eligible"]).lower()
+    observation = str(report.gate_passed).lower()
+    document = document.replace("<h1>V1 API E2E Run Report</h1>",
+        f"<h1>API E2E Run Evidence</h1><p>Verification: {verification} | Release eligible: {eligibility} | Reported gate: {observation}</p>")
     target.write_text(document, encoding="utf-8")
     return target

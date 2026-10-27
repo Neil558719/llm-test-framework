@@ -77,7 +77,7 @@ def test_telemetry_and_quality_components_register_versions_in_shared_database(t
         rows = connection.execute(
             "SELECT component, version FROM schema_meta ORDER BY component"
         ).fetchall()
-        assert rows == [("quality_loop", 1), ("telemetry", 1)]
+        assert rows == [("quality_loop", 2), ("telemetry", 1)]
     finally:
         connection.close()
         quality.close()

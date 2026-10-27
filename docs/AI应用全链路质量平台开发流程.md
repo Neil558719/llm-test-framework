@@ -238,10 +238,16 @@ performance:
 
 ## 10. 进度状态表
 
+A06交接尾注：k64已有限确认3135b468两夹具迁移及138窄回归无剩余，原17Python哈希不变；最后仅docs提交且19Python冻结，不重复root。下表唯一root失败历史保持，当前head CI与主合并树full/独立安装发行待主接续。
+
 本表是后续对话中回答“开发进度”的唯一事实来源之一。每完成一个里程碑，必须同时更新状态、证据和剩余工作。
 
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
+| A06 唯一root与夹具迁移最终本地边界 | 独审三项关闭；唯一root未全绿，遗漏两正向seed仅测试迁移后138定向通过，待主CI/mergedfull | 5b17bd1 root实际993pass/1fail/116errors/7排除/2警告/0skip，92.99秒；telemetry_access/retention_clock旧legacy发布seed改独立可信v2/不同ID，保留actor/角色/CSRF/时间/TTL/默认阈值，两个完整文件138pass2warn41.21秒。生产17哈希不变；20顶层+3继承消费者=23进程，86新增；准确失败见A06证据 | 本行更新下方历史387/329；不得声称localfullpassed，不重跑本任务root。两文件diff有限确认后交主，当前head CI完整回归全绿才可merge，主唯一mergedfull/安装Release/持久环境另验 |
+| A06 独审窄修接续（2026-10-28） | 2Important/1Minor实际RED后窄修，重新冻结待有限复审，仍无root | 空消息异常按status保留失败报告；持久化proof局部数组校验及已有run统一scope预检404，RuntimeError仍500；双verified-v2 app/env对照。9失败/13已有守卫通过→22定向/11文件329相关通过2警告42.06秒；86新增，18顶层pytest/18进程，限3生产文件 | 本行更新下方首冻结387/15命令历史；k64有限复审收敛后唯一root，主CI/合并/安装Release/持久部署待续，版本依赖不改，练习待完成 |
+| A06 / Issue [#76](https://github.com/Neil558719/llm-test-framework/issues/76)：报告完整性与基线可比性 | 本地相关通过，准备冻结独立k64审查，尚无finalroot | base725a413/dev5；独立不可变manifest、canonical控制/评分摘要、步骤/质量/断言重算、外部信任与自报分离、内容幂等、安全来源投影、schema1→2保留旧记录/links/快照；初始化/中断错误可写但不能绿。72新增，15顶层pytest，最新21文件387通过/2上游警告；初始9真实RED/3已有守卫与接口/夹具错误分列，见docs/evidence/A06/summary.md | 独立审查收敛后唯一finalroot；主CI/合并树/wheel/安装/Release/部署接续，主统一dev6。Agent部署恢复范围不变；无真实供应商/SDK/IdP/用户DB操作，用户练习待完成、掌握未评估 |
+| A05 主交付接续（A06依赖） | 主已合并、当前CI与独立安装、dev5预发行及回下载验证完成 | merge b16aa0b与base725a413测试源一致；34CI、合并树1024通过/7排除/2警告，wheel114质量+14场景/3资源通过；dev5三附件逐字节/hash/tag/source核验，Issue73关闭；wheel摘要见A06证据 | 本行取代下方A05历史交付待办；由主提供、不计A06覆盖。真实provider/IdP与持久部署未验收，用户练习待完成 |
 | A05 最终本地验收接续 | 独立复审无剩余项，冻结源唯一全量通过，待主串行交付 | `be21c8d`关闭1Important/1Minor；114项，初稿57+12真实RED及审查26失败/1已有守卫通过；定向27/相关226，唯一根1024通过/7排除/2警告、0skip、69.91秒。累计11顶层pytest+3继承消费者=14进程。仅新wrapper窄修，内核/版本依赖不改；之后仅docs收口 | Push/PR/同SHA CI、合并树/独立安装/Release/部署由主接续，主统一dev5；当前仍dev4，本地/Mock不代表真实效果，用户练习待完成。本行取代下方A05初稿待审状态，原310归初稿、不重复验证 |
 | A05 / Issue [#73](https://github.com/Neil558719/llm-test-framework/issues/73)：执行YAML质量声明与聚合 | 本地定向/相关通过，源码冻结待独立review | base `2356b1e` 含已复审A04b接续；五指标required、显式Judge、最终回答/问题/sources、缺grounding零相关调用、回调策略/结果校验、规范化量纲及转义差异/Trace。初始真实RED57/补边界12；新87项，相关21文件310通过/2警告；7次顶层pytest保留两次测试错误及117通过/2旧契约失败，12个Python静态编译/diff/metadata通过。见 `docs/evidence/A05/summary.md` | 独立审查后唯一finalroot，Push/PR/当前SHA CI、合并树验证、安装Release/部署由主接续；版本保持dev4、主后续统一dev5。Mock只证明离线接线，真实质量与用户掌握未评估，练习待完成；无本任务全量/真实调用证据 |
 | A04b 主流程验收接续（A05依赖） | PR/CI/合并、合并树与独立安装、dev4预发行及回下载核验完成 | 主报告PR74 head2356b1e的34项checks成功，merge `55b22550e9beb35693a19f8a50135cb08f7d7f25` 同树全量910通过/7排除/2警告，wheel202鉴权隔离+14场景/3资源通过；独立复审无剩余项；[dev4](https://github.com/Neil558719/llm-test-framework/releases/tag/v0.2.0a24.dev4) 回下载hash/tag/三附件核验，Issue72关闭，hash见A05证据 | 本行更新下方A04b历史交付状态；本任务不重复验证，真实IdP/HTTPS/持久部署未验收，用户练习待完成/掌握未评估 |

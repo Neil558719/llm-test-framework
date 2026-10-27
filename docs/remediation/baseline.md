@@ -1,5 +1,19 @@
 # P00 / A01 本地运行基线
 
+## A06 当前接续（Issue #76，2026-10-27）
+
+交接尾注：k64已有限确认3135b468两夹具迁移无剩余、原17哈希未变及138日志；最终仅docs尾注提交，19Python冻结不变，不再pytest/root。主接管当前head CI/合并树full/安装发行，唯一root失败边界保持。
+
+最终本地接续：独立有限复审5b17bd1无剩余；唯一root实际exit1/993通过/1失败/116errors/7排除/2警告/0skip/92.99秒。两处漏迁移的旧release正向seed（telemetry_access/retention_clock）仅测试夹具迁移可信v2、不同ID，原时间/TTL/actor/角色/CSRF/阈值保持，两个完整文件138通过/2警告/41.21秒；生产源17hash未变。20顶层pytest+3继承消费者=23进程，86新增，未重复root，不标localfullpassed。两测试diff待有限确认；主CI当前head全绿、合并后唯一mergedfull/独立安装Release另验。
+
+2026-10-28接续：独审5ffde058发现2Important/1Minor，新增14后86项；真实RED9失败/13已绿，定向22通过，11相关文件329通过/2警告/42.06秒，累计18顶层pytest/18进程，0root。仅status中断识别、局部hydration数组校验及统一已有run作用域预检三生产文件窄修；空消息错误可写但不可绿、持久化未知proof三入口404、真正RuntimeError500，app/env用双verified-v2对照。重新冻结待有限复审；下方387/15命令仅归首冻结历史。
+
+分支 codex/a06-report-integrity，base725a413/dev5，版本/锁/依赖/共享环境不变。当前21文件相关387通过/2上游警告；新增70完整性+2隔离守卫，共72项；15顶层pytest/15进程，无finalroot。初始旧入口9失败/3原守卫已绿；接口缺失、夹具/实现错误与旧断言迁移单列，完整命令见[A06证据](../evidence/A06/summary.md)。源码准备冻结给独立k64，收敛后唯一根回归；主CI/合并树/独立安装/发行/部署尚待接续，不把本地绿灯当交付完成。
+
+先冻结独立ScenarioSpec计划，native/import/read核对步骤与quality并重算结论；自报manifest无外部信任只能只读。baseline/candidate不同ID、同应用/环境、完整verified_v2和同控制资产；SUT模型/prompt实验版本不强制相同。schema2保留旧payload/links/验证，不回填证明；readiness动态要求2，合成质量库备份恢复用expected_versions=2，旧reader需配套旧快照。Agent专用部署restore不误改。零真实Judge/provider/SDK/IdP、无Docker/pip/push或用户DB操作。
+
+依赖交付由主报告：A05 merge b16aa0b、34CI、合并树1024通过/7排除/2警告、wheel114质量及14场景/3资源、dev5已发布并核验三附件/hash/tag，Issue73关闭。此处更新下方A05历史待交付状态，不计入A06测试数。真实效果、持久环境及用户掌握未评估，练习待完成；主整合时统一dev6。
+
 ## A05 当前接续（Issue #73）
 
 隔离分支 `codex/a05-scenario-quality`，base `2356b1e2d1d80e2266b021e43fb098ce642b5ed4`；本任务版本保持dev4，不改pyproject/uv.lock/共享env，后续dev5由主统一。主最新依赖验收：A04b已合并 `55b22550`，PR74同head34项检查与同树全量910通过/7排除/2警告，独立wheel202鉴权隔离+14场景/3资源通过，dev4已发布并回下载hash/tag/三附件核验，Issue72关闭；不当作本任务覆盖或重复执行，真实IdP/HTTPS/持久部署未验收。

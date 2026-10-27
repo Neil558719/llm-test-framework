@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from tests.test_quality_loop_models import _report_payload
+from tests.report_integrity_fixtures import verified_payload, trusted_plan
 from fastapi.testclient import TestClient
 from qe_platform.storage import SQLiteTelemetryRepository
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
@@ -19,6 +20,7 @@ def client_for(tmp_path):
         TelemetrySettings(str(database), HASH_KEY, INGEST_TOKEN, 30),
         SQLiteTelemetryRepository(database, hash_key=HASH_KEY, clock=clock),
         SQLiteQualityRepository(database, clock=clock),
+        trusted_manifest_resolver=lambda _: trusted_plan(),
     ))
 
 
@@ -49,8 +51,8 @@ def _create_promotion(client):
 def test_quality_api_completes_online_offline_link_and_validation(tmp_path):
     client = client_for(tmp_path)
     promotion = _create_promotion(client)
-    baseline = _report_payload(run_id="run-baseline", release_id="alpha-22", version="old", started_at="2026-09-08T00:00:00Z", finished_at="2026-09-08T00:00:02Z")
-    candidate = _report_payload(run_id="run-candidate", release_id="alpha-23", version="new")
+    baseline = verified_payload(run_id="run-baseline", release_id="alpha-22", version="old", started_at="2026-09-08T00:00:00Z", finished_at="2026-09-08T00:00:02Z")
+    candidate = verified_payload(run_id="run-candidate", release_id="alpha-23", version="new")
     headers = {"X-QE-Telemetry-Token": INGEST_TOKEN}
     assert client.post("/api/quality/offline-runs", headers=headers, json={**baseline, "source_label": "api-fixture"}).status_code == 201
     assert client.post("/api/quality/offline-runs", headers=headers, json={**candidate, "source_label": "api-fixture"}).status_code == 201

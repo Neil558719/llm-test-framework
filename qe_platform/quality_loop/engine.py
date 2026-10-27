@@ -175,6 +175,16 @@ def validate_release(
         raise KeyError("baseline run not found")
     if candidate is None:
         raise KeyError("candidate run not found")
+    if baseline.run_id == candidate.run_id:
+        raise ValueError("baseline and candidate must be distinct runs")
+    if baseline.application != candidate.application:
+        raise ValueError("baseline and candidate applications differ")
+    if baseline.environment != candidate.environment:
+        raise ValueError("baseline and candidate environments differ")
+    if not baseline.release_eligible or not candidate.release_eligible:
+        raise ValueError("release requires complete verified v2 evidence")
+    if baseline.asset_fingerprint != candidate.asset_fingerprint:
+        raise ValueError("controlled assets differ; select a new baseline")
     if allowed_applications is not None and (
         baseline.application != candidate.application or allowed_applications != frozenset({candidate.application})
         or (policy.application and policy.application != candidate.application)
@@ -251,6 +261,7 @@ def validate_release(
         now.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
         scope_application=candidate.application if allowed_applications is not None else None,
         scope_policy_version=1 if allowed_applications is not None else None,
+        report_policy_version=2,
     )
     saved = repository.save_validation(result)
     PROCESS_METRICS.increment("quality_gate_passed_total" if saved.passed else "quality_gate_denied_total")

@@ -19,6 +19,7 @@ from qe_platform.telemetry.settings import TelemetrySettings
 from reference_agent.app import create_app
 from tests.test_quality_loop_api import SCENARIO, _create_promotion
 from tests.test_quality_loop_models import _report_payload
+from tests.report_integrity_fixtures import verified_payload, trusted_plan
 from tests.test_telemetry_api import HASH_KEY, INGEST_TOKEN
 from tests.test_telemetry_storage import utc
 
@@ -39,14 +40,17 @@ def access(tmp_path):
     settings = TelemetrySettings(str(database), HASH_KEY, INGEST_TOKEN, 30, frozenset({"service-desk"}))
     repo = SQLiteTelemetryRepository(database, hash_key=HASH_KEY, clock=lambda: now)
     quality = SQLiteQualityRepository(database, clock=lambda: now)
+    plan = trusted_plan()
     development = TestClient(create_telemetry_app(
         settings, repo, quality, auth_runtime=AuthRuntime.disabled(),
+        trusted_manifest_resolver=lambda payload: plan if payload.get("schema_version") == "qe-run-v2" else None,
     ))
     promotion = _create_promotion(development)
     headers = {"X-QE-Telemetry-Token": INGEST_TOKEN}
     for run_id in ("baseline", "candidate"):
         assert development.post("/api/quality/offline-runs", headers=headers,
-                                json=_report_payload(run_id=run_id, application="service-desk")).status_code == 201
+                                json=verified_payload(run_id=run_id, application="service-desk")).status_code == 201
+        assert quality.get_run(run_id).release_eligible
     validation = validate_release(quality, "baseline", "candidate", ReleaseGatePolicy(max_low_quality_rate_increase=1.0),
                                   allowed_applications=frozenset({"service-desk"}))
     store = SessionStore(tmp_path / "auth.db", clock=lambda: now)

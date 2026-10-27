@@ -20,6 +20,12 @@ def write_quality_html(payload: Mapping[str, Any], path: str | Path) -> Path:
     passed = payload.get("passed", nested_validation.get("passed"))
     status = "PASSED" if passed is True else "FAILED" if passed is False else "QUALITY EVIDENCE"
     color = "#176b2c" if passed is True else "#a11" if passed is False else "#333"
+    validation = payload.get("validation") if isinstance(payload.get("validation"), Mapping) else payload
+    eligible = (validation.get("report_policy_version") == 2 and all(
+        isinstance(payload.get(role), Mapping) and payload[role].get("release_eligible") is True
+        and payload[role].get("verification") == "verified_v2" for role in ("baseline", "candidate")))
+    if not eligible and passed is True:
+        status, color = "REPORTED PASSED — UNVERIFIED; release eligible: false", "#333"
     def cell(value: Any) -> str:
         if value is None:
             return "<span class='null'>null</span>"
@@ -45,7 +51,7 @@ def write_quality_html(payload: Mapping[str, Any], path: str | Path) -> Path:
             if isinstance(payload.get(label), Mapping):
                 offline_runs.append({"role": label, **payload[label]})
     offline_rows = [
-        [item.get(key) for key in ("role", "run_id", "application", "release_id", "version", "environment", "total", "passed", "failed", "gate_passed", "p95_latency_ms", "total_tokens", "total_cost")]
+        [item.get(key) for key in ("role", "run_id", "application", "release_id", "version", "environment", "total", "passed", "failed", "gate_passed", "verification", "release_eligible", "p95_latency_ms", "total_tokens", "total_cost")]
         for item in offline_runs
     ]
     links = payload.get("links") if isinstance(payload.get("links"), list) else []
@@ -59,7 +65,7 @@ def write_quality_html(payload: Mapping[str, Any], path: str | Path) -> Path:
     serialized = html.escape(json.dumps(dict(payload), ensure_ascii=False, indent=2, sort_keys=True))
     sections = [
         table("Online and offline trends", ["Bucket", "Application", "Version", "Online traces", "Feedback", "Confirmed low quality", "Low quality rate", "Offline runs", "Offline pass rate", "P95 latency (ms)", "Tokens", "Cost"], trend_rows, table_id="trends"),
-        table("Offline run comparison", ["Role", "Run", "Application", "Release", "Version", "Environment", "Total", "Passed", "Failed", "Gate passed", "P95 latency (ms)", "Tokens", "Cost"], offline_rows, table_id="offline-runs"),
+        table("Offline run comparison", ["Role", "Run", "Application", "Release", "Version", "Environment", "Total", "Passed", "Failed", "Reported gate", "Verification", "Release eligible", "P95 latency (ms)", "Tokens", "Cost"], offline_rows, table_id="offline-runs"),
         table("Trace to run associations", ["Link", "Trace", "Feedback", "Review", "Promotion", "Scenario", "Offline run"], link_rows, table_id="associations"),
         table("Release gate checks", ["Check", "Actual", "Threshold", "Passed", "Message"], check_rows, table_id="gate-checks"),
     ]

@@ -20,6 +20,7 @@ from qe_platform.telemetry.api import create_telemetry_app
 from qe_platform.telemetry.settings import TelemetrySettings
 from tests.test_quality_loop_api import SCENARIO
 from tests.test_quality_loop_models import _report_payload
+from tests.report_integrity_fixtures import verified_payload, trusted_plan
 from tests.test_telemetry_api import HASH_KEY, INGEST_TOKEN, safe_payload
 from tests.test_telemetry_storage import utc
 
@@ -31,7 +32,7 @@ def isolation(tmp_path, monkeypatch):
     settings = TelemetrySettings(str(database), HASH_KEY, INGEST_TOKEN, 30)
     repo = SQLiteTelemetryRepository(database, hash_key=HASH_KEY, clock=lambda: now)
     quality = SQLiteQualityRepository(database, clock=lambda: now)
-    dev = TestClient(create_telemetry_app(settings, repo, quality, auth_runtime=AuthRuntime.disabled()))
+    dev = TestClient(create_telemetry_app(settings, repo, quality, auth_runtime=AuthRuntime.disabled(), trusted_manifest_resolver=lambda payload: trusted_plan() if payload.get("schema_version") == "qe-run-v2" else None))
     token = {"X-QE-Telemetry-Token": INGEST_TOKEN}
     objects = {}
     for application in ("app-a", "app-b"):
@@ -49,7 +50,7 @@ def isolation(tmp_path, monkeypatch):
             promotion = dev.post(f"/api/reviews/{review['review_id']}/promote", json={"scenario": SCENARIO}).json()
             objects[trace_id] = {**feedback, **review, **promotion}
         for label in ("baseline", "candidate"):
-            assert dev.post("/api/quality/offline-runs", headers=token, json=_report_payload(
+            assert dev.post("/api/quality/offline-runs", headers=token, json=verified_payload(
                 run_id=f"{application}-{label}", application=application,
             )).status_code == 201
         assert dev.post("/api/quality/links", headers=token, json={
@@ -392,6 +393,49 @@ def test_request_malformed_scope_proof_remains_bad_request(isolation, version):
         "scope_application": "app-a", "scope_policy_version": version,
     })
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("operation", ["get", "post", "import"])
+@pytest.mark.parametrize("damage", ["schema", "null-ids", "numeric-ids"])
+def test_unknown_persisted_run_proof_is_hidden_from_production_validation(isolation, operation, damage):
+    quality = isolation["quality"]
+    row = quality._connection.execute("SELECT payload FROM quality_offline_runs WHERE run_id='app-a-candidate'").fetchone()
+    payload = json.loads(row[0])
+    if damage == "schema":
+        payload["evidence"]["schema_version"] = "qe-evidence-v999"
+    else:
+        payload["scenario_ids"] = None if damage == "null-ids" else 123
+    quality._connection.execute("UPDATE quality_offline_runs SET payload=? WHERE run_id='app-a-candidate'", (json.dumps(payload),))
+    authenticated = isolation["client"]()
+    api = TestClient(authenticated.app, raise_server_exceptions=False)
+    api.cookies.update(authenticated.cookies)
+    if operation == "get":
+        response = api.get(f"/api/quality/release-validations/{isolation['objects']['app-a']['validation_id']}")
+    elif operation == "post":
+        response = api.post("/api/quality/release-validations", headers=isolation["csrf"], json={
+            "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate", "max_low_quality_rate_increase": 1.0,
+        })
+    else:
+        response = api.post("/api/quality/offline-runs", headers=isolation["csrf"], json=verified_payload(run_id="app-a-candidate", application="app-a"))
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("operation", ["get", "post", "import"])
+def test_run_loading_programming_error_is_not_hidden_as_missing(isolation, monkeypatch, operation):
+    def fail(_identifier):
+        raise RuntimeError("unexpected programming error")
+    monkeypatch.setattr(isolation["quality"], "get_run", fail)
+    authenticated = isolation["client"]()
+    api = TestClient(authenticated.app, raise_server_exceptions=False)
+    api.cookies.update(authenticated.cookies)
+    if operation == "get":
+        response = api.get(f"/api/quality/release-validations/{isolation['objects']['app-a']['validation_id']}")
+    elif operation == "post":
+        response = api.post("/api/quality/release-validations", headers=isolation["csrf"], json={
+            "baseline_run_id": "app-a-baseline", "candidate_run_id": "app-a-candidate"})
+    else:
+        response = api.post("/api/quality/offline-runs", headers=isolation["csrf"], json=verified_payload(run_id="app-a-candidate", application="app-a"))
+    assert response.status_code == 500
 
 
 @pytest.mark.parametrize("operation", ["get", "post"])

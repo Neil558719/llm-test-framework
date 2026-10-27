@@ -1,5 +1,23 @@
 # 面试素材账本
 
+## A06：执行完整性与信任来源（Issue #76）
+
+交接尾注：3135b468两处夹具有限复审无剩余，138窄回归/原17哈希已核对；最后仅docs提交且19Python不变，不重复root。主当前head CI和合并树全量/安装发行另验，不能称本地全量全绿。
+
+最终本地边界更新：k64关闭R1/R2/R3后，5b17bd1唯一root实际993通过/1失败/116夹具错误/7排除/2警告/0skip，92.99秒，**没有本地全量全绿**。漏迁移telemetry_access/retention_clock两处legacy正向发布seed；仅改两测试文件为独立可信v2、不同run ID并复用幂等report，原角色/actor/CSRF、时间与TTL及默认阈值保持，两文件138通过/2警告/41.21秒。生产源未变；20顶层pytest+3继承消费者=23进程，仍86新增，不重跑root。主CI当前head全绿后才可merge，再主唯一mergedfull；见A06证据，历史387/329不冒充最终root结果。
+
+2026-10-28最新：首冻结5ffde058独审发现2Important/1Minor，均按实际RED窄修；空消息异常报告、持久化proof三入口404及可信v2 app/env对照。9失败/13守卫已绿后22定向通过，11文件相关329通过/2警告/42.06秒；18顶层pytest/18进程，新增86项，仍无root，重新冻结待有限复审。仅3生产文件，无runner/阈值/TTL放宽；真正RuntimeError仍500，不回填旧信任。下方387/15命令为首冻结历史，准确记录见A06证据。
+
+隔离分支 codex/a06-report-integrity，base725a413/dev5；当前21相关文件387通过/2警告，72新增测试，15顶层pytest/15进程，尚未独立审查或finalroot。初始旧入口9真实RED+3原有守卫通过；缺v2接口、后续实现/夹具错误、旧契约迁移和全部失败分别记录，见[A06证据](../evidence/A06/summary.md)。无默认Judge、真实SDK/模型/Docker/pip/push；主根台账不在本任务修改。
+
+原理：先从独立选择的ScenarioSpec冻结不可变计划，再执行并核对实际步骤、确定性断言、必需质量和汇总。自携manifest不能自授信；没有外部expected_manifest/服务端resolver只能unverified只读。合法业务失败可complete但failed；初始化/中途error及inconclusive可写解释性报告但不可绿。相同ID改输入、工具/断言、rubric或阈值需新baseline；模型/prompt实验版本可变且记录。完整内容摘要防止相同ID不同执行擦成相同汇总；安全投影不存原问题/答案/工具参数，Mock来源可见且只证明离线接线。
+
+迁移：quality_loop1→2保留旧payload/IDs/links/历史验证，不回填信任；readiness按仓库动态schema2，质量库恢复显式expected_versions=2。原Agent专用部署恢复范围不变；旧reader回退需配套迁移前快照。生产未知持久化proof404，HTTP自报proof400；异常只在数据解析范围处理。当前未具备发布完成证据，审查/finalroot、主CI/合并/安装发行及持久部署分开验收。
+
+依赖最新交付：主已完成A05 merge b16aa0b、34CI、合并树1024通过、wheel114质量+14场景/3资源及dev5三附件回下载hash/tag核验，Issue73关闭；不计作本任务覆盖。下方A05段落保留其历史本地阶段。
+
+10–20分钟练习待完成，掌握未评估：解释Reported gate/complete/verification/release_eligible差别；篡改步骤或required应失败，比较改模型版本与改rubric的baseline处理；用临时旧库演示迁移回滚/配套快照。不得以Mock离线通过声称真实质量或收益百分比。
+
 ## A05：执行完成、质量通过与证据来源（Issue #73）
 
 base `2356b1e`（已复审A04b接续、dev4），A05最终冻结源 `be21c8d` 经有限复审无剩余项、唯一根全量1024通过/7排除/2上游警告、0skip，主流程交付待接续。主已合并A04b为 `55b22550`，PR74同head34项检查、全量910、wheel202鉴权隔离/14场景/3资源通过；dev4已发布并核验回下载hash/tag/三附件，Issue72关闭。本任务未重复A04b验证，真实IdP/HTTPS/持久部署未验收。见[A05证据](../evidence/A05/summary.md)和[场景质量指南](../场景质量评测指南.md)。用户练习待完成、掌握未评估。
