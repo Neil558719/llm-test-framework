@@ -2,6 +2,8 @@
 
 ## A06：执行完整性与信任来源（Issue #76）
 
+最终本地边界更新：k64关闭R1/R2/R3后，5b17bd1唯一root实际993通过/1失败/116夹具错误/7排除/2警告/0skip，92.99秒，**没有本地全量全绿**。漏迁移telemetry_access/retention_clock两处legacy正向发布seed；仅改两测试文件为独立可信v2、不同run ID并复用幂等report，原角色/actor/CSRF、时间与TTL及默认阈值保持，两文件138通过/2警告/41.21秒。生产源未变；20顶层pytest+3继承消费者=23进程，仍86新增，不重跑root。主CI当前head全绿后才可merge，再主唯一mergedfull；见A06证据，历史387/329不冒充最终root结果。
+
 2026-10-28最新：首冻结5ffde058独审发现2Important/1Minor，均按实际RED窄修；空消息异常报告、持久化proof三入口404及可信v2 app/env对照。9失败/13守卫已绿后22定向通过，11文件相关329通过/2警告/42.06秒；18顶层pytest/18进程，新增86项，仍无root，重新冻结待有限复审。仅3生产文件，无runner/阈值/TTL放宽；真正RuntimeError仍500，不回填旧信任。下方387/15命令为首冻结历史，准确记录见A06证据。
 
 隔离分支 codex/a06-report-integrity，base725a413/dev5；当前21相关文件387通过/2警告，72新增测试，15顶层pytest/15进程，尚未独立审查或finalroot。初始旧入口9真实RED+3原有守卫通过；缺v2接口、后续实现/夹具错误、旧契约迁移和全部失败分别记录，见[A06证据](../evidence/A06/summary.md)。无默认Judge、真实SDK/模型/Docker/pip/push；主根台账不在本任务修改。

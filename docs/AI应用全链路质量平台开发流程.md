@@ -242,6 +242,7 @@ performance:
 
 | 里程碑 | 状态 | 已实现证据 | 未实现/下一步 |
 | --- | --- | --- | --- |
+| A06 唯一root与夹具迁移最终本地边界 | 独审三项关闭；唯一root未全绿，遗漏两正向seed仅测试迁移后138定向通过，待主CI/mergedfull | 5b17bd1 root实际993pass/1fail/116errors/7排除/2警告/0skip，92.99秒；telemetry_access/retention_clock旧legacy发布seed改独立可信v2/不同ID，保留actor/角色/CSRF/时间/TTL/默认阈值，两个完整文件138pass2warn41.21秒。生产17哈希不变；20顶层+3继承消费者=23进程，86新增；准确失败见A06证据 | 本行更新下方历史387/329；不得声称localfullpassed，不重跑本任务root。两文件diff有限确认后交主，当前head CI完整回归全绿才可merge，主唯一mergedfull/安装Release/持久环境另验 |
 | A06 独审窄修接续（2026-10-28） | 2Important/1Minor实际RED后窄修，重新冻结待有限复审，仍无root | 空消息异常按status保留失败报告；持久化proof局部数组校验及已有run统一scope预检404，RuntimeError仍500；双verified-v2 app/env对照。9失败/13已有守卫通过→22定向/11文件329相关通过2警告42.06秒；86新增，18顶层pytest/18进程，限3生产文件 | 本行更新下方首冻结387/15命令历史；k64有限复审收敛后唯一root，主CI/合并/安装Release/持久部署待续，版本依赖不改，练习待完成 |
 | A06 / Issue [#76](https://github.com/Neil558719/llm-test-framework/issues/76)：报告完整性与基线可比性 | 本地相关通过，准备冻结独立k64审查，尚无finalroot | base725a413/dev5；独立不可变manifest、canonical控制/评分摘要、步骤/质量/断言重算、外部信任与自报分离、内容幂等、安全来源投影、schema1→2保留旧记录/links/快照；初始化/中断错误可写但不能绿。72新增，15顶层pytest，最新21文件387通过/2上游警告；初始9真实RED/3已有守卫与接口/夹具错误分列，见docs/evidence/A06/summary.md | 独立审查收敛后唯一finalroot；主CI/合并树/wheel/安装/Release/部署接续，主统一dev6。Agent部署恢复范围不变；无真实供应商/SDK/IdP/用户DB操作，用户练习待完成、掌握未评估 |
 | A05 主交付接续（A06依赖） | 主已合并、当前CI与独立安装、dev5预发行及回下载验证完成 | merge b16aa0b与base725a413测试源一致；34CI、合并树1024通过/7排除/2警告，wheel114质量+14场景/3资源通过；dev5三附件逐字节/hash/tag/source核验，Issue73关闭；wheel摘要见A06证据 | 本行取代下方A05历史交付待办；由主提供、不计A06覆盖。真实provider/IdP与持久部署未验收，用户练习待完成 |

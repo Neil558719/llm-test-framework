@@ -71,3 +71,20 @@ R1 新增空消息 RuntimeError/TimeoutError×adapter/middle四守卫，均保�
 | review-related-green | 0；329 passed / 2 warnings，42.06s；11文件，含完整性/作用域/quality/runner/gate/质量API与旧telemetry/auth API |
 
 当前累计18顶层pytest/18进程，仍0 root；旧21文件387归首冻结源，不冒称修后重复全量。原始日志与源码检查点保留；修后哈希 `.context/A06/review-source-freeze.json`，静态结果 `review-static-checks.log`。原15条命令和新3条均可逐项与日志对照。恢复后的本地源/测试修改只限上述发现；版本、依赖、真实调用及发行边界保持。重新冻结交k64有限复审，关闭后才唯一finalroot，无需再请求授权。
+
+## 唯一根回归实际失败与最终窄范围（更新以上待复审/root状态）
+
+k64 对 `5b17bd1a267e3395687f5ae23165cfb1bc7e6b27` 有限复审，R1/R2/R3全部关闭、无剩余finding；只读diff并核对17Python哈希，无新增pytest/probe。确认该HEAD clean且17哈希匹配后执行唯一根回归，**实际不是全绿**：
+
+| batch | pytest exit / 实际结果 |
+| --- | --- |
+| full-offline | 1；993 passed / 1 failed / 116 errors / 7 deselected / 2 warnings，92.99s，根0skip |
+| root-fixture-green | 0；138 passed / 2 warnings，41.21s；仅两个夹具所在完整文件 |
+
+1失败来自 `test_retention_clock.py::test_quality_clock_controls_import_links_and_validation`，116个setup errors来自 `test_telemetry_access.py::access`。实现者漏迁移这两处旧发布正向seed：仍用legacy summary作为release证据，且clock旧正向还将同一run用作baseline/candidate；严格契约正确拒绝，不能把这些结果算通过。此前普通相关选择未包括这两处；CI/UI脚本盘点不等于全仓夹具已全部迁移，此遗漏如实保留。
+
+只改两个测试文件：telemetry_access 在seed执行前独立trusted_plan，dev服务器仅对v2使用此plan，seed以verified_payload导入并显式断言release_eligible；后续测试用legacy做授权写操作的行为保留。retention_clock独立plan、两个不同ID的verified-v2，复用同一report对象保证幂等内容身份；原注入时间、显式now优先级、到期拒绝、严格TTL边界、默认发布阈值及actor/角色/CSRF负例均未放宽。此后未改任何生产代码，也未新增测试计数，仍86新增。两文件138通过覆盖原117个失败/错误及该两文件其他守卫。
+
+累计 **20条顶层pytest**，只有一次root；继承A03三种受控消费者子pytest，共 **23个pytest进程**。optional消费者预期skip是子进程探索结果，不计根通过或根0skip。根7排除为5UI+2Windows计划任务/持久watcher系统副作用集成；两警告为Starlette/AnyIO与LangGraph上游提示。没有重复本任务root；主明确最终当前head CI全回归绿后才可merge，随后主唯一mergedfull作为独立检查点。本地不得标localfullpassed。
+
+原review源17哈希继续保持；两处额外测试文件加入最终19Python冻结哈希 `.context/A06/final-source-freeze.json`，静态结果 `final-static-checks.log` 对照全部20条命令。两文件夹具diff及138结果交k64有限确认，不重审无关源。最终CI/主合并树full、独立安装/Release、真实环境与用户练习仍待主，dev5/依赖/共享环境保持不变。

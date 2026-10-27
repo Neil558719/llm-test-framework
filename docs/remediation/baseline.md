@@ -2,6 +2,8 @@
 
 ## A06 当前接续（Issue #76，2026-10-27）
 
+最终本地接续：独立有限复审5b17bd1无剩余；唯一root实际exit1/993通过/1失败/116errors/7排除/2警告/0skip/92.99秒。两处漏迁移的旧release正向seed（telemetry_access/retention_clock）仅测试夹具迁移可信v2、不同ID，原时间/TTL/actor/角色/CSRF/阈值保持，两个完整文件138通过/2警告/41.21秒；生产源17hash未变。20顶层pytest+3继承消费者=23进程，86新增，未重复root，不标localfullpassed。两测试diff待有限确认；主CI当前head全绿、合并后唯一mergedfull/独立安装Release另验。
+
 2026-10-28接续：独审5ffde058发现2Important/1Minor，新增14后86项；真实RED9失败/13已绿，定向22通过，11相关文件329通过/2警告/42.06秒，累计18顶层pytest/18进程，0root。仅status中断识别、局部hydration数组校验及统一已有run作用域预检三生产文件窄修；空消息错误可写但不可绿、持久化未知proof三入口404、真正RuntimeError500，app/env用双verified-v2对照。重新冻结待有限复审；下方387/15命令仅归首冻结历史。
 
 分支 codex/a06-report-integrity，base725a413/dev5，版本/锁/依赖/共享环境不变。当前21文件相关387通过/2上游警告；新增70完整性+2隔离守卫，共72项；15顶层pytest/15进程，无finalroot。初始旧入口9失败/3原守卫已绿；接口缺失、夹具/实现错误与旧断言迁移单列，完整命令见[A06证据](../evidence/A06/summary.md)。源码准备冻结给独立k64，收敛后唯一根回归；主CI/合并树/独立安装/发行/部署尚待接续，不把本地绿灯当交付完成。

@@ -12,6 +12,7 @@ from qe_platform.telemetry import TelemetryQuery
 from qe_platform.telemetry.api import create_telemetry_app
 from qe_platform.telemetry.settings import TelemetrySettings
 from tests.test_quality_loop_models import _report_payload
+from tests.report_integrity_fixtures import verified_payload, trusted_plan
 from tests.test_telemetry_storage import trace_at, utc
 
 
@@ -82,10 +83,14 @@ def test_quality_clock_controls_import_links_and_validation(tmp_path):
     _, item = seed(telemetry)
     promotion = telemetry.create_promotion(item.review_id, "vpn-recovery-regression", SCENARIO)
     quality = SQLiteQualityRepository(database, clock=lambda: current[0])
-    run = quality.import_run(_report_payload(), source_label="fixture")
+    plan = trusted_plan()
+    report = verified_payload()
+    baseline = quality.import_run(verified_payload(run_id="clock-baseline"), source_label="fixture", expected_manifest=plan)
+    run = quality.import_run(report, source_label="fixture", expected_manifest=plan)
+    assert baseline.release_eligible and run.release_eligible
     link = quality.create_link(promotion.promotion_id, run.run_id)
     assert link.created_at == "2026-09-01T00:00:00.000000Z"
-    result = validate_release(quality, run.run_id, run.run_id, ReleaseGatePolicy())
+    result = validate_release(quality, baseline.run_id, run.run_id, ReleaseGatePolicy())
     assert result.created_at == "2026-09-01T00:00:00.000000Z"
     assert quality.get_run(run.run_id) == run
     assert quality.list_links() == [link]
@@ -94,15 +99,15 @@ def test_quality_clock_controls_import_links_and_validation(tmp_path):
     assert quality.get_run(run.run_id) is None
     assert quality.list_runs() == quality.list_links() == quality.online_rows() == []
     with pytest.raises(ValueError, match="expired"):
-        quality.import_run(_report_payload(), source_label="fixture")
+        quality.import_run(report, source_label="fixture", expected_manifest=plan)
     with pytest.raises(KeyError):
         quality.create_link(promotion.promotion_id, run.run_id)
     explicit = utc("2026-09-01T00:00:00+00:00")
     assert quality.get_run(run.run_id, now=explicit) == run
     assert quality.list_links(now=explicit) == [link]
-    assert quality.import_run(_report_payload(), source_label="fixture", now=explicit) == run
+    assert quality.import_run(report, source_label="fixture", now=explicit, expected_manifest=plan) == run
     assert quality.create_link(promotion.promotion_id, run.run_id, now=explicit) == link
-    assert validate_release(quality, run.run_id, run.run_id, ReleaseGatePolicy(), now=explicit).created_at == link.created_at
+    assert validate_release(quality, baseline.run_id, run.run_id, ReleaseGatePolicy(), now=explicit).created_at == link.created_at
 
 
 @pytest.mark.parametrize("current,accepted", [

@@ -27,3 +27,10 @@
 & $a06Python -X utf8 .context/A06/run_tests.py review-green -q tests/test_release_report_integrity.py tests/test_application_isolation.py -k 'native_v2_preserves or incomparable_runs or unknown_persisted_run_proof or run_loading_programming_error' --tb=short
 & $a06Python -X utf8 .context/A06/run_tests.py review-related-green -q tests/test_release_report_integrity.py tests/test_application_isolation.py tests/test_quality_loop_api.py tests/test_quality_loop_storage.py tests/test_quality_loop_engine.py tests/test_quality_loop_cli.py tests/test_v1_gate.py tests/test_workflow_runner.py tests/test_scenario_quality.py tests/test_telemetry_api.py tests/test_auth_api.py --tb=short
 ```
+
+## 唯一根回归与两处旧夹具迁移
+
+```powershell
+& $a06Python -X utf8 .context/A06/run_tests.py full-offline -q -k 'not windows_startup_task_registration_is_idempotent_and_removable and not windows_watcher_survives_failed_refresh_and_retries_next_env_save' --tb=short
+& $a06Python -X utf8 .context/A06/run_tests.py root-fixture-green -q tests/test_telemetry_access.py tests/test_retention_clock.py --tb=short
+```
