@@ -7,6 +7,7 @@ from typing import Callable
 
 from qe_platform.adapters import ReferenceAgentAdapter
 from qe_platform.reporting import build_run_report, write_html, write_json
+from qe_platform.reporting.integrity import freeze_run_manifest
 from qe_platform.scenarios import load_scenarios
 from qe_platform.scenarios import ScenarioSpec
 from llmtest import ResponseEnvelope
@@ -28,6 +29,7 @@ def run_gate(
     scenarios = load_scenarios(asset_dir)
     if scenario_ids is not None:
         scenarios = [item for item in scenarios if item.id in scenario_ids]
+    manifest = freeze_run_manifest(scenarios) if scenarios else None
     results = [ScenarioRunner(ReferenceAgentAdapter.from_setup, quality_evaluator=quality_evaluator).run(item) for item in scenarios]
     report = build_run_report(
         results,
@@ -35,6 +37,7 @@ def run_gate(
         release_id=release_id,
         version=version,
         environment=environment,
+        manifest=manifest,
     )
     write_json(report, json_path)
     write_html(report, html_path)

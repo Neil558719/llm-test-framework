@@ -59,6 +59,8 @@ def main() -> int:
         environment="installed-wheel-mock",
     )
     report = json.loads((args.output_dir / "gate.json").read_text(encoding="utf-8"))
+    if report.get("schema_version") != "qe-run-v2" or report.get("verification") != "verified_v2" or report.get("release_eligible") is not True:
+        raise RuntimeError("installed native gate did not produce complete verified v2 evidence")
     actual_ids = [scenario["scenario_id"] for scenario in report["scenarios"]]
     if set(actual_ids) != EXPECTED_SCENARIO_IDS or len(actual_ids) != len(EXPECTED_SCENARIO_IDS):
         raise RuntimeError(f"installed scenario coverage differs: expected {sorted(EXPECTED_SCENARIO_IDS)}, got {sorted(actual_ids)}")

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 from qe_platform.feedback import FeedbackInput, FeedbackKind, ReviewAttribution, ReviewPriority, ReviewStatus
 from qe_platform.quality_loop.engine import build_quality_links, build_trends, quality_summary, validate_release
 from qe_platform.quality_loop.models import ReleaseGatePolicy
 from qe_platform.quality_loop.storage import SQLiteQualityRepository
 from qe_platform.storage import SQLiteTelemetryRepository
 from tests.test_quality_loop_models import _report_payload
+from tests.report_integrity_fixtures import verified_payload, trusted_plan
 from tests.test_telemetry_storage import trace_at, utc
 
 
@@ -28,7 +31,7 @@ def _setup_database(tmp_path):
     )
     quality = SQLiteQualityRepository(database, retention_days=30, clock=lambda: utc("2026-09-01T00:00:00+00:00"))
     baseline = quality.import_run(
-        _report_payload(
+        verified_payload(
             run_id="run-baseline",
             release_id="alpha-22",
             version="old",
@@ -36,14 +39,16 @@ def _setup_database(tmp_path):
             finished_at="2026-08-28T00:00:02Z",
         ),
         source_label="fixture",
+        expected_manifest=trusted_plan(),
     )
     candidate = quality.import_run(
-        _report_payload(
+        verified_payload(
             run_id="run-candidate",
             release_id="alpha-23",
             version="new",
         ),
         source_label="fixture",
+        expected_manifest=trusted_plan(),
     )
     quality.create_link(promotion.promotion_id, candidate.run_id, now=utc("2026-09-01T00:00:00+00:00"))
     return quality, baseline, candidate
@@ -85,7 +90,7 @@ def test_validate_release_passes_when_policy_allows_linked_quality_delta(tmp_pat
     assert quality.get_validation("validation-pass") == result
 
 
-def test_validate_release_fails_failure_rate_and_missing_scenario(tmp_path):
+def test_validate_release_rejects_legacy_incomplete_and_fails_verified_business_failure(tmp_path):
     quality, baseline, _ = _setup_database(tmp_path)
     candidate = quality.import_run(
         _report_payload(
@@ -118,6 +123,12 @@ def test_validate_release_fails_failure_rate_and_missing_scenario(tmp_path):
         ),
         source_label="fixture",
     )
+    with pytest.raises(ValueError, match="complete verified v2"):
+        validate_release(quality, baseline.run_id, candidate.run_id, ReleaseGatePolicy(), now=utc("2026-09-01T00:00:00+00:00"))
+    # An evaluated business failure is complete evidence and produces a red gate.
+    candidate = quality.import_run(verified_payload(run_id="verified-failed", scenarios=[
+        {"passed": True}, {"passed": False},
+    ]), source_label="fixture", expected_manifest=trusted_plan())
     result = validate_release(
         quality,
         baseline.run_id,
@@ -128,7 +139,7 @@ def test_validate_release_fails_failure_rate_and_missing_scenario(tmp_path):
     )
     assert result.passed is False
     failed_names = {item.name for item in result.checks if not item.passed}
-    assert {"candidate_complete", "scenario_set", "candidate_failure_rate"} <= failed_names
+    assert {"candidate_complete", "candidate_failure_rate"} <= failed_names
 
 
 def test_validate_release_rejects_unknown_runs(tmp_path):

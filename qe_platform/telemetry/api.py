@@ -30,6 +30,7 @@ def create_telemetry_app(
     *,
     auth_runtime: AuthRuntime | None = None,
     access_policy: ApplicationAccessPolicy | None = None,
+    trusted_manifest_resolver=None,
 ) -> FastAPI:
     repo = repository or create_telemetry_repository(
         settings.database,
@@ -95,6 +96,8 @@ def create_telemetry_app(
         try:
             record = loader(identifier)
         except ValueError:
+            if apps is not None and loader == quality_repo.get_run:
+                raise HTTPException(status_code=404, detail="not found") from None
             bad_request()
         except Exception:
             raise HTTPException(status_code=500, detail="internal error") from None
@@ -107,10 +110,19 @@ def create_telemetry_app(
         return record
 
     def validation_scope(value, apps: frozenset[str]) -> None:
-        if value.scope_policy_version != 1 or value.scope_application not in apps:
+        if value.scope_policy_version != 1 or value.scope_application not in apps or value.report_policy_version != 2:
             raise HTTPException(status_code=404, detail="not found")
-        baseline = scoped_record(quality_repo.get_run, value.baseline_run_id, apps)
-        candidate = scoped_record(quality_repo.get_run, value.candidate_run_id, apps)
+        try:
+            baseline = quality_repo.get_run(value.baseline_run_id)
+            candidate = quality_repo.get_run(value.candidate_run_id)
+        except (ValueError, TypeError, KeyError):
+            raise HTTPException(status_code=404, detail="not found") from None
+        if baseline is None or candidate is None or not baseline.release_eligible or not candidate.release_eligible or (
+            baseline.run_id == candidate.run_id or baseline.environment != candidate.environment or baseline.asset_fingerprint != candidate.asset_fingerprint
+        ):
+            raise HTTPException(status_code=404, detail="not found")
+        check_application(baseline.application, apps, hidden=True)
+        check_application(candidate.application, apps, hidden=True)
         if value.scope_application != candidate.application or baseline.application != candidate.application or (
             value.policy.application and value.policy.application != candidate.application
         ):
@@ -507,11 +519,15 @@ def create_telemetry_app(
             if isinstance(run_id, str) and run_id and quality_repo.get_run(run_id) is not None:
                 scoped_record(quality_repo.get_run, run_id, apps)
         source_label = payload.pop("source_label", "api-report")
+        if "expected_manifest" in payload:
+            bad_request()
         if not isinstance(source_label, str):
             bad_request()
         try:
             existing = quality_repo.get_run(payload.get("run_id", "")) if isinstance(payload.get("run_id"), str) else None
-            run = quality_repo.import_run(payload, source_label=source_label, allowed_applications=apps)
+            from copy import deepcopy
+            expected_manifest = trusted_manifest_resolver(deepcopy(payload)) if trusted_manifest_resolver is not None else None
+            run = quality_repo.import_run(payload, source_label=source_label, allowed_applications=apps, expected_manifest=expected_manifest)
         except KeyError:
             raise HTTPException(status_code=404, detail="not found")
         except ValueError:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
@@ -67,6 +69,12 @@ class OfflineRun:
     total_tokens: int
     total_cost: float
     scenario_ids: tuple[str, ...]
+    complete: bool | None = None
+    asset_fingerprint: str = ""
+    verification: str = "legacy_unverified"
+    content_sha256: str = ""
+    manifest_sha256: str = ""
+    evidence: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         for name in ("run_id", "application", "release_id", "version", "environment", "source_label"):
@@ -89,6 +97,8 @@ class OfflineRun:
             raise ValueError("scenario_ids must be a nonempty tuple of unique IDs")
         if tuple(sorted(self.scenario_ids)) != self.scenario_ids or not all(isinstance(item, str) and item for item in self.scenario_ids):
             raise ValueError("scenario_ids must be sorted nonempty strings")
+        from qe_platform.reporting.integrity import validate_stored_evidence
+        validate_stored_evidence(self)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -108,7 +118,18 @@ class OfflineRun:
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
             "scenario_ids": list(self.scenario_ids),
+            "complete": self.complete,
+            "asset_fingerprint": self.asset_fingerprint,
+            "verification": self.verification,
+            "content_sha256": self.content_sha256,
+            "manifest_sha256": self.manifest_sha256,
+            "evidence": self.evidence,
+            "release_eligible": self.release_eligible,
         }
+
+    @property
+    def release_eligible(self) -> bool:
+        return self.verification == "verified_v2" and self.complete is True
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +222,7 @@ class ReleaseValidation:
     created_at: str
     scope_application: str | None = None
     scope_policy_version: int | None = None
+    report_policy_version: int | None = None
 
     def __post_init__(self) -> None:
         for name in ("validation_id", "baseline_run_id", "candidate_run_id"):
@@ -215,6 +237,8 @@ class ReleaseValidation:
             _text(self.scope_application, "scope_application")
         if self.scope_policy_version is not None:
             _count(self.scope_policy_version, "scope_policy_version")
+        if self.report_policy_version is not None:
+            _count(self.report_policy_version, "report_policy_version")
 
     def as_dict(self) -> dict[str, Any]:
         result = {
@@ -231,6 +255,8 @@ class ReleaseValidation:
             result["scope_application"] = self.scope_application
         if self.scope_policy_version is not None:
             result["scope_policy_version"] = self.scope_policy_version
+        if self.report_policy_version is not None:
+            result["report_policy_version"] = self.report_policy_version
         return result
 
 
@@ -251,7 +277,7 @@ def _scenario_values(payload: Mapping[str, Any]) -> tuple[list[Mapping[str, Any]
     return rows, tuple(sorted(ids))
 
 
-def parse_run_report(payload: Mapping[str, Any], source_label: str) -> OfflineRun:
+def parse_run_report(payload: Mapping[str, Any], source_label: str, *, expected_manifest=None) -> OfflineRun:
     if not isinstance(payload, Mapping):
         raise ValueError("run report must be a mapping")
     required = ("run_id", "started_at", "finished_at", "application", "release_id", "version", "environment", "total", "passed", "failed", "gate_passed", "scenarios")
@@ -265,17 +291,46 @@ def parse_run_report(payload: Mapping[str, Any], source_label: str) -> OfflineRu
         "scenario_name", "session_id", "failed_assertions", "business_state_differences",
         "model_versions", "started_at", "finished_at",
     })
-    top_level = {key: value for key, value in payload.items() if key != "scenarios"}
+    proof = {}
+    if "schema_version" in payload:
+        from qe_platform.reporting.integrity import validate_v2_report
+        proof = validate_v2_report(payload, expected_manifest)
+    elif "manifest" in payload or payload.get("verification", "legacy_unverified") != "legacy_unverified" or payload.get("release_eligible", False) is not False:
+        raise ValueError("v2 evidence cannot be interpreted as a legacy summary")
+    elif expected_manifest is not None:
+        raise ValueError("a trusted manifest requires a v2 report")
+    top_level = {key: value for key, value in payload.items() if key not in ("scenarios", "manifest")}
     assert_sanitized_payload(top_level)
     rows, scenario_ids = _scenario_values(payload)
+    reported_complete = []
     for item in rows:
         assert_sanitized_payload({key: value for key, value in item.items() if key not in rich_fields})
+        if type(item.get("passed")) is not bool or type(item.get("complete")) is not bool:
+            raise ValueError("scenario passed/complete must be boolean")
+        steps = item.get("steps", [])
+        quality = item.get("quality_checks", [])
+        if not isinstance(steps, list) or not isinstance(quality, list):
+            raise ValueError("scenario evidence must be arrays")
+        unavailable = any(not isinstance(step, dict) or step.get("status") in ("error", "not_executed", "skipped") for step in steps)
+        unavailable = unavailable or any(not isinstance(check, dict) or check.get("status") not in ("passed", "failed") for check in quality)
+        if unavailable and (item["complete"] or item["passed"]):
+            raise ValueError("scenario claims completion without required evidence")
+        if item["passed"] and (not item["complete"] or any(step.get("status") == "failed" for step in steps)
+                               or any(check.get("status") == "failed" for check in quality)):
+            raise ValueError("scenario pass contradicts execution evidence")
+        reported_complete.append(item["complete"])
     total = _count(payload["total"], "total")
     passed = _count(payload["passed"], "passed")
     failed = _count(payload["failed"], "failed")
     if total != len(rows) or passed != sum(item.get("passed") is True for item in rows) or failed != total - passed:
         raise ValueError("run report counts do not match scenarios")
-    latencies = [_number(item["latency_ms"], "latency_ms") for item in rows if "latency_ms" in item]
+    if type(payload["gate_passed"]) is not bool or payload["gate_passed"] != (total > 0 and failed == 0 and all(reported_complete)):
+        raise ValueError("run gate contradicts scenario evidence")
+    try:
+        content_sha256 = hashlib.sha256(json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+    except (TypeError, ValueError) as exc:
+        raise ValueError("report must contain finite JSON evidence") from exc
+    latencies = [_number(item["latency_ms"], "latency_ms") for item in rows if item.get("latency_ms") is not None]
     latencies.sort()
     p95 = None if not latencies else latencies[min(len(latencies) - 1, math.ceil(len(latencies) * 0.95) - 1)]
     tokens = 0
@@ -284,7 +339,9 @@ def parse_run_report(payload: Mapping[str, Any], source_label: str) -> OfflineRu
         usage = item.get("usage") or {}
         if not isinstance(usage, Mapping):
             raise ValueError("scenario usage must be a mapping")
-        tokens += _count(usage.get("total_tokens", int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))), "total_tokens")
+        prompt_tokens = _count(usage.get("prompt_tokens", 0), "prompt_tokens")
+        completion_tokens = _count(usage.get("completion_tokens", 0), "completion_tokens")
+        tokens += _count(usage.get("total_tokens", prompt_tokens + completion_tokens), "total_tokens")
         value = item.get("cost") or {}
         if not isinstance(value, Mapping):
             raise ValueError("scenario cost must be a mapping")
@@ -306,4 +363,6 @@ def parse_run_report(payload: Mapping[str, Any], source_label: str) -> OfflineRu
         total_tokens=tokens,
         total_cost=cost,
         scenario_ids=scenario_ids,
+        content_sha256=content_sha256,
+        **proof,
     )

@@ -34,11 +34,12 @@ def _timestamp(value: datetime) -> str:
 class SQLiteQualityRepository:
     """Shared-database persistence for M17 artifacts and safe aggregates."""
 
-    def __init__(self, database: str | Path, *, retention_days: int = 30, clock: Clock = utc_now) -> None:
+    def __init__(self, database: str | Path, *, retention_days: int = 30, clock: Clock = utc_now, trusted_manifest_resolver=None) -> None:
         if isinstance(retention_days, bool) or not isinstance(retention_days, int) or retention_days <= 0:
             raise ValueError("retention_days must be a positive integer")
         self.retention_days = retention_days
         self._clock = clock
+        self._trusted_manifest_resolver = trusted_manifest_resolver
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(str(_sqlite_path(database)), check_same_thread=False, isolation_level=None)
         with self._lock:
@@ -47,7 +48,7 @@ class SQLiteQualityRepository:
 
     @property
     def schema_requirements(self):
-        return {"quality_loop": (1, ('quality_offline_runs', 'quality_links', 'quality_release_validations'))}
+        return {"quality_loop": (2, ('quality_offline_runs', 'quality_links', 'quality_release_validations'))}
 
     @contextmanager
     def _transaction(self) -> Iterator[None]:
@@ -73,12 +74,21 @@ class SQLiteQualityRepository:
         return _timestamp(self.current_time(now) - timedelta(days=self.retention_days))
 
     @staticmethod
-    def _hydrate_run(payload: str) -> OfflineRun:
+    def _hydrate_run(payload: str, verification=None, content_sha256=None, complete=None, asset_fingerprint=None) -> OfflineRun:
         value = json.loads(payload)
         if not isinstance(value, dict):
             raise ValueError("stored offline run has invalid payload")
         value["scenario_ids"] = tuple(value.get("scenario_ids", ()))
-        return OfflineRun(**value)
+        value.pop("release_eligible", None)
+        try:
+            run = OfflineRun(**value)
+        except (TypeError, KeyError) as exc:
+            raise ValueError("stored offline run has invalid proof fields") from exc
+        if verification is not None and (run.verification != verification or run.content_sha256 != content_sha256
+            or complete not in (None, 0, 1) or (None if run.complete is None else int(run.complete)) != complete
+            or run.asset_fingerprint != asset_fingerprint):
+            raise ValueError("stored run proof metadata differs from payload")
+        return run
 
     @staticmethod
     def _hydrate_link(row: tuple[Any, ...]) -> QualityLink:
@@ -104,10 +114,13 @@ class SQLiteQualityRepository:
         value["checks"] = tuple(ReleaseCheck(**item) for item in value["checks"])
         return ReleaseValidation(**value)
 
-    def import_run(self, report: dict[str, Any], *, source_label: str, now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> OfflineRun:
+    def import_run(self, report: dict[str, Any], *, source_label: str, now: datetime | None = None, allowed_applications: frozenset[str] | None = None, expected_manifest=None) -> OfflineRun:
         # Parse first so type, control-character, and sensitive-value checks
         # produce a consistent ValueError before path-shape validation.
-        run = parse_run_report(report, source_label)
+        if expected_manifest is None and self._trusted_manifest_resolver is not None:
+            from copy import deepcopy
+            expected_manifest = self._trusted_manifest_resolver(deepcopy(report))
+        run = parse_run_report(report, source_label, expected_manifest=expected_manifest)
         if "/" in source_label or "\\" in source_label or ":" in source_label:
             raise ValueError("source_label must not be an absolute path")
         if run.started_at <= self._cutoff(now):
@@ -117,17 +130,18 @@ class SQLiteQualityRepository:
             if allowed_applications is not None and run.application not in allowed_applications:
                 raise ValueError("offline run application is not authorized")
             existing = self._connection.execute(
-                "SELECT payload FROM quality_offline_runs WHERE run_id = ?", (run.run_id,)
+                "SELECT payload, verification, content_sha256, complete, asset_fingerprint FROM quality_offline_runs WHERE run_id = ?", (run.run_id,)
             ).fetchone()
             if existing is not None:
                 if allowed_applications is not None and json.loads(existing[0]).get("application") not in allowed_applications:
                     raise KeyError("offline run not found")
+                self._hydrate_run(*existing)
                 if existing[0] != payload:
                     raise ValueError("offline run ID already contains a different report")
                 return run
             self._connection.execute(
-                "INSERT INTO quality_offline_runs(run_id, started_at, payload) VALUES (?, ?, ?)",
-                (run.run_id, run.started_at, payload),
+                "INSERT INTO quality_offline_runs(run_id, started_at, payload, verification, content_sha256, complete, asset_fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (run.run_id, run.started_at, payload, run.verification, run.content_sha256, run.complete, run.asset_fingerprint),
             )
         return run
 
@@ -136,13 +150,13 @@ class SQLiteQualityRepository:
             raise ValueError("run_id must be nonempty")
         with self._lock:
             row = self._connection.execute(
-                "SELECT payload FROM quality_offline_runs WHERE run_id = ? AND started_at > ?",
+                "SELECT payload, verification, content_sha256, complete, asset_fingerprint FROM quality_offline_runs WHERE run_id = ? AND started_at > ?",
                 (run_id, self._cutoff(now)),
             ).fetchone()
-        return None if row is None else self._hydrate_run(row[0])
+        return None if row is None else self._hydrate_run(*row)
 
     def list_runs(self, *, application: str = "", version: str = "", now: datetime | None = None, allowed_applications: frozenset[str] | None = None) -> list[OfflineRun]:
-        query = "SELECT payload FROM quality_offline_runs WHERE started_at > ?"
+        query = "SELECT payload, verification, content_sha256, complete, asset_fingerprint FROM quality_offline_runs WHERE started_at > ?"
         params: list[Any] = [self._cutoff(now)]
         predicate, apps = application_filter("json_extract(payload, '$.application')", allowed_applications)
         query += " AND " + predicate
@@ -156,7 +170,7 @@ class SQLiteQualityRepository:
         query += " ORDER BY started_at DESC, run_id DESC"
         with self._lock:
             rows = self._connection.execute(query, params).fetchall()
-        return [self._hydrate_run(row[0]) for row in rows]
+        return [self._hydrate_run(*row) for row in rows]
 
     def create_link(
         self,
@@ -342,4 +356,13 @@ def _create_quality_tables(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
 
 
-_QUALITY_MIGRATIONS = (Migration(1, _create_quality_tables),)
+def _add_report_proof(connection: sqlite3.Connection) -> None:
+    # Old payloads, identifiers, links and historical validations stay byte-for-byte
+    # intact. No legacy gate flag is promoted into verified execution evidence.
+    connection.execute("ALTER TABLE quality_offline_runs ADD COLUMN verification TEXT NOT NULL DEFAULT 'legacy_unverified'")
+    connection.execute("ALTER TABLE quality_offline_runs ADD COLUMN content_sha256 TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE quality_offline_runs ADD COLUMN complete INTEGER")
+    connection.execute("ALTER TABLE quality_offline_runs ADD COLUMN asset_fingerprint TEXT NOT NULL DEFAULT ''")
+
+
+_QUALITY_MIGRATIONS = (Migration(1, _create_quality_tables), Migration(2, _add_report_proof))

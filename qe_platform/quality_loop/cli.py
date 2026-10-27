@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     import_run = commands.add_parser("import-run", help="import a sanitized offline RunReport")
     _add_common(import_run)
     import_run.add_argument("--report", required=True)
+    import_run.add_argument("--manifest", help="independently selected trusted v2 manifest JSON")
     import_run.add_argument("--source-label", default="cli-report")
 
     link = commands.add_parser("link", help="link a promoted online sample to an offline run")
@@ -70,7 +71,8 @@ def main(
         repository = repository_factory(args)
         if args.command == "import-run":
             payload = json.loads(Path(args.report).read_text(encoding="utf-8"))
-            run = repository.import_run(payload, source_label=args.source_label)
+            manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8")) if args.manifest else None
+            run = repository.import_run(payload, source_label=args.source_label, expected_manifest=manifest)
             print(json.dumps(run.as_dict(), ensure_ascii=False, sort_keys=True))
             return 0
         if args.command == "link":

@@ -1,5 +1,13 @@
 # P00 / A01 本地运行基线
 
+## A06 当前接续（Issue #76，2026-10-27）
+
+分支 codex/a06-report-integrity，base725a413/dev5，版本/锁/依赖/共享环境不变。当前21文件相关387通过/2上游警告；新增70完整性+2隔离守卫，共72项；15顶层pytest/15进程，无finalroot。初始旧入口9失败/3原守卫已绿；接口缺失、夹具/实现错误与旧断言迁移单列，完整命令见[A06证据](../evidence/A06/summary.md)。源码准备冻结给独立k64，收敛后唯一根回归；主CI/合并树/独立安装/发行/部署尚待接续，不把本地绿灯当交付完成。
+
+先冻结独立ScenarioSpec计划，native/import/read核对步骤与quality并重算结论；自报manifest无外部信任只能只读。baseline/candidate不同ID、同应用/环境、完整verified_v2和同控制资产；SUT模型/prompt实验版本不强制相同。schema2保留旧payload/links/验证，不回填证明；readiness动态要求2，合成质量库备份恢复用expected_versions=2，旧reader需配套旧快照。Agent专用部署restore不误改。零真实Judge/provider/SDK/IdP、无Docker/pip/push或用户DB操作。
+
+依赖交付由主报告：A05 merge b16aa0b、34CI、合并树1024通过/7排除/2警告、wheel114质量及14场景/3资源、dev5已发布并核验三附件/hash/tag，Issue73关闭。此处更新下方A05历史待交付状态，不计入A06测试数。真实效果、持久环境及用户掌握未评估，练习待完成；主整合时统一dev6。
+
 ## A05 当前接续（Issue #73）
 
 隔离分支 `codex/a05-scenario-quality`，base `2356b1e2d1d80e2266b021e43fb098ce642b5ed4`；本任务版本保持dev4，不改pyproject/uv.lock/共享env，后续dev5由主统一。主最新依赖验收：A04b已合并 `55b22550`，PR74同head34项检查与同树全量910通过/7排除/2警告，独立wheel202鉴权隔离+14场景/3资源通过，dev4已发布并回下载hash/tag/三附件核验，Issue72关闭；不当作本任务覆盖或重复执行，真实IdP/HTTPS/持久部署未验收。
