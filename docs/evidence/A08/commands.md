@@ -1,6 +1,6 @@
 # A08 实际命令与原始记录
 
-以下为已执行的20批命令的参数清单，结果见[summary](summary.md)。各次测试针对当时源码/测试集合，不能用最终树重跑来冒充旧RED。原日志首行保留完整解释器、pytest argv及独立basetemp，随后记录实际llmtest来源、exit/stdout/stderr。运行器拒绝覆盖同名日志/临时目录；复现时使用新的batch名称。
+以下为已执行的23批命令的参数清单，结果见[summary](summary.md)。前20批为首冻结历史，后3批为R1/R2审查修复。各次测试针对当时源码/测试集合，不能用最终树重跑来冒充旧RED。原日志首行保留完整解释器、pytest argv及独立basetemp，随后记录实际llmtest来源、exit/stdout/stderr。运行器拒绝覆盖同名日志/临时目录；复现时使用新的batch名称。
 
 工作目录为 `.worktrees/a08-async-budget`。调用形式为 `& $python -X utf8 .context/A08/run_tests.py <batch> <args>`。运行器清真实配置、设mock/development/UTF8、核对本树导入，并展开为 `python -B -X utf8 -m pytest --llm-mode=mock --no-report --basetemp=<本树>/.context/A08/<batch>-temp <args>`；没有增加root或子pytest。
 
@@ -30,6 +30,9 @@
 | 18 close-self-cancel-red | P | `-q tests/test_async_scenario_budget.py::test_self_cancelled_close_is_cleanup_failure_not_external_case_cancellation` |
 | 19 close-self-cancel-green-py313 | P | `-q S -k 'self_cancelled_close or hanging_close or cleanup_timeout_drains or cancel_event_and_external or second_external or borrowed_adapter'` |
 | 20 close-self-cancel-green-py39 | N | 与19同参数 |
+| 21 review-r1-r2-red | P | `-q S -k 'test_review_ or backoff_consumes or queue_wait_is_inside or initialization_and_limiter or incomplete_execution_roundtrips or required_async_evaluation_timeout'` |
+| 22 review-r1-r2-related-green | P | `-q R` |
+| 23 review-r1-r2-py39-green | N | 与21同参数 |
 
 R（4个根文件，也是后续installed消费者入口）：
 
@@ -74,4 +77,4 @@ tests/test_application_isolation.py
 tests/test_telemetry_models.py
 ```
 
-静态命令：`& .context/A08/test-env/Scripts/python.exe -X utf8 .context/A08/freeze_checks.py` 进行内存compile、3.9语法、版本/锁差异、diff、原日志统计和consumer闭包SHA256清单；`uv lock --check --offline` 使用本树私有缓存，解析110条通过。两者不运行pytest；3.9语法检查不等于全运行时验收。私有环境建立/依赖安装日志也保留于.context/A08，PowerShell部分为UTF16，不混入20个UTF8 pytest日志计数。
+静态命令：`& .context/A08/test-env/Scripts/python.exe -X utf8 .context/A08/freeze_checks.py` 进行内存compile、3.9语法、版本/锁差异、diff、原日志统计和consumer闭包SHA256清单；`uv lock --check --offline` 使用本树私有缓存，解析110条通过。两者不运行pytest；3.9语法检查不等于全运行时验收。私有环境建立/依赖安装日志也保留于.context/A08，PowerShell部分为UTF16，不混入23个UTF8 pytest日志计数。

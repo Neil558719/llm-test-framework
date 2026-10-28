@@ -214,7 +214,8 @@ class AsyncScenarioRunner:
         attempt = state['active_attempt']
         if attempt is not None:
             attempt['status'] = status
-            attempt['effect_unknown'] = getattr(state['adapter'], 'retry_safe', False) is not True
+            # Idempotency does not establish the outcome of an already dispatched request.
+            attempt['effect_unknown'] = True
             result.execution['effect_unknown'] |= attempt['effect_unknown']
         if len(result.steps) < result.expected_step_count:
             index = len(result.steps)

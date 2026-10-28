@@ -6,7 +6,7 @@ from copy import deepcopy
 from .budget import ExecutionBudget, finite_number
 
 
-def validate_execution(value, expected_policy=None):
+def validate_execution(value, expected_policy=None, *, expected_step_count=None, steps=None):
     if value is None:
         if expected_policy is not None:
             raise ValueError('controlled async execution evidence is missing')
@@ -36,12 +36,27 @@ def validate_execution(value, expected_policy=None):
     attempts = value.get('attempts')
     if not isinstance(attempts, list):
         raise ValueError('invalid execution attempts')
+    if (type(expected_step_count) is not int or expected_step_count <= 0
+            or not isinstance(steps, list) or not steps or len(steps) > expected_step_count):
+        raise ValueError('execution requires controlled step coverage')
     counts, keys = {}, {}
+    terminal = {}
+    previous = None
     for attempt in attempts:
         if (not isinstance(attempt, dict) or type(attempt.get('step_index')) is not int or attempt['step_index'] < 0
                 or set(attempt) != {'step_index', 'attempt', 'operation_key', 'status', 'effect_unknown'}):
             raise ValueError('invalid execution attempt step')
         index = attempt['step_index']
+        if index >= expected_step_count or index >= len(steps):
+            raise ValueError('execution attempt is outside controlled steps')
+        if previous is None:
+            if index != 0:
+                raise ValueError('execution attempts omit earlier steps')
+        elif index == previous['step_index']:
+            if previous['status'] != 'error' or previous['effect_unknown']:
+                raise ValueError('retry requires a known failed attempt')
+        elif index != previous['step_index'] + 1 or previous['status'] != 'completed':
+            raise ValueError('execution attempt order contradicts completed steps')
         counts[index] = counts.get(index, 0) + 1
         if type(attempt.get('attempt')) is not int or attempt['attempt'] != counts[index] or counts[index] > budget.max_attempts:
             raise ValueError('invalid execution attempt count')
@@ -53,6 +68,14 @@ def validate_execution(value, expected_policy=None):
         keys[index] = key
         if attempt.get('status') not in ('completed', 'error', 'deadline', 'cancelled') or type(attempt.get('effect_unknown')) is not bool:
             raise ValueError('invalid execution attempt outcome')
+        if attempt['status'] == 'completed' and attempt['effect_unknown']:
+            raise ValueError('completed attempt cannot have an unknown outcome')
+        terminal[index] = previous = attempt
+    for index, step in enumerate(steps):
+        if step['status'] != 'error' and (index not in terminal or terminal[index]['status'] != 'completed'):
+            raise ValueError('completed step requires a completed terminal attempt')
+    if value['status'] == 'completed' and (len(steps) != expected_step_count or any(step['status'] == 'error' for step in steps)):
+        raise ValueError('completed execution contradicts controlled step coverage')
     if any(attempt['effect_unknown'] for attempt in attempts) and not value['effect_unknown']:
         raise ValueError('unknown effects cannot be discarded')
     return deepcopy(value)

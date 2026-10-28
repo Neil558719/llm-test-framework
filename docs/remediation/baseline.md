@@ -2,6 +2,8 @@
 
 ## A08 当前接续（Issue #80）
 
+最新独审修复：4cee7f3的2 Important已实际RED22失败/11守卫通过后，仅async_runner/execution/integrity三生产文件窄修；89新增、23顶层pytest/23进程/0root/0子。四直接消费者183通过/2警告12.81秒；3.9同33守卫通过/1警告3.41秒。dispatch未知副作用不由retry_safe推出已知，attempt按可信步骤覆盖/顺序/终态及stored安全投影复核，stored负例重算digest。known retry/init/eval及旧同步守卫保持；版本依赖不改、未重528/273。重新冻结待有限复审，关闭前不root；下方为首冻结历史。
+
 隔离codex/a08-async-budget，base4d5a2bc/dev7。原生async预算/适配器/runner/v1入口和可信报告本地收口，64新增、20顶层pytest/20进程、0root/0子pytest。历史528通过，后续6文件273通过；最后close自行取消真实RED1失败后，局部两行修复在3.13/3.9各6守卫通过。3.9原156通过/1失败仅该清理fixture窄修后单node1通过，不拼成新157批。20批错误、Windows时窗和真实缺陷均保留，见[A08证据](../evidence/A08/summary.md)。
 
 20改动Python内存compile/3.9 AST、版本dev7、原106锁条目保留及4必要新增、offline110和diff检查通过。3.13为私有插件overlay只读借用既有依赖，3.9为完全私有frozen dev环境；无共享pip写入/真实服务/Docker。准备commit冻结交k64独审，关闭发现后唯一finalroot；主dev8/PR/CI/合并树/独立wheel/发行与部署另验，不把273当最后局部修复后的重跑。

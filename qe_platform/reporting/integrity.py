@@ -218,7 +218,6 @@ def validate_v2_report(payload: Mapping[str, Any], expected_manifest: RunManifes
     checker = ScenarioRunner(lambda _: None)
     for row in rows:
         plan = plans[row["scenario_id"]]
-        execution = validate_execution(row.get('execution'), manifest.as_dict()['scoring_assets'].get('execution_policy'))
         controls = plan["controls"]
         steps = row.get("steps")
         if not isinstance(steps, list) or not steps or any(not isinstance(s, dict) for s in steps):
@@ -257,6 +256,8 @@ def validate_v2_report(payload: Mapping[str, Any], expected_manifest: RunManifes
             safe_steps.append({"index": step["index"], "status": status, "response_sha256": digest(step.get("response")),
                                "assertions_passed": all(a["passed"] for a in assertions),
                                "model_version": _safe_labels(response.model_version.as_dict()) if response is not None and response.model_version else None})
+        execution = validate_execution(row.get('execution'), manifest.as_dict()['scoring_assets'].get('execution_policy'),
+                                       expected_step_count=len(plan['expected_steps']), steps=steps)
         error = steps[-1].get("error", "")
         interrupted = steps[-1]["status"] == "error"
         executed = len(steps) == len(plan["expected_steps"]) and not interrupted
@@ -331,7 +332,8 @@ def validate_stored_evidence(run: Any) -> None:
         if any(s.get("status") not in ("passed", "failed", "error") for s in steps):
             raise ValueError("unknown stored execution status")
         execution = row.get('execution')
-        validate_execution(execution, execution.get('policy') if isinstance(execution, dict) else None)
+        validate_execution(execution, execution.get('policy') if isinstance(execution, dict) else None,
+                           expected_step_count=row['expected_step_count'], steps=steps)
         complete = len(steps) == row["expected_step_count"] and all(s["status"] != "error" for s in steps) and qc and execution_complete(execution)
         passed = complete and all(s["status"] == "passed" and _boolean(s["assertions_passed"], "assertions_passed") for s in steps) and _boolean(row["final_assertions_passed"], "final_assertions_passed") and qp
         if type(row.get("complete")) is not bool or row["complete"] != complete or type(row.get("passed")) is not bool or row["passed"] != passed:

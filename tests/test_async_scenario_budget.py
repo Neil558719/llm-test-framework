@@ -577,3 +577,131 @@ async def test_self_cancelled_close_is_cleanup_failure_not_external_case_cancell
     result = await Runner(lambda _: SelfCancelled()).run(spec(), budget=Budget(case_timeout_s=1))
     assert result.execution['cleanup_status'] == 'error' and result.execution['status'] == 'error'
     assert not result.complete and set(asyncio.all_tasks()) <= before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['deadline', 'cancel_event', 'unknown_exception', 'invalid_response'])
+async def test_review_dispatched_retry_safe_request_still_has_unknown_effect(failure):
+    Runner, Budget = api()
+    entered, cancel = asyncio.Event(), asyncio.Event()
+    class Idempotent(Adapter):
+        retry_safe = True
+        async def send(self, *args, **kwargs):
+            self.calls += 1
+            entered.set()
+            if failure == 'unknown_exception':
+                raise RuntimeError('outcome not established')
+            if failure == 'invalid_response':
+                return {}
+            await asyncio.Event().wait()
+    adapter = Idempotent()
+    task = asyncio.create_task(Runner(lambda _: adapter).run(spec(), budget=Budget(
+        case_timeout_s=.04 if failure == 'deadline' else 1, cancel_event=cancel, max_attempts=3)))
+    await entered.wait()
+    if failure == 'cancel_event':
+        cancel.set()
+    result = await task
+    assert adapter.calls == 1 and adapter.closed and not result.complete
+    assert result.execution['effect_unknown'] is True
+    assert result.execution['attempts'][0]['effect_unknown'] is True
+
+
+def _damage_review_attempts(execution, damage):
+    if damage == 'no_attempts':
+        execution['attempts'] = []
+    elif damage == 'attempt_deadline':
+        execution['attempts'][-1]['status'] = 'deadline'
+    elif damage == 'unexpected_index':
+        execution['attempts'][-1]['step_index'] = 99
+    elif damage == 'missing_middle':
+        del execution['attempts'][1]
+    elif damage == 'reversed_steps':
+        execution['attempts'].reverse()
+    elif damage == 'retry_after_completed':
+        duplicate = dict(execution['attempts'][-1], attempt=2)
+        execution['attempts'].append(duplicate)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('boundary', ['build', 'strict_parse', 'stored_reader'])
+@pytest.mark.parametrize('damage', ['no_attempts', 'attempt_deadline', 'unexpected_index',
+                                  'missing_middle', 'reversed_steps', 'retry_after_completed'])
+async def test_review_attempts_must_match_controlled_step_coverage_and_outcome(boundary, damage):
+    from copy import deepcopy
+    from qe_platform.reporting import build_run_report
+    from qe_platform.reporting.integrity import freeze_run_manifest, digest
+    from qe_platform.quality_loop.models import parse_run_report
+    from qe_platform.quality_loop.storage import SQLiteQualityRepository
+    Runner, Budget = api()
+    scenario = load_scenario_text('id: coverage\nname: Coverage\nconversation: [{user: one}, {user: two}, {user: three}]')[0]
+    budget = Budget(case_timeout_s=2, max_attempts=2)
+    # The plan is selected before execution, independently of result coverage claims.
+    plan = freeze_run_manifest([scenario], scoring_assets={'execution_policy': budget.policy(4)})
+    result = await Runner(lambda _: Adapter()).run(scenario, budget=budget)
+    payload = build_run_report([result], manifest=plan, application='app', release_id='release', version='v').as_dict()
+    assert parse_run_report(payload, 'offline', expected_manifest=plan).release_eligible
+    if boundary == 'build':
+        _damage_review_attempts(result.execution, damage)
+        with pytest.raises(ValueError):
+            build_run_report([result], manifest=plan)
+    elif boundary == 'strict_parse':
+        _damage_review_attempts(payload['scenarios'][0]['execution'], damage)
+        with pytest.raises(ValueError):
+            parse_run_report(payload, 'offline', expected_manifest=plan)
+    else:
+        repository = SQLiteQualityRepository(':memory:')
+        try:
+            run = repository.import_run(payload, source_label='offline', expected_manifest=plan)
+            stored = deepcopy(run.as_dict())
+            _damage_review_attempts(stored['evidence']['scenarios'][0]['execution'], damage)
+            proof = stored['evidence']
+            # Recompute the ordinary content digest: this must hit semantic validation.
+            proof['sha256'] = digest({key: value for key, value in proof.items() if key != 'sha256'})
+            with repository._transaction():
+                repository._connection.execute('UPDATE quality_offline_runs SET payload = ? WHERE run_id = ?',
+                                               (json.dumps(stored), run.run_id))
+            with pytest.raises(ValueError):
+                repository.get_run(run.run_id)
+        finally:
+            repository.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('outcome', ['retry_success', 'init_interruption', 'evaluation_interruption'])
+async def test_review_known_attempt_outcomes_keep_truthful_roundtrip(outcome):
+    from qe_platform.adapters import AsyncApplicationAdapterError
+    from qe_platform.reporting import build_run_report
+    from qe_platform.reporting.integrity import freeze_run_manifest
+    from qe_platform.quality_loop.storage import SQLiteQualityRepository
+    Runner, Budget = api()
+    class Known(Adapter):
+        retry_safe = True
+        async def send(self, *args, **kwargs):
+            self.calls += 1
+            if outcome == 'retry_success' and self.calls == 1:
+                raise AsyncApplicationAdapterError('known failure', retryable=True, effect_unknown=False)
+            return ResponseEnvelope(answer='ok')
+    async def factory(_):
+        if outcome == 'init_interruption':
+            raise ValueError('initialization failed before dispatch')
+        return Known()
+    async def evaluate(*args):
+        await asyncio.Event().wait()
+    scenario = spec('quality: {relevance: {min_score: 0.8}}\n' if outcome == 'evaluation_interruption' else '')
+    budget = Budget(case_timeout_s=.04 if outcome == 'evaluation_interruption' else 1, max_attempts=2)
+    plan = freeze_run_manifest([scenario], scoring_assets={'execution_policy': budget.policy(4)})
+    result = await Runner(factory, quality_evaluator=evaluate).run(scenario, budget=budget)
+    assert result.execution['effect_unknown'] is False
+    attempts = result.execution['attempts']
+    expected = {'retry_success': ['error', 'completed'], 'init_interruption': [], 'evaluation_interruption': ['completed']}
+    assert [attempt['status'] for attempt in attempts] == expected[outcome]
+    assert all(attempt['effect_unknown'] is False for attempt in attempts)
+    payload = build_run_report([result], manifest=plan, application='app', release_id='release', version='v').as_dict()
+    repository = SQLiteQualityRepository(':memory:')
+    try:
+        run = repository.import_run(payload, source_label='offline', expected_manifest=plan)
+        loaded = repository.get_run(run.run_id)
+        assert loaded.release_eligible == (outcome == 'retry_success')
+        assert loaded.evidence['scenarios'][0]['execution'] == result.execution
+    finally:
+        repository.close()

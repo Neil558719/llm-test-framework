@@ -1,6 +1,6 @@
 # A08：原生异步场景预算
 
-Issue [#80](https://github.com/Neil558719/llm-test-framework/issues/80)，独占树 `codex/a08-async-budget`，base `4d5a2bc789b688273acf7e6c9688c4705114dc6d`。版本保持dev7；本地实现/相关验证收口，准备冻结交k64独审，**尚未root/push/CI/合并/安装/发行**。独审关闭后才唯一finalroot；主整合时再做dev8。实现边界见[异步场景预算指南](../../异步场景预算指南.md)。
+Issue [#80](https://github.com/Neil558719/llm-test-framework/issues/80)，独占树 `codex/a08-async-budget`，base `4d5a2bc789b688273acf7e6c9688c4705114dc6d`。版本保持dev7。首冻结 `4cee7f33b7d77183f518f3ddb5d3e92a6695c005` 独审发现2 Important，已真实RED后最小修复，重新冻结交k64有限复审，**尚未root/push/CI/合并/安装/发行**。独审关闭后才唯一finalroot；主整合时再做dev8。实现边界见[异步场景预算指南](../../异步场景预算指南.md)。
 
 ## 实现与兼容
 
@@ -16,7 +16,7 @@ Windows。初两批用既有 `work/env-a/Scripts/python.exe` 只读；它缺pyte
 
 运行器每次清LLM_/OPENAI_/ANTHROPIC_/DIFY_/QE_/REFERENCE_AGENT_/OIDC_/AUTH_配置、强制mock/development/UTF8、断言产品从本树导入、独立新basetemp且不覆盖日志。无真实Judge/provider/SDK/IdP调用、用户容器操作、共享pip写入或新代理。pytest日志UTF8，PowerShell依赖日志UTF16；首次统计误按UTF8读取所有log失败，后来按 `command=` 字节前缀仅识别pytest，不影响任何测试结果。
 
-**64新增；20条顶层pytest/20进程，0root、0消费者子pytest。** 原始命令/source/exit/stdout/stderr为 `.context/A08/<batch>.log`，可复现命令见[清单](commands.md)。不是每一项都逐条先红；接口缺失、旧能力局限、实际实现缺陷、已有守卫与夹具问题分别列出。
+**当前89新增；23条顶层pytest/23进程，0root、0消费者子pytest。** 首冻结为64新增/20批，下面20行保留原阶段结果；审查修复另3批见后段。原始命令/source/exit/stdout/stderr为 `.context/A08/<batch>.log`，可复现命令见[清单](commands.md)。不是每一项都逐条先红；接口缺失、旧能力局限、实际实现缺陷、已有守卫与夹具问题分别列出。
 
 | batch | 实际结果 | 归因 |
 | --- | --- | --- |
@@ -41,11 +41,27 @@ Windows。初两批用既有 `work/env-a/Scripts/python.exe` 只读；它缺pyte
 | close-self-cancel-green-py313 | exit0；6 passed/58 deselected/2 warnings，1.57s | 两行closing.cancelled检查后，同根cleanup/borrowed/外部及二次取消守卫 |
 | close-self-cancel-green-py39 | exit0；6 passed/58 deselected/1 warning，2.19s | 同6项真实3.9验证。273之后仅该局部生产修复，不冒称273覆盖它 |
 
-3.13两警告是Starlette/AnyIO弃用与LangGraph上游；3.9为LangGraph上游1项。收集失败批次不能算已执行定向通过，没有人为skip。64新增均有当前逻辑的实际定向/相关覆盖，但没有修后一次完整全仓或3.9整批全绿重跑；准确结果按上表保留。未执行准备中的纯内存self-cancel probe，未计额外测试。
+3.13两警告是Starlette/AnyIO弃用与LangGraph上游；3.9为LangGraph上游1项。收集失败批次不能算已执行定向通过，没有人为skip。首冻结64新增均有当时逻辑的实际定向/相关覆盖，当时没有修后一次完整全仓或3.9整批全绿重跑；后续修复覆盖见下段，不把旧528/273换成新提交结果。未执行准备中的纯内存self-cancel probe，未计额外测试。
+
+## 首轮独审R1/R2：未知结果与attempt完整性
+
+k64对 `4cee7f3` 独审为0 Critical/2 Important/0 Minor，主裁定两项均修。R1：`retry_safe=True` 只能说明幂等资格，不能证明已经dispatch的请求是否完成；旧abort据此将deadline/cancel/未知异常标成effect_unknown=False。仅将仍有active attempt的中断按未知记录；typed明确已知失败在进入backoff前已清active，不误改其false，已完成请求后的评测/清理亦不改历史。
+
+R2：旧execution仅校验字段/次数，未同可信步骤覆盖和结果关联；正常成功记录可被删attempt、改deadline或越界index后继续绿。`validate_execution` 接收独立manifest计划长度和已校验steps；stored reader复用原安全投影中由manifest得出的expected_step_count与安全steps。同一step只能在已知error后继续retry，step索引必须按受控顺序覆盖，完成步骤必须有终结completed attempt；completed overall不得伴随缺步骤/错误步骤。没有使用返回者自报expected_step_count，也不引入签名证明或补虚构attempt。旧无execution同步路径保持，未dispatch的queue/init中断允许无attempt。
+
+新增25项至89：R1四类retry_safe请求中断（deadline/cancel_event/未知异常/坏响应）；R2六类篡改×build/strict parse/stored reader共18项（删光、末次deadline、越界、缺中间、倒序、完成后重试）；3项正向known error→completed/init中断/eval中断。stored负例真实导入临时内存SQLite，篡改payload并重算普通证据digest，确保命中新语义检查而非原摘要拒绝。加上8个旧正向守卫，4cee生产行为实际22失败/11通过；没有把原有守卫说成新RED。
+
+| 新增batch | 真实结果 |
+| --- | --- |
+| review-r1-r2-red | **22 failed、11 passed、56 deselected、2 warnings，11.66s**；R1四类及R2十八路径均真实失败 |
+| review-r1-r2-related-green | **183 passed、2 warnings，12.81s**；4个直接消费者文件，含89新增及同步/完整性相关，不重复528/273 |
+| review-r1-r2-py39-green | **33 passed、56 deselected、1 warning，3.41s**；与RED同一集合，私有3.9环境，无全量 |
+
+仅三个生产文件窄修（async_runner/execution/integrity）和一个测试文件；版本、依赖、同步接口、A05 required/grounding/provenance、A06信任/基线及授权/TTL保持。下一步有限复审R1/R2及新sourcehash，发现关闭前不root。
 
 ## 冻结、安装消费与下一步
 
-`.context/A08/source-freeze.json` 记录20改变Python逐文件SHA256；`static-checks.log` 核对内存compile/3.9语法、版本与原106锁条目无无关升级、diffcheck及20条pytest日志；`lock-check.log` 离线uv lock --check解析110包通过。这些是静态证据，不替代实际测试或真实环境验收。独审将先读源码、证据和必要离线probe，不重复常规pytest/root；关闭发现后才唯一finalroot。
+`.context/A08/source-freeze.json` 记录20改变Python逐文件SHA256；`static-checks.log` 核对内存compile/3.9语法、版本与原106锁条目无无关升级、diffcheck及当前23条pytest日志；`lock-check.log` 离线uv lock --check解析110包通过，审查修复未改依赖。这些是静态证据，不替代实际测试或真实环境验收。独审将先读源码、证据和必要离线probe，不重复常规pytest/root；关闭发现后才唯一finalroot。
 
 安装消费四根文件精确为 `tests/test_async_scenario_budget.py`、`tests/test_workflow_runner.py`、`tests/test_dify_adapter.py`、`tests/test_release_report_integrity.py`。其中只前者新增，另有 `tests/test_telemetry_storage.py` 的UTC helper修改，不能称四个新增文件。可原字节复制这四根及递归助手 `tests/test_quality_loop_engine.py`、`tests/test_quality_loop_models.py`、`tests/test_run_reporting.py`、`tests/test_telemetry_storage.py`、`tests/report_integrity_fixtures.py`、`tests/conftest.py`；本树无tests/__init__.py，消费者必要的空package marker属于harness。精确闭包SHA256为 `.context/A08/consumer-tests.json`。
 

@@ -2,6 +2,8 @@
 
 ## A08：一个用例的总预算与取消边界（Issue #80）
 
+独审修复接续：首冻结4cee7f3发现2 Important。幂等只能说明重试资格，不能证明已dispatch请求结果；active中断改为未知，typed已知失败/backoff和已完成请求评测保留原false。attempt依据独立manifest expected_count和已校验steps核对覆盖/顺序/终态，stored用原安全投影同规则，不扩签名证明。新增25至89，真实RED22失败/11守卫通过，四直接消费者183通过/2警告、3.9同33守卫通过/1警告；stored篡改后重算digest，确保命中新语义边界。23顶层pytest/23进程/0root，准备重新冻结有限复审，主后续交付待验；下方64/20为首冻结历史。
+
 base4d5a2bc/dev7，原生async adapter/Dify/Reference/runner与实际v1入口本地收口，准备冻结交k64独审，尚无root/push/CI/安装发行。64新增、20顶层pytest/20进程、0子pytest；完整命令和失败分类见[A08证据](../evidence/A08/summary.md)，使用方法见[预算指南](../异步场景预算指南.md)。用户练习待完成、掌握未评估。
 
 一个用例在排队前选择单调deadline，排队、限流、初始化、请求、退避和required评测共用余量。默认一次；只有显式retry_safe、可重试且副作用已知的错误可重试，本地operation_key不能证明外部写入幂等。请求超时/取消可能已提交工单，必须记录effect_unknown。用例预算后另有有限清理宽限，owned关闭、borrowed保留；close自行取消是清理失败，外部Task.cancel继续传播；不协作插件不能强制杀死，不假装资源已释放。
