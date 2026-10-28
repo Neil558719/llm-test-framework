@@ -2,6 +2,8 @@
 
 ## A07 当前接续（Issue #78）
 
+最终本地交接：9ac34293独立有限复审关闭R1、无剩余，唯一root1177通过/7排除/2警告/0skip、106.51秒；67新增/13顶层pytest+3消费者=16进程。7排除为5UI/2Windows系统副作用，两警告为原上游。最终仅docs尾注，17Python哈希不变；主继续dev7/当前head CI/合并树/安装Release与Issue，65安装契约+2仓库配置边界保持。下方历史失败、旧计数和审查阶段不覆盖。
+
 首冻结096a8a81独审1Important（混合首内容/TTFT缺测误放行）；按主裁定仅summary/metrics/gates补适用已建立流覆盖完整性，观察p95不变。11新增至67，R1 RED8失败/3守卫通过，修后50窄相关通过/2警告；累计12顶层pytest、0root，待有限复审。旧379/97记录仅归初冻结，不称当前full；详见A07证据。
 
 独占隔离树codex/a07-observability，base a8b3ac223575a05c9c6c08977848b119d6021288/dev6；不改版本/lockdeps/共享环境。实现响应/trace/场景真实单调耗时、HTTP/SSE有效契约、内容/建立状态、goodput/成功延迟/已建立分母及报告门禁接线，A06既有null importer不重复认领。56新增，10顶层pytest，相关379通过、最终配置/新增/报告窄集97通过；旧RED、夹具错误和相关7失败完整保留，见[A07证据](../evidence/A07/summary.md)。仅准备冻结独审，未root/push；独审关闭后唯一finalroot，主后续dev7/CI/合并/安装发行。

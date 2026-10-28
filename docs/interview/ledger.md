@@ -2,6 +2,8 @@
 
 ## A07：计时窗口、首内容与成功分母（Issue #78）
 
+最终本地接续：k64对9ac34293有限复审关闭R1、无剩余；唯一finalroot1177通过/7排除/2上游警告/根0skip，106.51秒。67新增、13顶层pytest+3继承消费者=16进程；根排除5UI/2系统副作用，optional子skip不计根skip。此后仅docs尾注、17Python哈希保持，主后续dev7/CI/合并/安装发行另验。65安装契约与2仓库M13配置验证分列，不假设wheel带根configs；用户练习待完成/掌握未评估。下方保留前阶段历史。
+
 独审首冻结096a8a81发现1Important：混合complete-only缺测被有值流P95掩盖，显式content/TTFT可误绿；k64纯内存确认、主裁定适用已建立SSE流完整测量。新增11项至67，真实RED8失败/3原守卫通过（4误放行、3缺计数字段、1报告字段），summary/metrics/gates最小修后50窄相关通过/2上游警告。覆盖计数追加默认null，分布不补零，429/preconnect不计分母，未配置不新增阻断。累计12顶层pytest、仍无root，待有限复审；下方379/97为首冻结历史。
 
 base a8b3ac2/dev6；响应/trace真实单调耗时、场景对话窗口排除Judge、无测量null；有效协议响应成功和业务期望分开。完成尝试吞吐保留，goodput同wall分母；首非空content、流建立和模型TTFT分开，Reference只能simulated。未知外部流保留合法network首内容别名并标来源；没有分母时null不能当成功。原位置字段、A06完整性/信任/baseline、scope/actor/TTL保持。

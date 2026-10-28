@@ -1,5 +1,7 @@
 # A07：真实耗时、首内容与成功吞吐
 
+最终本地交接：R1于 `9ac34293c18943471142d7b39d5b7dd79cb8b4d2` 独立有限复审关闭，无剩余finding；其后唯一finalroot实际 **1177 passed / 7 deselected / 2 warnings / 0 skipped，106.51秒**。67新增，累计13次顶层pytest、继承A03消费者子pytest3次，共16个pytest进程。后续仅文档尾注，17Python冻结哈希保持；CI/合并/安装与dev7发行由主继续，本地通过不代表交付完成。下方保留各冻结阶段历史证据。
+
 Issue [#78](https://github.com/Neil558719/llm-test-framework/issues/78)，分支 `codex/a07-observability`，base `a8b3ac223575a05c9c6c08977848b119d6021288`。版本保持dev6，主整合时统一dev7；pyproject/lock/内核版本不变。实现说明见[耗时与吞吐口径指南](../../耗时与吞吐口径指南.md)。
 
 ## 实现与兼容
@@ -49,7 +51,7 @@ $a07Python = 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.ex
 
 ## 依赖与待验收
 
-### 独审R1限定收口（尚待有限复审）
+### 独审R1限定收口（当时待有限复审，后续结论见下）
 
 首冻结 `096a8a81ea041c87e6879a135774fb63e8fbdbfa`，tree `527c090043ca76fb7ba4fabe3e46bc5d17558ad4`；k64核对16Python哈希、版本无diff及379/97日志，0pytest、1次纯内存合成，发现1 Important、0 Critical/Minor：混合有值流与合法complete-only时仅计算非null P95，两个显式内容/TTFT阈值错误通过；全测量/全缺测对照分别通过/拒绝。主裁定显式门禁要求已建立SSE适用流测量完整，观察分布不变、不补零。
 
@@ -59,6 +61,18 @@ $a07Python = 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.ex
 
 主流程提供A06依赖验收：PR77同head34检查成功，merge `fe197042abd06ff86d625ad74ba8c67a749c26a6` 与本base同产品树；合并根1110 passed/7 deselected/2上游警告、98.41秒。独立wheel74完整性测试/5警告（3harness预导入rewrite+2上游）、14场景/3资源通过，7夹具逐字节一致且产品仅installed导入。dev6三附件已发布并回下载逐字节/大小/hash/tag/source一致，wheel SHA256=`e468fc52b55e3765ff6b5eb9bb99b9e651a49b71d7889b04b4ae07dd17b8934f`，Issue76关闭。首次offline安装缺缓存后只在隔离env按locked下载crypto/pydanticcore/pygments，旧env未改。A06历史root失败及138迁移通过仍保留，不用其成功覆盖本任务。
 
-当前为A07本地定向/相关完成、准备冻结交独立审查；静态编译、diff及源SHA256记录在 `.context/A07/static-checks.log` / `source-freeze.json`。首次静态脚本将CRLF签出字节直接与LF blob相比失败；确认core.autocrlf=true且三文件无diff后，改用 `git cat-file --filters HEAD:path` 比较签出字节，保留 `static-checks-first.log`，未改产品/版本文件。独立审查关闭后才执行唯一finalroot。本任务当前无root、当前SHA CI、PR/合并、独立安装/Release/部署证据，尚不满足交付完成条件。真实Judge/provider/IdP/HTTPS/持久部署未验收；不扩E01真实streaming、E02队列、A08预算。用户练习待完成，掌握未评估。
+首冻结时为本地定向/相关完成、准备独审且无root；静态编译、diff及源SHA256记录在 `.context/A07/static-checks.log` / `source-freeze.json`。首次静态脚本将CRLF签出字节直接与LF blob相比失败；确认core.autocrlf=true且三文件无diff后，改用 `git cat-file --filters HEAD:path` 比较签出字节，保留 `static-checks-first.log`，未改产品/版本文件。当前源码有限复审与唯一root已完成，当前SHA CI、PR/合并、独立安装/Release/部署仍待主，不满足发行交付完成条件。真实Judge/provider/IdP/HTTPS/持久部署未验收；不扩E01真实streaming、E02队列、A08预算。用户练习待完成，掌握未评估。
+
+### R1关闭与唯一最终全量
+
+k64只读确认10文件窄diff、tree `1cc8c88a184c8b2eb54e7e8f58a3c84247786181`、clean及17Python逐项SHA256，关闭唯一Important、无剩余finding；该轮0pytest/0新增probe。`review-r1-source-freeze.json` 本身SHA256=`6e63d6788afdac9567ca214cf2145c5cdb40cfc5996de76e5f5a48bb46596ff1`。其后仅一次运行：
+
+```powershell
+& $a07Python -B -X utf8 .context/A07/run_tests.py final-root -q -k 'not windows_startup_task_registration_is_idempotent_and_removable and not windows_watcher_survives_failed_refresh_and_retries_next_env_save' --tb=short
+```
+
+实际exit0，1177通过/7排除/2上游警告/根0skip，106.51秒；原命令、源码导入路径、完整输出与exit留在 `.context/A07/final-root.log`。执行会话因配额中断后仅poll原session49取结果，未重启测试。7排除为既有5UI及2Windows计划任务/持久watcher系统副作用集成；两警告仍Starlette/AnyIO与LangGraph上游。继承A03三种消费者使用受控SDK禁用替身验证required/optional退出码，optional子进程预期skip不计根通过/根0skip。现共13顶层pytest+3消费者子pytest=16进程，仅此1次root；67新增全部随根执行。继承部署脚本参数/Compose配置校验不代表容器启动或真实部署。
+
+安装交接由主另验：67新增中65项可原字节复制测试与助手闭包后验证installed产品导入；2项固定读取仓库 `configs/m13-reference-agent-gate.yaml` 的本地ASGI/config验收须单列。pyproject未改、不能预设根configs在wheel内，不从源码复制资源冒充wheel资源通过。尚无本任务安装实测。后续最终文档提交仅更新证据/流程/账本，17Python源与版本/依赖不变；主继续dev7/同SHA CI/合并树验收、安装与Release及Issue跟踪。
 
 10–20分钟练习：比较全500与一半成功时相同wall分母的attempt/goodput；用start/空chunk/complete解释为什么没有首内容；比较模拟流与未知外部流兼容TTFT来源；在HTTP配置流门禁观察null拒绝，给SSE同阈值后验证恢复。将固定单调差值沿响应/trace/trend和场景/manifest/import关联，说明哪些不包含Judge时间。不编造性能收益数字。
