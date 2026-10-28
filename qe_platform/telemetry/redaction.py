@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import sys
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -26,7 +27,7 @@ def fingerprint(value: str, hash_key: str) -> str:
     return hmac.new(hash_key.encode("utf-8"), value.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-@dataclass(frozen=True, slots=True, init=False)
+@dataclass(frozen=True, init=False, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class VersionFingerprint:
     """A version digest produced by hashing, never by accepting a bare digest.
 

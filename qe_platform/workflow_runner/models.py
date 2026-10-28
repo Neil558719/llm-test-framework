@@ -67,6 +67,7 @@ class ScenarioRunResult:
     final_assertions: List[AssertionResult] = field(default_factory=list)
     quality_checks: List[QualityCheckResult] = field(default_factory=list)
     latency_ms: Optional[float] = None
+    execution: Optional[dict[str, Any]] = None
 
     @property
     def total_usage(self):
@@ -92,15 +93,18 @@ class ScenarioRunResult:
 
     @property
     def complete(self) -> bool:
+        from .execution import execution_complete as async_execution_complete
         execution_complete = (
             len(self.steps) == self.expected_step_count
             and all(step.status != "error" for step in self.steps)
         )
-        return execution_complete and all(item.evaluated for item in self.quality_checks)
+        return (execution_complete and all(item.evaluated for item in self.quality_checks)
+                and async_execution_complete(self.execution))
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "scenario_id": self.scenario_id, "scenario_name": self.scenario_name,
+            **({'execution': self.execution} if self.execution is not None else {}),
             "source": self.source, "session_id": self.session_id,
             "started_at": self.started_at, "finished_at": self.finished_at,
             "passed": self.passed, "complete": self.complete,

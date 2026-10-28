@@ -26,6 +26,7 @@ dependencies = [
     "langgraph>=0.6,<1.0",
     "PyYAML>=6.0",
     "PyJWT[crypto]>=2.8,<3.0",
+    "eval-type-backport>=0.2,<1.0; python_version < '3.10'",
 ]
 
 [project.optional-dependencies]
@@ -38,8 +39,10 @@ ui = [
 ]
 dev = [
     "pytest>=7.0",
+    "pytest-asyncio>=0.24,<2.0",
 ]
 ci = [
+    "pytest-asyncio>=0.24,<2.0",
     "pytest-timeout>=2.3",
     "pytest-rerunfailures>=14.0",
 ]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -30,7 +30,7 @@ class AgentState(TypedDict):
     ticket_status: str
     approval_status: str
     handoff_reason: str
-    fault: FaultProfile | None
+    fault: Optional[FaultProfile]
 
 
 def _is_ticket_intent(message: str) -> bool:

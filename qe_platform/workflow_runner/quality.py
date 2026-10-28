@@ -82,6 +82,35 @@ def run_quality_callback(scenario, response, metrics, evaluator):
     return checks
 
 
+async def run_async_quality_callback(scenario, response, metrics, evaluator):
+    """Await an explicit asynchronous evaluator; retain the sync policy checks."""
+    import inspect
+    target = evaluator if inspect.isfunction(evaluator) or inspect.ismethod(evaluator) else getattr(evaluator, '__call__', None)
+    if not inspect.iscoroutinefunction(target):
+        return pending_quality(metrics, 'async_evaluator_required')
+    checks = pending_quality(metrics)
+    eligible = deepcopy(metrics)
+    if not '\n'.join(response.sources or []).strip():
+        for check in checks:
+            if check.metric in ('faithfulness', 'hallucination'):
+                check.status, check.reason = 'inconclusive', 'missing_grounding_context'
+                del eligible[check.metric]
+    if eligible:
+        callback_spec = replace(deepcopy(scenario), quality=QualityExpectation(deepcopy(eligible)))
+        try:
+            values = await evaluator(callback_spec, deepcopy(response))
+        except Exception:
+            evaluated = pending_quality(eligible, 'evaluator_error', status='error')
+        else:
+            try:
+                evaluated = validate_callback_results(eligible, values)
+            except (ValueError, TypeError):
+                evaluated = pending_quality(eligible, 'invalid_evaluator_result', status='error')
+        by_name = {check.metric: check for check in evaluated}
+        checks = [by_name.get(check.metric, check) for check in checks]
+    return checks
+
+
 class _ExplicitClient:
     """Keep even a falsey injected client from falling back to llmtest's registry."""
 

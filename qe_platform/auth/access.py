@@ -1,4 +1,6 @@
 """Trusted server-side grants; request claims never define application access."""
+from __future__ import annotations
+
 from collections.abc import Iterable, Mapping
 import os
 
