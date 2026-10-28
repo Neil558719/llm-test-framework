@@ -1,5 +1,11 @@
 # P00 / A01 本地运行基线
 
+## A07 当前接续（Issue #78）
+
+独占隔离树codex/a07-observability，base a8b3ac223575a05c9c6c08977848b119d6021288/dev6；不改版本/lockdeps/共享环境。实现响应/trace/场景真实单调耗时、HTTP/SSE有效契约、内容/建立状态、goodput/成功延迟/已建立分母及报告门禁接线，A06既有null importer不重复认领。56新增，10顶层pytest，相关379通过、最终配置/新增/报告窄集97通过；旧RED、夹具错误和相关7失败完整保留，见[A07证据](../evidence/A07/summary.md)。仅准备冻结独审，未root/push；独审关闭后唯一finalroot，主后续dev7/CI/合并/安装发行。
+
+A06依赖接续（主提供）：PR77同head34成功，merge fe197042与base同产品树；合并1110通过/7排除/2警告98.41秒，独立wheel74完整性（5警告=3harness+2上游）+14场景/3资源通过；dev6三附件回下载验证、Issue76关闭，hash及缓存边界详见A07证据。历史A06本地root失败/138夹具迁移仍保留；不当A07验证。真实provider/IdP/HTTPS/持久部署、用户练习均未验收。
+
 ## A06 当前接续（Issue #76，2026-10-27）
 
 交接尾注：k64已有限确认3135b468两夹具迁移无剩余、原17哈希未变及138日志；最终仅docs尾注提交，19Python冻结不变，不再pytest/root。主接管当前head CI/合并树full/安装发行，唯一root失败边界保持。

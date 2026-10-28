@@ -35,21 +35,10 @@ def _phase(name: str, run: LoadTestRun | None) -> str:
         "</tr>"
         for index, sample in enumerate(run.samples, 1)
     )
-    metrics = {
-        "completed": summary.completed,
-        "succeeded": summary.succeeded,
-        "failed": summary.failed,
-        "throughput_rps": summary.throughput_rps,
-        "latency_ms": dict(summary.latency_ms),
-        "ttft_ms": dict(summary.ttft_ms),
-        "error_rate": summary.error_rate,
-        "rate_429": summary.rate_429,
-        "stream_interruption_rate": summary.stream_interruption_rate,
-        "cost_total": summary.cost_total,
-        "cost_currency": summary.cost_currency,
-    }
+    metrics = summary.as_dict()
     return (
         f"<h3>{html.escape(name)}</h3>"
+        "<p>Goodput counts validated responses, not business quality. Client first content is not model TTFT; Reference streams are simulated.</p>"
         f"<pre>{html.escape(json.dumps(metrics, ensure_ascii=False, sort_keys=True, indent=2))}</pre>"
         "<table><thead><tr><th>#</th><th>Status</th><th>Latency ms</th>"
         "<th>TTFT ms</th><th>HTTP</th><th>Error</th><th>Trace</th></tr></thead>"

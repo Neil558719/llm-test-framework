@@ -25,7 +25,7 @@ def test_summary_reports_latency_percentiles_throughput_errors_and_cost():
 
 def test_summary_counts_interrupted_streams_and_empty_percentiles():
     config = LoadTestConfig(target_url="http://test", requests=1, concurrency=1, protocol="sse")
-    summary = summarize([SampleResult(False, 10, None, stream_interrupted=True, error_type="stream_interrupted")], config, wall_time_ms=10)
+    summary = summarize([SampleResult(False, 10, None, stream_interrupted=True, error_type="stream_interrupted", stream_established=True)], config, wall_time_ms=10)
     assert summary.stream_interruption_rate == 1.0
     assert summary.latency_ms == {"p50": 10.0, "p95": 10.0, "p99": 10.0}
 

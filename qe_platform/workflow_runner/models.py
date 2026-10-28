@@ -66,6 +66,7 @@ class ScenarioRunResult:
     tool_calls: List[ToolCall] = field(default_factory=list)
     final_assertions: List[AssertionResult] = field(default_factory=list)
     quality_checks: List[QualityCheckResult] = field(default_factory=list)
+    latency_ms: Optional[float] = None
 
     @property
     def total_usage(self):
@@ -103,6 +104,7 @@ class ScenarioRunResult:
             "source": self.source, "session_id": self.session_id,
             "started_at": self.started_at, "finished_at": self.finished_at,
             "passed": self.passed, "complete": self.complete,
+            "latency_ms": self.latency_ms,
             "steps": [step.as_dict() for step in self.steps],
             "tool_calls": [call.as_dict() for call in self.tool_calls],
             "final_assertions": [item.as_dict() for item in self.final_assertions],

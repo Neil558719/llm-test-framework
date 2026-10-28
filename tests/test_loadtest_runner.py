@@ -18,6 +18,7 @@ class _Stream:
     def __init__(self, lines, status_code=200):
         self.lines = lines
         self.status_code = status_code
+        self.headers = {"content-type": "text/event-stream"}
 
     async def __aenter__(self):
         return self
@@ -51,13 +52,13 @@ class _Client:
         type(self).peak = max(type(self).peak, type(self).active)
         await asyncio.sleep(0)
         type(self).active -= 1
-        return _Response(payload={"answer": "ok", "trace_id": "t1", "conversation_id": json["session_id"], "usage": {"prompt_tokens": 1, "completion_tokens": 2}, "cost": {"total": 0.01, "currency": "USD", "price_version": "p1"}})
+        return _Response(payload={"answer": "ok", "sources": [], "tool_calls": [], "trace_id": "t1", "conversation_id": json["session_id"], "usage": {"prompt_tokens": 1, "completion_tokens": 2}, "cost": {"total": 0.01, "currency": "USD", "price_version": "p1"}})
 
     def stream(self, method, url, json):
         return _Stream([
             "data: {\"type\": \"start\"}",
             "data: {\"type\": \"chunk\", \"text\": \"ok\"}",
-            "data: {\"type\": \"complete\", \"response\": {\"trace_id\": \"t2\", \"conversation_id\": " + jsonlib.dumps(json["session_id"]) + ", \"usage\": {\"prompt_tokens\": 2, \"completion_tokens\": 3}}}",
+            "data: {\"type\": \"complete\", \"response\": {\"answer\": \"ok\", \"sources\": [], \"tool_calls\": [], \"trace_id\": \"t2\", \"conversation_id\": " + jsonlib.dumps(json["session_id"]) + ", \"usage\": {\"prompt_tokens\": 2, \"completion_tokens\": 3}}}",
         ])
 
 

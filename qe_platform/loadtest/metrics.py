@@ -30,7 +30,8 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
     total = len(values)
     succeeded = sum(sample.success for sample in values)
     failed = total - succeeded
-    stream_total = total if config.protocol == "sse" else 0
+    established = [sample for sample in values if config.protocol == "sse" and sample.stream_established]
+    stream_total = len(established)
     costs = [sample for sample in values if sample.cost_total is not None]
     currencies = {sample.cost_currency for sample in costs}
     versions = {sample.price_version for sample in costs}
@@ -39,7 +40,7 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
         throughput_rps=round(total / (wall_time_ms / 1000), 3) if wall_time_ms > 0 else 0.0,
         error_rate=failed / total if total else 0.0,
         rate_429=sum(sample.status_code == 429 for sample in values) / total if total else 0.0,
-        stream_interruption_rate=sum(sample.stream_interrupted for sample in values) / stream_total if stream_total else 0.0,
+        stream_interruption_rate=sum(sample.stream_interrupted for sample in established) / stream_total if stream_total else None,
         latency_ms=_distribution(sample.duration_ms for sample in values),
         ttft_ms=_distribution(sample.ttft_ms for sample in values if sample.ttft_ms is not None),
         status_codes=dict(Counter(str(sample.status_code) for sample in values if sample.status_code is not None)),
@@ -52,4 +53,9 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
         price_version=versions.pop() if len(versions) == 1 else ("MIXED" if versions else ""),
         costed_samples=len(costs),
         cost_complete=bool(values) and len(costs) == len(values),
+        goodput_rps=round(succeeded / (wall_time_ms / 1000), 3) if wall_time_ms > 0 else 0.0,
+        success_latency_ms=_distribution(sample.duration_ms for sample in values if sample.success),
+        content_first_event_ms=_distribution(sample.content_first_event_ms for sample in values if sample.content_first_event_ms is not None),
+        stream_established_count=stream_total,
+        stream_modes=dict(Counter(sample.stream_mode for sample in established)),
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Callable, Iterable, List, Optional
 
 from llmtest import ResponseEnvelope, ToolCall
@@ -40,6 +41,7 @@ class ScenarioRunner:
             result.final_assertions.append(AssertionResult("execution", False, str(exc), path="adapter"))
             result.finished_at = datetime.now(timezone.utc).isoformat()
             return result
+        dialogue_started = perf_counter()
         for index, step in enumerate(scenario.conversation):
             step_result = StepResult(index=index, user=step.user, status="passed")
             try:
@@ -57,6 +59,7 @@ class ScenarioRunner:
             if any(not item.passed for item in step_result.assertions):
                 step_result.status = "failed"
             result.steps.append(step_result)
+        result.latency_ms = (perf_counter() - dialogue_started) * 1000
         final_response = result.steps[-1].response if result.steps and result.steps[-1].response else None
         execution_error = next((step.error for step in result.steps if step.status == "error"), "")
         result.final_assertions.extend(self._check_expectation(scenario.expect, final_response, result.tool_calls, execution_error=execution_error))

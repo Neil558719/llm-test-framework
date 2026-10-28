@@ -78,6 +78,8 @@ def evaluate_thresholds(
             ">=",
             lambda actual, limit: actual >= limit,
         ),
+        "min_goodput_rps": (summary.goodput_rps, "successful responses/s", ">=", lambda actual, limit: actual >= limit),
+        "max_content_first_event_p95_ms": (summary.content_first_event_ms.get("p95"), "ms (client first content)", "<=", lambda actual, limit: actual <= limit),
         "max_cost_total": (
             summary.cost_total,
             summary.cost_currency or "cost",
