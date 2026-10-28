@@ -98,6 +98,25 @@ def evaluate_thresholds(
         if expected is None:
             continue
         actual, unit, operator, compare = metrics[name]
+        content_coverage = {
+            "max_ttft_p95_ms": summary.ttft_observed_count,
+            "max_content_first_event_p95_ms": summary.content_first_event_observed_count,
+        }
+        if name in content_coverage and (
+            summary.stream_established_count <= 0
+            or content_coverage[name] != summary.stream_established_count
+        ):
+            checks.append(
+                GateCheck(
+                    name=name, stage=stage, operator=operator, expected=float(expected),
+                    actual=None, unit=unit, passed=False,
+                    reason=(
+                        "configured metric is unavailable or incomplete: "
+                        f"{content_coverage[name]}/{summary.stream_established_count} established SSE streams measured"
+                    ),
+                )
+            )
+            continue
         if name in {"max_cost_total", "max_cost_per_success"} and not summary.cost_complete:
             checks.append(
                 GateCheck(

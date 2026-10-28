@@ -206,6 +206,8 @@ class LoadTestSummary:
     throughput_kind: str = "completed_attempts"
     success_definition: str = "validated_response_contract; business expectations are separate"
     ttft_kind: str = "legacy_client_first_content; not model TTFT"
+    content_first_event_observed_count: Optional[int] = None
+    ttft_observed_count: Optional[int] = None
 
     def as_dict(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__dataclass_fields__}

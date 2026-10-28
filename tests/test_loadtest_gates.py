@@ -31,6 +31,9 @@ def _summary(**changes) -> LoadTestSummary:
         cost_total=0.4,
         cost_currency="USD",
         price_version="p1",
+        stream_established_count=4,
+        content_first_event_observed_count=4,
+        ttft_observed_count=4,
     )
     return replace(base, **changes)
 

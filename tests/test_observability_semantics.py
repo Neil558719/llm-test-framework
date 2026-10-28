@@ -300,8 +300,8 @@ def test_new_gate_config_loads_and_enforces_same_boundaries(tmp_path):
     path = tmp_path / 'gate.yaml'
     path.write_text('id: a07\ntarget_url: http://local\nfault_token_env: TEST_TOKEN\nthresholds: {min_goodput_rps: 1, max_content_first_event_p95_ms: 1000}\nscenarios:\n  - id: fault\n    fault: {type: model_timeout}\n    expect: {status_code: 200}\n', encoding='utf-8')
     thresholds = load_gate_config(path).thresholds
-    values = [SampleResult(True, 10, 1000, content_first_event_ms=1000)]
-    summary = summarize(values, LoadTestConfig('http://local'), wall_time_ms=1000)
+    values = [SampleResult(True, 10, 1000, content_first_event_ms=1000, stream_established=True)]
+    summary = summarize(values, LoadTestConfig('http://local', protocol='sse'), wall_time_ms=1000)
     assert all(check.passed for check in evaluate_thresholds(summary, thresholds, 'recovery'))
 
 
@@ -379,3 +379,77 @@ def test_packaged_m13_gate_runs_all_seven_local_fault_recoveries(tmp_path):
     result = asyncio.run(GateSuiteRunner(suite, client_factory=factory, environ={suite.fault_token_env: 'local-token'}).run())
     assert len(result.scenarios) == 7
     assert result.gate_passed, [(s.scenario_id, c.name, c.reason) for s in result.scenarios for c in s.checks if not c.passed]
+
+
+@pytest.mark.parametrize('metric', ['max_content_first_event_p95_ms', 'max_ttft_p95_ms'])
+def test_partial_stream_measurement_cannot_pass_explicit_gate(metric):
+    values = [SampleResult(True, 20, 10, stream_established=True, content_first_event_ms=10),
+              SampleResult(True, 20, None, stream_established=True)]
+    summary = summarize(values, LoadTestConfig('http://local', protocol='sse', requests=2), wall_time_ms=100)
+    assert summary.content_first_event_ms['p95'] == summary.ttft_ms['p95'] == 10
+    check = evaluate_thresholds(summary, GateThresholds(**{metric: 20}), 'recovery')[0]
+    assert not check.passed and check.actual is None
+    assert '1/2' in check.reason and 'incomplete' in check.reason
+
+
+def test_simulated_stream_cannot_borrow_unknown_stream_ttft_coverage():
+    values = [sample(Client(events=[{'type': 'chunk', 'text': 'ok'}, {'type': 'complete', 'response': envelope()}]), 'sse'),
+              sample(Client(events=[{'type': 'start', 'stream_mode': 'simulated'}, {'type': 'chunk', 'text': 'ok'},
+                                    {'type': 'complete', 'response': envelope()}]), 'sse')]
+    summary = summarize(values, LoadTestConfig('http://local', protocol='sse', requests=2), wall_time_ms=100)
+    checks = evaluate_thresholds(summary, GateThresholds(max_ttft_p95_ms=1000, max_content_first_event_p95_ms=1000), 'recovery')
+    assert {check.name: check.passed for check in checks} == {'max_ttft_p95_ms': False, 'max_content_first_event_p95_ms': True}
+
+
+@pytest.mark.parametrize('extra', ['none', '429', 'connect'])
+def test_complete_stream_coverage_ignores_pre_establishment_failures(extra):
+    values = [SampleResult(True, 20, 10, stream_established=True, content_first_event_ms=10)]
+    if extra == '429':
+        values.append(sample(Client(events=[], status=429), 'sse'))
+    elif extra == 'connect':
+        values.append(sample(Client(failure=httpx.ConnectTimeout('offline')), 'sse'))
+    summary = summarize(values, LoadTestConfig('http://local', protocol='sse', requests=len(values)), wall_time_ms=100)
+    checks = evaluate_thresholds(summary, GateThresholds(max_ttft_p95_ms=10, max_content_first_event_p95_ms=10), 'recovery')
+    assert all(check.passed for check in checks)
+    assert summary.stream_established_count == summary.content_first_event_observed_count == summary.ttft_observed_count == 1
+
+
+@pytest.mark.parametrize('established', [False, True])
+def test_empty_content_coverage_rejects_both_explicit_gates(established):
+    summary = summarize([SampleResult(True, 20, None, stream_established=established)],
+                        LoadTestConfig('http://local', protocol='sse'), wall_time_ms=100)
+    checks = evaluate_thresholds(summary, GateThresholds(max_ttft_p95_ms=20, max_content_first_event_p95_ms=20), 'recovery')
+    assert all(not check.passed and check.actual is None for check in checks)
+
+
+def test_partial_content_coverage_does_not_add_unconfigured_gates():
+    values = [SampleResult(True, 20, 10, stream_established=True, content_first_event_ms=10),
+              SampleResult(True, 20, None, stream_established=True)]
+    summary = summarize(values, LoadTestConfig('http://local', protocol='sse', requests=2), wall_time_ms=100)
+    assert evaluate_thresholds(summary, GateThresholds(), 'recovery') == []
+    checks = evaluate_thresholds(summary, GateThresholds(max_error_rate=0), 'recovery')
+    assert len(checks) == 1 and checks[0].passed
+
+
+def test_legacy_summary_cannot_invent_stream_measurement_coverage():
+    from tests.test_loadtest_gates import _summary
+    from dataclasses import replace
+    summary = replace(_summary(), content_first_event_observed_count=None, ttft_observed_count=None)
+    check = evaluate_thresholds(summary, GateThresholds(max_ttft_p95_ms=20), 'recovery')[0]
+    assert not check.passed and check.actual is None
+
+
+def test_stream_coverage_counts_reach_json_and_both_html_reports(tmp_path):
+    from qe_platform.loadtest.reporting import write_reports
+    from qe_platform.loadtest.gate_reporting import write_gate_reports
+    from tests.test_loadtest_gate_reporting import gate_result
+    config = LoadTestConfig('http://local', protocol='sse', json_report=str(tmp_path / 'coverage.json'), html_report=str(tmp_path / 'coverage.html'))
+    values = [SampleResult(True, 20, 10, stream_established=True, content_first_event_ms=10)]
+    summary = summarize(values, config, wall_time_ms=100)
+    json_path, html_path = write_reports(LoadTestRun(config, 'start', 'finish', values, summary))
+    _, gate_path = write_gate_reports(gate_result(tmp_path))
+    payload = json.loads(json_path.read_text(encoding='utf-8'))['summary']
+    for name in ('content_first_event_observed_count', 'ttft_observed_count'):
+        assert payload[name] == 1
+        assert name in html_path.read_text(encoding='utf-8')
+        assert name in gate_path.read_text(encoding='utf-8')

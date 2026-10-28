@@ -2,6 +2,8 @@
 
 ## A07：计时窗口、首内容与成功分母（Issue #78）
 
+独审首冻结096a8a81发现1Important：混合complete-only缺测被有值流P95掩盖，显式content/TTFT可误绿；k64纯内存确认、主裁定适用已建立SSE流完整测量。新增11项至67，真实RED8失败/3原守卫通过（4误放行、3缺计数字段、1报告字段），summary/metrics/gates最小修后50窄相关通过/2上游警告。覆盖计数追加默认null，分布不补零，429/preconnect不计分母，未配置不新增阻断。累计12顶层pytest、仍无root，待有限复审；下方379/97为首冻结历史。
+
 base a8b3ac2/dev6；响应/trace真实单调耗时、场景对话窗口排除Judge、无测量null；有效协议响应成功和业务期望分开。完成尝试吞吐保留，goodput同wall分母；首非空content、流建立和模型TTFT分开，Reference只能simulated。未知外部流保留合法network首内容别名并标来源；没有分母时null不能当成功。原位置字段、A06完整性/信任/baseline、scope/actor/TTL保持。
 
 实际证据：初RED24失败/1通过，边界9失败；33定向通过，报告3失败/2已有守卫；相关356通过/7失败（6旧正向夹具及1合法展示回归）收口后379通过；数值2失败中1真实Overflow与1NaN夹具错误分开；M13两轮RED保留缺价表历史，显式Mock零价表后仅HTTP错误套流门禁失败，同0/1000ms限定协议后97窄集通过。56新增，10顶层pytest、无root。见[A07证据](../evidence/A07/summary.md)和[口径指南](../耗时与吞吐口径指南.md)。准备独审，不把本地/Mock称真实模型质量或已发行；复现练习待做、掌握未评估。

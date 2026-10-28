@@ -49,6 +49,14 @@ $a07Python = 'C:/Users/ZhuanZ1/Desktop/项目修改/work/env-a/Scripts/python.ex
 
 ## 依赖与待验收
 
+### 独审R1限定收口（尚待有限复审）
+
+首冻结 `096a8a81ea041c87e6879a135774fb63e8fbdbfa`，tree `527c090043ca76fb7ba4fabe3e46bc5d17558ad4`；k64核对16Python哈希、版本无diff及379/97日志，0pytest、1次纯内存合成，发现1 Important、0 Critical/Minor：混合有值流与合法complete-only时仅计算非null P95，两个显式内容/TTFT阈值错误通过；全测量/全缺测对照分别通过/拒绝。主裁定显式门禁要求已建立SSE适用流测量完整，观察分布不变、不补零。
+
+追加11项到67新增，累计 **12次顶层pytest**，仍无root。`review-r1-red` 实际8 failed/3 passed/56 deselected/2上游warnings、2.60秒：两项mixed complete-only、simulated借用unknown TTFT、旧summary无覆盖证据共4项真实误放行；3项缺新增计数接口、1项报告缺字段分别列出；全缺/零分母与未配置守卫3项已有通过。仅summary追加两个默认null覆盖计数、metrics按已建立流计数、gates对显式两项阈值核对正分母与完整覆盖；报告已有as_dict接线不改。旧正向手工summary补显式4/4证据，旧边界/阈值断言不动；配置正例显式SSE已建立，legacy负例显式去掉覆盖证据。
+
+`review-r1-related` 实际50 passed/2上游warnings、2.23秒：全部11新边界、3旧相关守卫、统计/门禁/门禁运行器/两报告完整文件。未重复379/97、未root、无provider/网络。准确命令与完整输出保留 `.context/A07/review-r1-red.log`、`review-r1-related.log`；命令前缀和清环境规则同上，RED的选择为 `-q tests/test_observability_semantics.py -k 'partial_stream_measurement or simulated_stream_cannot or complete_stream_coverage or empty_content_coverage or partial_content_coverage or legacy_summary_cannot or stream_coverage_counts' --tb=short`。相关命令选择这7个测试函数（参数化11项）及 `test_new_gate_config_loads_and_enforces_same_boundaries`、`test_missing_content_metric_fails_configured_gate`、`test_zero_stream_denominator_blocks_configured_interruption_gate`，再加 `tests/test_loadtest_gates.py tests/test_loadtest_metrics.py tests/test_loadtest_gate_runner.py tests/test_loadtest_reporting.py tests/test_loadtest_gate_reporting.py --tb=short`，展开后的完整argv见原日志第一行。初冻结源哈希文件保留，新静态与全量改变Python哈希另记 `review-r1-static-checks.log`、`review-r1-source-freeze.json`。R1尚未关闭，不将旧379/97称当前修订后的全套结果。
+
 主流程提供A06依赖验收：PR77同head34检查成功，merge `fe197042abd06ff86d625ad74ba8c67a749c26a6` 与本base同产品树；合并根1110 passed/7 deselected/2上游警告、98.41秒。独立wheel74完整性测试/5警告（3harness预导入rewrite+2上游）、14场景/3资源通过，7夹具逐字节一致且产品仅installed导入。dev6三附件已发布并回下载逐字节/大小/hash/tag/source一致，wheel SHA256=`e468fc52b55e3765ff6b5eb9bb99b9e651a49b71d7889b04b4ae07dd17b8934f`，Issue76关闭。首次offline安装缺缓存后只在隔离env按locked下载crypto/pydanticcore/pygments，旧env未改。A06历史root失败及138迁移通过仍保留，不用其成功覆盖本任务。
 
 当前为A07本地定向/相关完成、准备冻结交独立审查；静态编译、diff及源SHA256记录在 `.context/A07/static-checks.log` / `source-freeze.json`。首次静态脚本将CRLF签出字节直接与LF blob相比失败；确认core.autocrlf=true且三文件无diff后，改用 `git cat-file --filters HEAD:path` 比较签出字节，保留 `static-checks-first.log`，未改产品/版本文件。独立审查关闭后才执行唯一finalroot。本任务当前无root、当前SHA CI、PR/合并、独立安装/Release/部署证据，尚不满足交付完成条件。真实Judge/provider/IdP/HTTPS/持久部署未验收；不扩E01真实streaming、E02队列、A08预算。用户练习待完成，掌握未评估。

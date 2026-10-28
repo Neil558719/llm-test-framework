@@ -58,4 +58,6 @@ def summarize(samples: Iterable[SampleResult], config: LoadTestConfig, *, wall_t
         content_first_event_ms=_distribution(sample.content_first_event_ms for sample in values if sample.content_first_event_ms is not None),
         stream_established_count=stream_total,
         stream_modes=dict(Counter(sample.stream_mode for sample in established)),
+        content_first_event_observed_count=sum(sample.content_first_event_ms is not None for sample in established),
+        ttft_observed_count=sum(sample.ttft_ms is not None and sample.stream_mode != "simulated" for sample in established),
     )
