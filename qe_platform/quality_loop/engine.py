@@ -81,7 +81,7 @@ def build_trends(
         group["online_trace_count"] += 1
         group["feedback_count"] += row["feedback_count"]
         group["confirmed_low_quality_count"] += row["confirmed_low_quality_count"]
-        if row["latency_ms"] > 0:
+        if row["latency_ms"] is not None and row["latency_ms"] > 0:
             group["online_latencies"].append(row["latency_ms"])
         group["total_tokens"] += row["total_tokens"]
         group["total_cost"] += row["total_cost"]

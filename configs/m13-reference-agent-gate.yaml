@@ -15,7 +15,6 @@ defaults:
 thresholds:
   max_error_rate: 0
   max_429_rate: 0
-  max_stream_interruption_rate: 0
   max_latency_p95_ms: 1500
   min_throughput_rps: 0.5
   max_cost_total: 0
@@ -100,7 +99,8 @@ scenarios:
     protocol: sse
     message: "如何重置公司邮箱密码？"
     thresholds:
-      max_ttft_p95_ms: 1000
+      max_stream_interruption_rate: 0
+      max_content_first_event_p95_ms: 1000
     fault:
       type: sse_interruption
     expect:

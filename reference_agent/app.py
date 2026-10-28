@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 import os
 import json
+from time import perf_counter
 from pathlib import Path
 from typing import Any
 
@@ -167,7 +168,10 @@ def create_app(
     def _run_chat(
         request: ChatRequest,
         fault: FaultProfile | None = None,
+        *,
+        stream_mode: str | None = None,
     ) -> dict[str, Any]:
+        started = perf_counter()
         session_id = request.session_id or str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
         try:
@@ -225,6 +229,9 @@ def create_app(
         )
         if envelope.usage and envelope.model_version:
             envelope.cost = app.state.price_table.calculate(envelope.usage, provider=app.state.model_config.provider, model=envelope.model_version.model)
+        if stream_mode is not None:
+            envelope.metadata["stream_mode"] = stream_mode
+        envelope.latency.total_ms = (perf_counter() - started) * 1000
         response = envelope.as_dict()
         _emit_telemetry(request, effective_message, envelope)
         return response
@@ -299,10 +306,10 @@ def create_app(
     ) -> StreamingResponse:
         request = _bind_identity(request, http_request)
         fault = _resolve_fault(x_qe_test_token, x_qe_fault)
-        response = _run_chat(request, fault)
+        response = _run_chat(request, fault, stream_mode="simulated")
 
         def events():
-            yield f"data: {json.dumps({'type': 'start', 'conversation_id': response['conversation_id']})}\n\n"
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': response['conversation_id'], 'stream_mode': 'simulated'})}\n\n"
             if fault is not None and fault.type == "sse_interruption":
                 return
             answer = response["answer"]

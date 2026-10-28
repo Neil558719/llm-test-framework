@@ -33,6 +33,8 @@ class GateThresholds:
     min_throughput_rps: Optional[float] = None
     max_cost_total: Optional[float] = None
     max_cost_per_success: Optional[float] = None
+    min_goodput_rps: Optional[float] = None
+    max_content_first_event_p95_ms: Optional[float] = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -47,6 +49,8 @@ class GateThresholds:
             "min_throughput_rps",
             "max_cost_total",
             "max_cost_per_success",
+            "min_goodput_rps",
+            "max_content_first_event_p95_ms",
         ):
             _number(name, getattr(self, name))
 

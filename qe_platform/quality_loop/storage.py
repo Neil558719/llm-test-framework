@@ -336,7 +336,7 @@ class SQLiteQualityRepository:
                     "application": application,
                     "timestamp": timestamp,
                     "version": version,
-                    "latency_ms": float(latency.get("total_ms", 0.0) or 0.0),
+                    "latency_ms": float(latency["total_ms"]) if latency.get("total_ms") is not None else None,
                     "total_tokens": int(usage.get("total_tokens", 0) or 0),
                     "total_cost": float((cost or {}).get("total", 0.0) or 0.0),
                     "feedback_count": int(feedback_count),

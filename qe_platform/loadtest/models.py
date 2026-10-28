@@ -153,6 +153,10 @@ class SampleResult:
     cost_currency: str = ""
     price_version: str = ""
     observations: Mapping[str, Any] = field(default_factory=dict)
+    stream_established: bool = False
+    content_first_event_ms: Optional[float] = None
+    stream_mode: str = "unknown"
+    ttft_source: str = "unavailable"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -164,6 +168,10 @@ class SampleResult:
                       "total_tokens": self.prompt_tokens + self.completion_tokens},
             "cost": None if self.cost_total is None else {"total": self.cost_total, "currency": self.cost_currency, "price_version": self.price_version},
             "observations": dict(self.observations),
+            "stream_established": self.stream_established,
+            "content_first_event_ms": self.content_first_event_ms,
+            "stream_mode": self.stream_mode,
+            "ttft_source": self.ttft_source,
         }
 
 
@@ -177,7 +185,7 @@ class LoadTestSummary:
     throughput_rps: float
     error_rate: float
     rate_429: float
-    stream_interruption_rate: float
+    stream_interruption_rate: Optional[float]
     latency_ms: Mapping[str, Optional[float]]
     ttft_ms: Mapping[str, Optional[float]]
     status_codes: Mapping[str, int]
@@ -190,6 +198,16 @@ class LoadTestSummary:
     price_version: str = ""
     costed_samples: int = 0
     cost_complete: bool = True
+    goodput_rps: Optional[float] = None
+    success_latency_ms: Mapping[str, Optional[float]] = field(default_factory=lambda: dict.fromkeys(("p50", "p95", "p99")))
+    content_first_event_ms: Mapping[str, Optional[float]] = field(default_factory=lambda: dict.fromkeys(("p50", "p95", "p99")))
+    stream_established_count: int = 0
+    stream_modes: Mapping[str, int] = field(default_factory=dict)
+    throughput_kind: str = "completed_attempts"
+    success_definition: str = "validated_response_contract; business expectations are separate"
+    ttft_kind: str = "legacy_client_first_content; not model TTFT"
+    content_first_event_observed_count: Optional[int] = None
+    ttft_observed_count: Optional[int] = None
 
     def as_dict(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__dataclass_fields__}

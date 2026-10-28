@@ -168,7 +168,7 @@ def write_html(report: RunReport, path: str | Path) -> Path:
             for check in scenario.get("quality_checks", [])
         )
         traces = ", ".join(escaped(step["response"].get("trace_id", "")) for step in scenario["steps"] if step.get("response")) or "-"
-        details = f"<details><summary>Evidence</summary><p>Trace: {traces}</p><p>Complete: {escaped(scenario['complete'])}</p><ul>{differences}</ul><p>Quality</p><ul>{quality}</ul></details>"
+        details = f"<details><summary>Evidence</summary><p>Trace: {traces}</p><p>Complete: {escaped(scenario['complete'])}</p><p>Dialogue latency ms: {escaped(scenario.get('latency_ms'))}</p><ul>{differences}</ul><p>Quality</p><ul>{quality}</ul></details>"
         rows.append(f"<tr><td>{html.escape(scenario['scenario_id'])}</td><td>{status}</td><td>{tools}</td><td>{html.escape(model)}</td><td>{escaped(usage.get('total_tokens', '-'))}</td><td>{escaped(cost.get('total', '-'))}</td><td>{failures}{details}</td></tr>")
     body = "".join(rows)
     document = f"<!doctype html><html><head><meta charset='utf-8'><title>V1 Run Report</title><style>body{{font:15px system-ui;margin:2rem}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:.5rem;text-align:left}}.ok{{color:green}}.bad{{color:#b00}}</style></head><body><h1>V1 API E2E Run Report</h1><p>Run: <code>{html.escape(report.run_id)}</code></p><p>Total: {report.total} | Passed: <span class='ok'>{report.passed}</span> | Failed: <span class='bad'>{report.failed}</span> | Gate: {str(report.gate_passed).lower()}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Tool calls</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Failed assertions</th></tr></thead><tbody>{body}</tbody></table></body></html>"
