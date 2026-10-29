@@ -1,5 +1,23 @@
 # 面试素材账本
 
+## A08：一个用例的总预算与取消边界（Issue #80）
+
+最终本地边界：k64对602a371有限复审关闭R1/R2，C0/I0/M0。第一次root漏带两Windows系统集成排除，实际1267通过/1失败/5排除/3警告、122.96秒；计划任务测试PowerShell中文输出UTF8解码失败，stdout=None后lstrip异常，watcher通过。确实注册/更新临时计划任务，finally调用清理但返回码未记录；后经授权专用前缀只读查询0匹配/0错误，仅证明检查时无该前缀遗留。主明确要求补正确范围后，final-root-scoped按A07同一排除条件1266通过/7排除/2上游警告/根0skip、110.78秒；不执行两系统测试、不扩编码修复。两次root均保留，89新增随正确范围全绿；25顶层pytest+6继承消费者=31进程。此后仅docs、20Python哈希保持，主当前SHA CI/合并树/独立安装发行另验；下方为各阶段历史。
+
+独审修复接续：首冻结4cee7f3发现2 Important。幂等只能说明重试资格，不能证明已dispatch请求结果；active中断改为未知，typed已知失败/backoff和已完成请求评测保留原false。attempt依据独立manifest expected_count和已校验steps核对覆盖/顺序/终态，stored用原安全投影同规则，不扩签名证明。新增25至89，真实RED22失败/11守卫通过，四直接消费者183通过/2警告、3.9同33守卫通过/1警告；stored篡改后重算digest，确保命中新语义边界。23顶层pytest/23进程/0root，准备重新冻结有限复审，主后续交付待验；下方64/20为首冻结历史。
+
+base4d5a2bc/dev7，原生async adapter/Dify/Reference/runner与实际v1入口本地收口，准备冻结交k64独审，尚无root/push/CI/安装发行。64新增、20顶层pytest/20进程、0子pytest；完整命令和失败分类见[A08证据](../evidence/A08/summary.md)，使用方法见[预算指南](../异步场景预算指南.md)。用户练习待完成、掌握未评估。
+
+一个用例在排队前选择单调deadline，排队、限流、初始化、请求、退避和required评测共用余量。默认一次；只有显式retry_safe、可重试且副作用已知的错误可重试，本地operation_key不能证明外部写入幂等。请求超时/取消可能已提交工单，必须记录effect_unknown。用例预算后另有有限清理宽限，owned关闭、borrowed保留；close自行取消是清理失败，外部Task.cancel继续传播；不协作插件不能强制杀死，不假装资源已释放。
+
+实际失败记录分开：旧同步入口的阻塞实验不算旧API漏洞；缺新接口RED和实现缺陷、夹具错误不混为一谈。发现吞取消后误completed、inline工厂超时后仍dispatch、close自行取消误传播，均真实RED后窄修。历史18文件528通过；后续6文件273通过；最后close局部两行修复前1失败、修后3.13/3.9各6守卫通过。3.9曾156通过/1个Windows清理夹具时窗失败，仅该node延长fixture宽限后1通过，不拼成重跑157。所有20批保留，不挑绿、不删断言、不声称每个新增项逐条先红。
+
+required质量复用A05 grounding/来源/结果校验，普通同步callback不执行，也不能省略required。评测超时保留真实步骤，A06安全投影/reader拒绝不完整状态；执行前policy冻结进manifest，预算变化需新baseline。对话耗时排除初始排队/初始化/Judge，stage不冒充SUT测量。3.9真实导入失败后只修必要注解/slots/backport入口；原106锁记录版本保留，4条必要新增。静态3.9语法检查不冒充完整运行时测试。
+
+主提供A07交付接续：PR79全部34 CI、merge51ca47d同base产品树、merged1177通过/7排除/2警告；独立wheel65通过/2仓库M13配置排除/5警告、14场景/3资源/6测试原字节、dev7三附件hash/tag/source核验，Issue78关闭。属于依赖证据，不计A08验证；下方A07历史阶段保留。
+
+10–20分钟练习待完成：解释queue为何占总预算、max_attempts=3为何仍不能重试chat；区分deadline、外部取消、未知副作用；比较对话/评测/cleanup时间；让异步评测耗尽预算，说明已完成对话为何仍不可发布。本地Mock/ASGI不代表真实provider/async Judge/IdP/HTTPS或部署验收。独审关闭后唯一finalroot，再由主dev8/同SHA CI/合并/安装发行接续。
+
 ## A07：计时窗口、首内容与成功分母（Issue #78）
 
 最终本地接续：k64对9ac34293有限复审关闭R1、无剩余；唯一finalroot1177通过/7排除/2上游警告/根0skip，106.51秒。67新增、13顶层pytest+3继承消费者=16进程；根排除5UI/2系统副作用，optional子skip不计根skip。此后仅docs尾注、17Python哈希保持，主后续dev7/CI/合并/安装发行另验。65安装契约与2仓库M13配置验证分列，不假设wheel带根configs；用户练习待完成/掌握未评估。下方保留前阶段历史。

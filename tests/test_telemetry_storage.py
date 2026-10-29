@@ -22,7 +22,7 @@ SESSION_HASH = "28a69be031b9e50ebdb451f1371b5afa9e872ef50935f3d0b21affa1e4df010f
 
 
 def utc(value: str) -> datetime:
-    return datetime.fromisoformat(value).astimezone(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
 def trace_at(value: str, *, trace_id: str = "trace-1", application: str = "service-desk") -> TelemetryTrace:

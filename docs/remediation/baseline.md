@@ -1,5 +1,17 @@
 # P00 / A01 本地运行基线
 
+## A08 当前接续（Issue #80）
+
+最终本地：602a371独审R1/R2关闭、无剩余。首root漏带两系统集成排除，1267pass/1fail/5desel/3warn/根0skip/exit1、122.96秒，保留真实失败；计划任务测试PowerShell编码错误，watcher通过。确实注册/更新测试任务，finally清理返回码未记录；授权专用前缀只读查0匹配/0错误，仅证明检查时无遗留。主明确要求补一次A07相同正确范围，final-root-scoped实际1266pass/7desel/2warn/根0skip/exit0、110.78秒，不执行两系统集成，不修其编码。89新增/25顶层pytest+6继承消费者=31进程，20产品hash保持，最后仅docs收口；主当前head CI/合并树及安装发行另验。两次尝试分列，不称只跑一次root；下方为先前冻结历史。
+
+最新独审修复：4cee7f3的2 Important已实际RED22失败/11守卫通过后，仅async_runner/execution/integrity三生产文件窄修；89新增、23顶层pytest/23进程/0root/0子。四直接消费者183通过/2警告12.81秒；3.9同33守卫通过/1警告3.41秒。dispatch未知副作用不由retry_safe推出已知，attempt按可信步骤覆盖/顺序/终态及stored安全投影复核，stored负例重算digest。known retry/init/eval及旧同步守卫保持；版本依赖不改、未重528/273。重新冻结待有限复审，关闭前不root；下方为首冻结历史。
+
+隔离codex/a08-async-budget，base4d5a2bc/dev7。原生async预算/适配器/runner/v1入口和可信报告本地收口，64新增、20顶层pytest/20进程、0root/0子pytest。历史528通过，后续6文件273通过；最后close自行取消真实RED1失败后，局部两行修复在3.13/3.9各6守卫通过。3.9原156通过/1失败仅该清理fixture窄修后单node1通过，不拼成新157批。20批错误、Windows时窗和真实缺陷均保留，见[A08证据](../evidence/A08/summary.md)。
+
+20改动Python内存compile/3.9 AST、版本dev7、原106锁条目保留及4必要新增、offline110和diff检查通过。3.13为私有插件overlay只读借用既有依赖，3.9为完全私有frozen dev环境；无共享pip写入/真实服务/Docker。准备commit冻结交k64独审，关闭发现后唯一finalroot；主dev8/PR/CI/合并树/独立wheel/发行与部署另验，不把273当最后局部修复后的重跑。
+
+A07依赖主已交付：PR79同head34CI成功，merge51ca47d与base同产品树，merged1177通过/7排除/2警告；独立wheel65通过/2仓库M13配置排除/5警告、14场景/3资源，dev7三附件回下载hash/tag/source一致、Issue78关闭。此处更新下方A07历史待交付记录，不计A08覆盖。真实provider/async Judge/IdP/HTTPS/持久部署、用户掌握仍未验收。
+
 ## A07 当前接续（Issue #78）
 
 最终本地交接：9ac34293独立有限复审关闭R1、无剩余，唯一root1177通过/7排除/2警告/0skip、106.51秒；67新增/13顶层pytest+3消费者=16进程。7排除为5UI/2Windows系统副作用，两警告为原上游。最终仅docs尾注，17Python哈希不变；主继续dev7/当前head CI/合并树/安装Release与Issue，65安装契约+2仓库配置边界保持。下方历史失败、旧计数和审查阶段不覆盖。

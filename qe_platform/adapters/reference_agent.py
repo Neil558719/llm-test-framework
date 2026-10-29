@@ -27,7 +27,11 @@ class ReferenceAgentAdapter:
 
     @classmethod
     def from_setup(cls, setup: SetupSpec) -> "ReferenceAgentAdapter":
-        app = create_app(
+        return cls(TestClient(cls._app_from_setup(setup)))
+
+    @staticmethod
+    def _app_from_setup(setup: SetupSpec):
+        return create_app(
             ":memory:",
             knowledge_base=KnowledgeBase(setup.knowledge, _failure(setup, "knowledge")),
             user_service=UserService(_records(setup.users, "user_id"), _failure(setup, "user")),
@@ -35,10 +39,13 @@ class ReferenceAgentAdapter:
             ticket_service=TicketService(_failure(setup, "ticket")),
             approval_service=ApprovalService(_failure(setup, "approval")),
         )
-        return cls(TestClient(app))
 
     def send(self, message: str, *, user_id: str, session_id: str) -> ResponseEnvelope:
         response = self.client.post("/api/chat", json={"message": message, "user_id": user_id, "session_id": session_id})
+        return self._parse_response(response)
+
+    @staticmethod
+    def _parse_response(response):
         if response.status_code < 200 or response.status_code >= 300:
             raise ApplicationAdapterError(f"application returned HTTP {response.status_code}", response.status_code)
         try:
@@ -64,3 +71,44 @@ class ReferenceAgentAdapter:
             return ResponseEnvelope.from_dict({**body, "tool_calls": [c.as_dict() for c in calls]})
         except (KeyError, TypeError, ValueError) as exc:
             raise ApplicationAdapterError("application returned invalid JSON response", response.status_code) from exc
+
+
+class AsyncReferenceAgentAdapter:
+    """Native asynchronous client; cancelling a request cannot undo server writes."""
+    retry_safe = False
+
+    def __init__(self, client, *, owns_client=False, local_app=None):
+        self.client, self._owns_client, self._local_app = client, owns_client, local_app
+
+    @classmethod
+    def from_setup(cls, setup):
+        import httpx
+        app = ReferenceAgentAdapter._app_from_setup(setup)
+        try:
+            client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://reference.local')
+        except BaseException:
+            app.state.store.close()
+            raise
+        return cls(client, owns_client=True, local_app=app)
+
+    async def send(self, message, *, user_id, session_id):
+        import httpx
+        from .base import AsyncApplicationAdapterError
+        try:
+            response = await self.client.post('/api/chat', json={'message': message, 'user_id': user_id, 'session_id': session_id})
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            raise AsyncApplicationAdapterError('Reference connection failed', retryable=True) from exc
+        except httpx.HTTPError as exc:
+            raise AsyncApplicationAdapterError('Reference request outcome is unknown', effect_unknown=True) from exc
+        try:
+            return ReferenceAgentAdapter._parse_response(response)
+        except ApplicationAdapterError as exc:
+            raise AsyncApplicationAdapterError('Reference response failed', exc.status_code, effect_unknown=True) from exc
+
+    async def aclose(self):
+        try:
+            if self._owns_client:
+                await self.client.aclose()
+        finally:
+            if self._local_app is not None:
+                self._local_app.state.store.close()

@@ -1,4 +1,6 @@
 """Application identifiers and SQL predicates shared by settings and storage."""
+from __future__ import annotations
+
 from collections.abc import Iterable, Mapping
 import json
 

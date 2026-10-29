@@ -242,3 +242,58 @@ class DifyChatAdapter:
         if not isinstance(data, Mapping):
             raise ApplicationAdapterError("Dify returned invalid JSON", status_code)
         return data, status_code
+
+
+class AsyncDifyAdapter:
+    """Native HTTPX Chat path; chat writes are never assumed retry-safe."""
+    retry_safe = False
+
+    def __init__(self, config: DifyAdapterConfig, *, client=None):
+        import httpx
+        self.config = config
+        self.client = client if client is not None else httpx.AsyncClient(timeout=config.timeout_seconds)
+        self._owns_client = client is None
+        self._conversation_ids = {}
+        self._locks = {}
+
+    @classmethod
+    def from_environment(cls):
+        return cls(DifyAdapterConfig.from_environment())
+
+    async def send(self, message: str, *, user_id: str, session_id: str) -> ResponseEnvelope:
+        import asyncio
+        import httpx
+        from .base import AsyncApplicationAdapterError
+        key = (user_id, session_id)
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            payload = {'inputs': dict(self.config.inputs), 'query': message, 'response_mode': 'blocking', 'user': user_id}
+            if key in self._conversation_ids:
+                payload['conversation_id'] = self._conversation_ids[key]
+            started = perf_counter()
+            try:
+                response = await self.client.post(self.config.base_url + '/chat-messages', json=payload,
+                    headers={'Authorization': 'Bearer ' + self.config.api_key}, timeout=self.config.timeout_seconds)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                raise AsyncApplicationAdapterError('Dify connection failed', retryable=True) from exc
+            except httpx.HTTPError as exc:
+                raise AsyncApplicationAdapterError('Dify request outcome is unknown', effect_unknown=True) from exc
+            if not 200 <= response.status_code < 300:
+                raise AsyncApplicationAdapterError('Dify API returned HTTP ' + str(response.status_code), response.status_code,
+                    retryable=response.status_code == 429, effect_unknown=response.status_code != 429)
+            try:
+                data = response.json()
+                if not isinstance(data, Mapping):
+                    raise ValueError('invalid object')
+                answer, next_id = _required_string(data, 'answer'), _required_string(data, 'conversation_id')
+            except (ValueError, TypeError) as exc:
+                raise AsyncApplicationAdapterError('Dify returned invalid response', response.status_code, effect_unknown=True) from exc
+            self._conversation_ids[key] = next_id
+            sources = _extract_sources(data)
+            return ResponseEnvelope(answer=answer, sources=sources, conversation_id=next_id,
+                trace_id=_optional_string(data.get('message_id')), latency=LatencyMetrics(total_ms=(perf_counter() - started) * 1000),
+                raw_response={}, metadata=_safe_metadata(data, len(sources)))
+
+    async def aclose(self):
+        if self._owns_client:
+            await self.client.aclose()

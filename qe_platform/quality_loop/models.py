@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import math
 import hashlib
 import json
@@ -51,7 +53,7 @@ def _rate(value: Any, name: str) -> float:
     return value
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class OfflineRun:
     run_id: str
     application: str
@@ -132,7 +134,7 @@ class OfflineRun:
         return self.verification == "verified_v2" and self.complete is True
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class QualityLink:
     link_id: str
     trace_id: str
@@ -152,7 +154,7 @@ class QualityLink:
         return {name: getattr(self, name) for name in ("link_id", "trace_id", "feedback_id", "review_id", "promotion_id", "scenario_id", "offline_run_id", "created_at")}
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class TrendPoint:
     bucket: str
     application: str
@@ -171,7 +173,7 @@ class TrendPoint:
         return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class ReleaseGatePolicy:
     max_candidate_failure_rate: float = 0.0
     max_pass_rate_drop: float = 0.0
@@ -192,7 +194,7 @@ class ReleaseGatePolicy:
         return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class ReleaseCheck:
     name: str
     actual: Any
@@ -210,7 +212,7 @@ class ReleaseCheck:
         return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **({'slots': True} if sys.version_info >= (3, 10) else {}))
 class ReleaseValidation:
     validation_id: str
     baseline_run_id: str
