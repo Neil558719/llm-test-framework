@@ -1,6 +1,6 @@
 # A08：原生异步场景预算
 
-Issue [#80](https://github.com/Neil558719/llm-test-framework/issues/80)，独占树 `codex/a08-async-budget`，base `4d5a2bc789b688273acf7e6c9688c4705114dc6d`。版本保持dev7。首冻结 `4cee7f33b7d77183f518f3ddb5d3e92a6695c005` 独审发现2 Important，已真实RED后最小修复，重新冻结交k64有限复审，**尚未root/push/CI/合并/安装/发行**。独审关闭后才唯一finalroot；主整合时再做dev8。实现边界见[异步场景预算指南](../../异步场景预算指南.md)。
+Issue [#80](https://github.com/Neil558719/llm-test-framework/issues/80)，独占树 `codex/a08-async-budget`，base `4d5a2bc789b688273acf7e6c9688c4705114dc6d`。版本保持dev7。首冻结 `4cee7f3` 的2 Important已在 `602a371e84c5aa2820f7ab186d78cf594fab5188` 经k64有限复审关闭，剩余0 Critical/0 Important/0 Minor。第一次root漏系统集成排除，实际1267通过/1失败；主明确要求补齐既定范围后，`final-root-scoped` 实际 **1266 passed / 7 deselected / 2 warnings / 根0skip，110.78秒，exit0**。两次尝试分列保留，不能称只跑过一次root。此后仅docs收尾，20 Python哈希不变；主接续dev8/当前SHA CI/合并树/安装发行。实现边界见[异步场景预算指南](../../异步场景预算指南.md)。
 
 ## 实现与兼容
 
@@ -16,7 +16,7 @@ Windows。初两批用既有 `work/env-a/Scripts/python.exe` 只读；它缺pyte
 
 运行器每次清LLM_/OPENAI_/ANTHROPIC_/DIFY_/QE_/REFERENCE_AGENT_/OIDC_/AUTH_配置、强制mock/development/UTF8、断言产品从本树导入、独立新basetemp且不覆盖日志。无真实Judge/provider/SDK/IdP调用、用户容器操作、共享pip写入或新代理。pytest日志UTF8，PowerShell依赖日志UTF16；首次统计误按UTF8读取所有log失败，后来按 `command=` 字节前缀仅识别pytest，不影响任何测试结果。
 
-**当前89新增；23条顶层pytest/23进程，0root、0消费者子pytest。** 首冻结为64新增/20批，下面20行保留原阶段结果；审查修复另3批见后段。原始命令/source/exit/stdout/stderr为 `.context/A08/<batch>.log`，可复现命令见[清单](commands.md)。不是每一项都逐条先红；接口缺失、旧能力局限、实际实现缺陷、已有守卫与夹具问题分别列出。
+**当前89新增；25条顶层pytest、两次root各继承A03消费者子pytest3次，共31进程。** 首冻结为64新增/20批，下面20行保留原阶段结果；审查修复另3批及两次root见后段。原始命令/source/exit/stdout/stderr为 `.context/A08/<batch>.log`，可复现命令见[清单](commands.md)。不是每一项都逐条先红；接口缺失、旧能力局限、实际实现缺陷、已有守卫与夹具问题分别列出。消费者optional预期skip不计根覆盖或根skip。
 
 | batch | 实际结果 | 归因 |
 | --- | --- | --- |
@@ -57,11 +57,35 @@ R2：旧execution仅校验字段/次数，未同可信步骤覆盖和结果关�
 | review-r1-r2-related-green | **183 passed、2 warnings，12.81s**；4个直接消费者文件，含89新增及同步/完整性相关，不重复528/273 |
 | review-r1-r2-py39-green | **33 passed、56 deselected、1 warning，3.41s**；与RED同一集合，私有3.9环境，无全量 |
 
-仅三个生产文件窄修（async_runner/execution/integrity）和一个测试文件；版本、依赖、同步接口、A05 required/grounding/provenance、A06信任/基线及授权/TTL保持。下一步有限复审R1/R2及新sourcehash，发现关闭前不root。
+仅三个生产文件窄修（async_runner/execution/integrity）和一个测试文件；版本、依赖、同步接口、A05 required/grounding/provenance、A06信任/基线及授权/TTL保持。k64已有限复审 `602a371` 并核对20个源码SHA256，R1/R2关闭、无剩余finding，随后才执行下方root验收。
+
+## 两次root尝试与最终本地边界
+
+已执行命令：
+
+```powershell
+& .context/A08/test-env/Scripts/python.exe -X utf8 .context/A08/run_tests.py final-root -q --tb=short
+```
+
+原session121因配额中断后只poll读取既有结果，未重启测试。`final-root.log` 完整保留command/source/exit/stdout/stderr：**exit1；1267 passed、1 failed、5 deselected、3 warnings，122.96秒，根0skip**。89新增均随根执行通过，但这不等于整批成功。
+
+执行者漏带既定两项Windows系统副作用集成的 `-k` 排除参数（A07证据已有正确排除命令），实际仅排除5项UI，因而运行了计划任务注册/卸载和临时watcher测试。watcher通过；`tests/test_deploy_scripts.py::test_windows_startup_task_registration_is_idempotent_and_removable` 在读取PowerShell导出的中文计划任务XML时，子进程reader按UTF8解码字节0xcf失败，导致inspect.stdout为None，再触发lstrip AttributeError。第三warning即该reader线程UnicodeDecodeError，另两项仍Starlette/AnyIO和LangGraph上游。测试确实创建/更新了随机命名计划任务，finally调用unregister但未记录返回码，不能仅据此证明卸载成功；未将此称作真实部署验收。
+
+首次basetemp创建于2026-10-28T22:48:19.5209166+08:00，日志写于22:50:22.2514831+08:00。固定任务名前缀为 `LLMTest startup test ` 加uuid4，Action实际指向本A08工作树 `deploy/start-reference-agent.ps1`、WorkingDirectory为本树根，并非basetemp；首次delay1后更新为2。主授权仅此前缀只读查遗留，2026-10-29T09:17:56.0465359+08:00查询结果MatchCount=0、ErrorCount=0，检查时无该前缀任务；无候选需要认领，未注册/执行/卸载任何任务。该检查不补造原finally返回码，也不代表没有触及过系统。
+
+主裁定首次命令未达到既定验收范围，明确授权在同一审源补一次正确范围全量。启动前静态assert A07原始两项排除完全一致、pyproject原 `-m 'not ui'` 不变、20源码hash一致；原日志不覆盖，新名执行：
+
+```powershell
+& .context/A08/test-env/Scripts/python.exe -X utf8 .context/A08/run_tests.py final-root-scoped -q -k 'not windows_startup_task_registration_is_idempotent_and_removable and not windows_watcher_survives_failed_refresh_and_retries_next_env_save' --tb=short
+```
+
+`final-root-scoped.log` 实际 **exit0；1266 passed、7 deselected、2 warnings、根0skip，110.78秒**，89新增全部随根通过。7排除=5UI+原两项Windows计划任务/持久watcher系统集成；两warning仍原上游。此批不执行或修复两系统测试；`.context/A08/scoped-preflight.log` 保存静态参数核对。两次root各继承三个受控消费者子pytest（required失败、optional探索预期skip、显式required失败，外层成功断言），不是真实SDK/provider调用，不把子skip当根覆盖。
+
+第一次参数遗漏及真实失败保留，第二次正确范围成功不能覆盖它。此后仅文档收口，产品/测试/依赖与审查源相同；主流程仍须当前SHA CI和合并树/独立安装发行验收，本地通过不等于可发布。
 
 ## 冻结、安装消费与下一步
 
-`.context/A08/source-freeze.json` 记录20改变Python逐文件SHA256；`static-checks.log` 核对内存compile/3.9语法、版本与原106锁条目无无关升级、diffcheck及当前23条pytest日志；`lock-check.log` 离线uv lock --check解析110包通过，审查修复未改依赖。这些是静态证据，不替代实际测试或真实环境验收。独审将先读源码、证据和必要离线probe，不重复常规pytest/root；关闭发现后才唯一finalroot。
+`.context/A08/source-freeze.json` 记录20改变Python逐文件SHA256，清单SHA256=`50c1c58027417ecbc04c841b4870e6ed560e2d8a27d06df3d701557f3ac86d06`；`static-checks.log` 核对内存compile/3.9语法、版本与原106锁条目无无关升级、diffcheck及当前25条pytest日志；`lock-check.log` 离线uv lock --check解析110包通过，审查修复未改依赖。这些是静态证据，不替代实际测试或真实环境验收。最终仅docs交k64确认差异、20哈希与两次真实root日志，不重复pytest/root。
 
 安装消费四根文件精确为 `tests/test_async_scenario_budget.py`、`tests/test_workflow_runner.py`、`tests/test_dify_adapter.py`、`tests/test_release_report_integrity.py`。其中只前者新增，另有 `tests/test_telemetry_storage.py` 的UTC helper修改，不能称四个新增文件。可原字节复制这四根及递归助手 `tests/test_quality_loop_engine.py`、`tests/test_quality_loop_models.py`、`tests/test_run_reporting.py`、`tests/test_telemetry_storage.py`、`tests/report_integrity_fixtures.py`、`tests/conftest.py`；本树无tests/__init__.py，消费者必要的空package marker属于harness。精确闭包SHA256为 `.context/A08/consumer-tests.json`。
 
@@ -69,4 +93,4 @@ R2：旧execution仅校验字段/次数，未同可信步骤覆盖和结果关�
 
 主提供A07依赖交付：PR79同head34CI成功，merge `51ca47dff46eab26737e602cdf6f8cf5e214529c` 与本base同产品树；merged1177pass/7desel/2上游warn、97.86s。独立新env wheel65pass/2仓库M13配置desel/5warn（3harness+2上游）、2.73s，14场景3资源/6测试原字节及installed-only。dev7公开3附件回下载hash/tag/source一致，wheel221156bytes、SHA256=`c9b88a20b264218b3bbd05df8a39b9631343f972ccc074821cab5d990ab308da`，Issue78关闭/master clean。这是依赖结果，不计A08验证；2仓库M13配置不称wheel资产。
 
-当前待k64独审、唯一root，之后主dev8/同SHA CI/PR/合并树验收、独立wheel/Release/Issue跟踪。真实provider/async Judge/IdP/HTTPS/持久部署未验收，用户练习与掌握未评估。练习：解释queue消耗同一预算、为何max_attempts3仍不能重试chat、超时与外部副作用未知的区别；比较对话/评测/cleanup时间，复现完整步骤但required评测未完成的不可发布报告。
+当前源码独审关闭，正确范围root通过、首次误范围失败如实保留；最终docs-only/20哈希/两日志确认后交主dev8/同SHA CI/PR/合并树验收、独立wheel/Release/Issue跟踪。真实provider/async Judge/IdP/HTTPS/持久部署未验收，用户练习与掌握未评估。练习：解释queue消耗同一预算、为何max_attempts3仍不能重试chat、超时与外部副作用未知的区别；比较对话/评测/cleanup时间，复现完整步骤但required评测未完成的不可发布报告。

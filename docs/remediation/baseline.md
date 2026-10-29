@@ -2,6 +2,8 @@
 
 ## A08 当前接续（Issue #80）
 
+最终本地：602a371独审R1/R2关闭、无剩余。首root漏带两系统集成排除，1267pass/1fail/5desel/3warn/根0skip/exit1、122.96秒，保留真实失败；计划任务测试PowerShell编码错误，watcher通过。确实注册/更新测试任务，finally清理返回码未记录；授权专用前缀只读查0匹配/0错误，仅证明检查时无遗留。主明确要求补一次A07相同正确范围，final-root-scoped实际1266pass/7desel/2warn/根0skip/exit0、110.78秒，不执行两系统集成，不修其编码。89新增/25顶层pytest+6继承消费者=31进程，20产品hash保持，最后仅docs收口；主当前head CI/合并树及安装发行另验。两次尝试分列，不称只跑一次root；下方为先前冻结历史。
+
 最新独审修复：4cee7f3的2 Important已实际RED22失败/11守卫通过后，仅async_runner/execution/integrity三生产文件窄修；89新增、23顶层pytest/23进程/0root/0子。四直接消费者183通过/2警告12.81秒；3.9同33守卫通过/1警告3.41秒。dispatch未知副作用不由retry_safe推出已知，attempt按可信步骤覆盖/顺序/终态及stored安全投影复核，stored负例重算digest。known retry/init/eval及旧同步守卫保持；版本依赖不改、未重528/273。重新冻结待有限复审，关闭前不root；下方为首冻结历史。
 
 隔离codex/a08-async-budget，base4d5a2bc/dev7。原生async预算/适配器/runner/v1入口和可信报告本地收口，64新增、20顶层pytest/20进程、0root/0子pytest。历史528通过，后续6文件273通过；最后close自行取消真实RED1失败后，局部两行修复在3.13/3.9各6守卫通过。3.9原156通过/1失败仅该清理fixture窄修后单node1通过，不拼成新157批。20批错误、Windows时窗和真实缺陷均保留，见[A08证据](../evidence/A08/summary.md)。
