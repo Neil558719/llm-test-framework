@@ -13,6 +13,7 @@ def test_health_endpoint_reports_reference_agent_ready():
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "reference-agent"}
+    assert False, "X02 deliberate required-check negative control; never merge"
 
 
 def test_sqlite_store_round_trips_session_metadata():
