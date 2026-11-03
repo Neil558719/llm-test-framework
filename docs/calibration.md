@@ -72,7 +72,9 @@ Holdout consumption is written exclusively before metrics are calculated, keyed
 by holdout content rather than policy/model. A failed report still consumes it.
 Repeating evaluation requires `--exploratory` and a distinct output. Even an initial
 exploratory evaluation consumes freshness. Completion is a separate append-only
-record; the start receipt is never rewritten. Use one durable authoritative state
+record; the start receipt is never rewritten. Each report has its own `evaluation_id`,
+so repeated explicit exploratory evaluations append independent completion records.
+Use one durable authoritative state
 directory and retain it with the corpus. This local accidental-reuse guard is not
 tamper-proof: deleting state, choosing another state directory or editing files
 requires operator discipline and does not establish fresh unseen evaluation.
@@ -91,7 +93,10 @@ synthetic groups do not establish population independence or real Judge efficacy
 
 `run --manifest ... --output live.json` defaults to zero requests and always records
 `not-run`: no provider adapter, reliable provider tokenizer or paid authorization
-is supplied. Explicit nonzero CLI budgets do not enable dispatch. The separate
+is supplied. It preserves the JSON report and returns exit code 2 so shell callers
+cannot treat a request that did not run as successful execution. Offline validate,
+annotation, freeze and report commands return 0 on success. Explicit nonzero CLI
+budgets do not enable dispatch. The separate
 `BudgetLedger` is tested only with injected fake transports. It serializes sends,
 reserves full input plus output allowance before every physical send/retry,
 disables hidden SDK retries, and retains reservations on unknown/invalid usage or

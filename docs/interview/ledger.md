@@ -258,3 +258,14 @@ X02前置交付补记：PR83合并1093229，同树merged1292通过、21CI通过�
 21contexts保护及故意失败PR84实际BLOCKED已读回验证，工程预发行
 x02-ci-20261103已回下载hash/tag核验，未替换dev8运行wheel。真实IdP、
 provider和持久环境、B外部交付及B08完整安全审查缺口保持。
+
+X03-A主审补充：初冻34adff1的53项通过没有覆盖两个CLI缺陷。主实际
+离线复现后，实施侧先保存3 failed/0.91秒：未执行run仍exit0（默认与
+价格预算两项合同），以及第二次合法exploratory在报告已写后因完成
+记录重名exit2。最小修复为not-run写报告后exit2；每次报告携带独立
+evaluation_id并绑定append-only完成记录，原first-use收据不改，重评
+始终exploratory。随后54项定向通过/1.48秒，9条实际CLI消费符合预期，
+包括run exit2及两次exploratory成功。旧V2的expected0是错误合同，保留
+历史但不当最终验收；未重跑旧172相关集，0root/full、0真实模型调用。
+补充练习（待完成）：解释“成功写出未执行报告”为何不等于“请求已成功
+执行”，以及内容相同的两次评价为何仍需独立执行身份和完成记录。

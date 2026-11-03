@@ -5,6 +5,9 @@ Base: `1093229d2ca3cb3c3e0ab19c7e4eca55e3920d5a`, isolated
 60 synthetic silver fixtures. Independent review, root/full, current-SHA CI,
 merge and release are separate pending stages. No production evaluator, provider
 adapter, price table, TTL, dependency lock or runtime defaults were changed.
+The initial clean freeze `34adff1` received main's independent CLI review. Its two
+Important findings are corrected below and await a narrow recheck; it is not the
+final accepted freeze merely because its original 53 tests passed.
 
 ## Corpus and tool boundary
 
@@ -46,6 +49,9 @@ installation, network, Docker or service mutation occurred.
 | `cli-consumer` and `consumer-v1` | 8 command paths matched expected exits | Initial actual CLI invocation with fabricated predictions |
 | `final-focused-v2` | 53 passed / 1.55 s, exit 0 | Final X03 including explicit optional CLI money cap/price quote |
 | `cli-consumer-v2` and `consumer-v2` | 8 command paths matched expected exits | Final actual CLI consumers; 0 physical model requests |
+| `main-review-red` | 3 failed / 0.91 s, exit 1 | Two existing run-contract tests and new repeated-exploration test reproduce main's two findings |
+| `review-fixed-focused` | 54 passed / 1.48 s, exit 0 | Revised final X03 after the two minimal review fixes |
+| `cli-consumer-v3` and `consumer-v3` | 9 command paths matched expected exits | Revised CLI consumers, including two explicit exploratory reports and unavailable run exit 2 |
 
 The final-focused-v2 and cli-consumer-v2 runs both completed before a usage-limit
 interruption; their existing session output, exit files and unchanged before/after
@@ -58,6 +64,12 @@ final 53 are overlapping suites, not 225 unique passes or a final root/full resu
 The 172-node related run precedes the last corpus-rebuilder and CLI-price consumers;
 the final 53-node suite covers those additions. Three new test files are in both
 `scripts/check-manifest.json` inventories (`files` and `core`); smoke is unchanged.
+Those V2 results describe the initial freeze, not acceptance of the corrected
+CLI contract: its expected zero exit for an unavailable run was incorrect. V3
+changes that expectation to 2 and additionally exercises a second explicit
+exploratory evaluation. The revised 54-node focused and V3 consumer runs both have
+unchanged before/after working hashes. The older 172-node suite was not rerun;
+neither it nor the overlapping focused suites are added to create a new total.
 
 The real implementation-window REDs are distinct from the historical X01 REDs.
 No-positive numeric F1 fitting previously preferred a false-positive solution
@@ -68,8 +80,8 @@ retain the original inputs; no threshold or token cap was relaxed.
 
 ## Saved CLI consumer, not Judge efficacy
 
-`consumer-v2/inventory.json` binds eight command records and every generated file.
-V1 is retained as historical fixture-consumer evidence; the two directories are
+`consumer-v3/inventory.json` binds nine command records and every generated file.
+V1/V2 are retained as historical fixture-consumer evidence; these directories are
 separate artificial test runs, not repeated unseen real-Judge holdout evaluations.
 The explicit model identity is `FABRICATED-OFFLINE-CLI-FIXTURE-NOT-A-JUDGE`.
 Scores follow an arbitrary repeating pattern, not an actual model response.
@@ -78,6 +90,19 @@ holdout report, exclusive consumption receipt, completion trace, exploratory
 report and default live `not-run` JSON. Repeated normal holdout evaluation really
 returned exit 2. An exploratory first evaluation also consumes holdout freshness;
 a crash after reservation never restores unseen status.
+
+Main's independent ordinary CLI review saved source-stable evidence in
+`work/ci-m0-resume/x03-a-main-cli-review.json`: (I1) unavailable `run` wrote
+`status=not-run` but returned 0; (I2) first holdout and first explicit exploratory
+report succeeded, but the second exploratory report was already written when
+identical report content collided with its append-only completion filename.
+The new local REDs reproduce both before implementation changes. The minimum
+I1 fix retains the not-run JSON and returns 2, including optional-budget modes.
+The I2 fix adds a per-evaluation UUID to each report and its completion binding,
+so distinct legitimate exploratory evaluations produce distinct append-only
+completions. Their status remains exploratory; the first-use receipt is unchanged.
+The regression checks three independent completion records/identities and exact
+receipt-byte retention. No threshold, budget, silver label or split was altered.
 
 For this fabricated fixture only, calibration contains 42 labeled, 40 evaluable,
 1 abstain and 1 error (TP14/TN0/FP26/FN0, F1≈0.5185); holdout contains 18 labeled,
@@ -103,7 +128,8 @@ reviewed `7d086f`; merged1292 passed/11 reasoned exclusions, 259 stable fresh ha
 were verified. Engineering prerelease `x02-ci-20261103` was downloaded and matched
 its two JSON assets and tag. It does not replace the dev8 runtime wheel.
 
-X03 independent static review/full/CI/merge/release remain pending at this handoff.
+X03 revised freeze awaits narrow independent recheck; root/full/CI/merge/release
+remain pending at this handoff.
 Human annotations, real Judge effects, IdP/provider/persistent environment and B
 external delivery remain unverified. The interrupted complete B08 security audit
 remains incomplete and was not resumed. Interview exercise and mastery are pending.

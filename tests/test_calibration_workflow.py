@@ -154,6 +154,27 @@ def test_exploratory_first_use_also_consumes_holdout(corpus, tmp_path):
         evaluate_report(corpus, holdout, policy, tmp_path / 'unseen.json', state_dir=state)
 
 
+def test_each_explicit_exploratory_report_has_an_independent_completion(corpus, tmp_path):
+    policy = frozen(corpus, tmp_path)
+    holdout = predictions(corpus, 'holdout', tmp_path / 'holdout.json')
+    state = tmp_path / 'state'
+    first = evaluate_report(corpus, holdout, policy, tmp_path / 'first.json', state_dir=state, replicates=20)
+    receipt = Path(first['consumption_receipt'])
+    original_receipt = receipt.read_bytes()
+    evaluation_ids = {first['evaluation_id']}
+    for name in ('exploratory-one.json', 'exploratory-two.json'):
+        output = tmp_path / name
+        assert main(['report', '--manifest', str(corpus), '--predictions', str(holdout),
+                     '--policy', str(policy), '--state-dir', str(state), '--output', str(output),
+                     '--exploratory']) == 0
+        report = read_json(output)
+        assert report['status'] == 'exploratory'
+        evaluation_ids.add(report['evaluation_id'])
+    assert receipt.read_bytes() == original_receipt
+    assert len(list(state.glob('*.completed.json'))) == 3
+    assert len(evaluation_ids) == 3
+
+
 def test_changing_policy_does_not_reset_holdout_consumption(corpus, tmp_path):
     policy = frozen(corpus, tmp_path)
     holdout = predictions(corpus, 'holdout', tmp_path / 'holdout.json')
@@ -246,7 +267,7 @@ def test_numeric_fitting_cannot_prefer_false_positives_when_calibration_has_no_p
 def test_live_cli_default_and_explicit_budget_are_not_run_without_adapter(corpus, tmp_path, capsys):
     for suffix, options in [('default', []), ('explicit', ['--max-requests', '1', '--max-tokens', '100'])]:
         output = tmp_path / (suffix + '.json')
-        assert main(['run', '--manifest', str(corpus), '--output', str(output)] + options) == 0
+        assert main(['run', '--manifest', str(corpus), '--output', str(output)] + options) == 2
         result = read_json(output)
         assert result['status'] == 'not-run' and result['physical_requests'] == 0
         assert result['actual_tokens'] is None and result['actual_cost'] is None
@@ -255,7 +276,7 @@ def test_live_cli_default_and_explicit_budget_are_not_run_without_adapter(corpus
 
 def test_cli_optional_money_cap_retains_unknown_price_and_explicit_quote_identity(corpus, tmp_path, capsys):
     unknown = tmp_path / 'unknown.json'
-    assert main(['run', '--manifest', str(corpus), '--output', str(unknown), '--max-cost', '.01']) == 0
+    assert main(['run', '--manifest', str(corpus), '--output', str(unknown), '--max-cost', '.01']) == 2
     result = read_json(unknown)
     assert result['actual_cost'] is None and result['configured_price'] is None
     assert 'explicit_price_quote_for_money_cap' in result['budget_blockers']
@@ -263,7 +284,7 @@ def test_cli_optional_money_cap_retains_unknown_price_and_explicit_quote_identit
     quote.write_text(json.dumps(dict(input_per_million=1, output_per_million=2,
         source='fake offline quote', currency='USD', pricing_version='fixture-v1')), encoding='utf-8')
     known = tmp_path / 'known.json'
-    assert main(['run', '--manifest', str(corpus), '--output', str(known), '--max-cost', '.01', '--price-quote', str(quote)]) == 0
+    assert main(['run', '--manifest', str(corpus), '--output', str(known), '--max-cost', '.01', '--price-quote', str(quote)]) == 2
     result = read_json(known)
     assert result['status'] == 'not-run' and result['physical_requests'] == 0 and result['actual_cost'] is None
     assert result['configured_price']['currency'] == 'USD' and result['configured_price']['pricing_version'] == 'fixture-v1'

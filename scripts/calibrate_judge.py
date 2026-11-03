@@ -4,6 +4,7 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+from uuid import uuid4
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -118,7 +119,8 @@ def evaluate_report(manifest_path, predictions_path, policy_path, output, *, spl
         c = confusion_counts([r['expected'] for r in subset], [r['predicted'] for r in subset])
         strata[stratum] = dict(counts=c, metrics=binary_metrics(c))
     statuses = Counter(indexed[r['sample_id']]['status'] for r in selected)
-    report = dict(schema_version='calibration-report-v1', corpus_id=manifest['corpus_id'], split=split,
+    report = dict(schema_version='calibration-report-v1', evaluation_id=uuid4().hex,
+                  corpus_id=manifest['corpus_id'], split=split,
                   status='exploratory' if exploratory else ('holdout_first_use' if split == 'holdout' else 'calibration'),
                   label_origin='silver', human_verified=False, tool_ready=True,
                   interpretation='Agreement with AI-authored synthetic silver labels; not human gold accuracy or real Judge efficacy.',
@@ -135,7 +137,8 @@ def evaluate_report(manifest_path, predictions_path, policy_path, output, *, spl
     if receipt is not None:
         # Separate append-only completion record; a crash still leaves consumption recorded.
         completion = Path(state_dir) / (holdout_key + '.' + digest(canonical(report)) + '.completed.json')
-        write_new(completion, dict(report_sha256=digest(canonical(report)), evaluation_completed=True))
+        write_new(completion, dict(evaluation_id=report['evaluation_id'],
+                                   report_sha256=digest(canonical(report)), evaluation_completed=True))
     return report
 
 
@@ -193,7 +196,7 @@ def main(argv=None):
                           budget_blockers=blockers, human_verified=False)
             write_new(args.output, result)
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-        return 0
+        return 2 if args.command == 'run' else 0
     except (ValueError, OSError, KeyError, TypeError) as error:
         print('calibration error: ' + str(error), file=sys.stderr)
         return 2
