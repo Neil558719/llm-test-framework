@@ -1,10 +1,14 @@
 name: Standalone Load Test
 
+env:
+  UV_PYTHON: python
+
 on:
   pull_request:
     branches: [master]
   push:
     branches:
+      - master
       - "codex/**"
 
 permissions:

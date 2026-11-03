@@ -72,3 +72,6 @@ addopts = "-ra -m 'not ui'"
 markers = [
     "ui: browser-based Playwright acceptance tests (requires the ui extra and browser binaries)",
 ]
+
+# scripts/check.py overrides addopts and inventories every collected node using
+# scripts/check-manifest.json. UI and host-system acceptance remain separate.
