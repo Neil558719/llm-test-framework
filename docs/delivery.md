@@ -68,7 +68,7 @@ if ($LASTEXITCODE -ne 0) {
 
 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` 关闭自动发现，再由 `-p` 显式加载插件。smoke 入口由自身检查清单加载插件；不要把 pytest 的 `-p` 参数传给 `scripts/check.py`。这些命令不启用 live 模式，不需要真实模型凭据。
 
-成功时，smoke 报告列出实际选择、执行及排除节点；第二条命令应为 3 项通过。空事实用例按 OpenAI/Anthropic 两个 mock 客户端展开，加上 helpfulness 用例共三项，并非调用两个真实模型。pytest 父用例通过表示预期拒绝或断言确实发生，不能把退出码 0 解释成被拒绝的业务操作成功。
+成功时，smoke 报告列出实际选择、执行及排除节点；第二条命令应为 3 项通过。空事实用例按 OpenAI/Anthropic 两个客户端展开，用注入的固定回复替代模型 I/O，加上 helpfulness 用例共三项，真实模型请求为 0。pytest 父用例通过表示预期拒绝或断言确实发生，不能把退出码 0 解释成被拒绝的业务操作成功。
 
 ## 五分钟讲述顺序
 
