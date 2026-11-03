@@ -14,7 +14,9 @@ def send(ledger, transport, **overrides):
 
 def test_budget_blocks_before_second_physical_send_and_retains_unknown_usage():
     calls = []
-    fake = lambda *a, **k: calls.append(k) or {}
+    def fake(*args, **kwargs):
+        calls.append(kwargs)
+        return {}
     ledger = BudgetLedger(2, 20)
     send(ledger, fake)
     with pytest.raises(BudgetExceeded):

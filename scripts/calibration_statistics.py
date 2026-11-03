@@ -3,6 +3,7 @@ import math
 import random
 from collections import defaultdict
 from statistics import NormalDist
+from typing import Any, Dict, List
 
 
 def _binary(value):
@@ -31,7 +32,8 @@ def binary_metrics(counts):
     tp, tn, fp, fn, abstain, total = (counts[k] for k in keys)
     if tp + tn + fp + fn + abstain != total:
         raise ValueError('counts do not sum to total')
-    divide = lambda a, b: a / b if b else None
+    def divide(a, b):
+        return a / b if b else None
     return dict(precision=divide(tp, tp + fp), recall=divide(tp, tp + fn),
                 f1=divide(2 * tp, 2 * tp + fp + fn),
                 agreement=divide(tp + tn, total - abstain),
@@ -56,7 +58,8 @@ def wilson_interval(successes, total, confidence=.95):
 def group_intervals(rows, replicates=1000, seed=20261103):
     if type(replicates) is not int or replicates < 2:
         raise ValueError('at least two bootstrap replicates required')
-    groups, strata = {}, defaultdict(list)
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    strata: Dict[str, List[str]] = defaultdict(list)
     for row in rows:
         group, stratum = row['group_id'], row['stratum']
         if group in groups and groups[group][0]['stratum'] != stratum:
@@ -66,13 +69,14 @@ def group_intervals(rows, replicates=1000, seed=20261103):
         confusion_counts([x['expected'] for x in members], [x['predicted'] for x in members])
         strata[members[0]['stratum']].append(group)
     keys = tuple(binary_metrics(confusion_counts([], [])))
-    result = dict(method='stratified_group_bootstrap', groups=len(groups),
+    result: Dict[str, Any] = dict(method='stratified_group_bootstrap', groups=len(groups),
                   replicates=replicates, seed=seed, confidence=.95,
                   insufficient_groups=not strata or any(len(g) < 2 for g in strata.values()),
                   intervals={k: None for k in keys}, defined_replicates={k: 0 for k in keys})
     if result['insufficient_groups']:
         return result
-    rng, values = random.Random(seed), {k: [] for k in keys}
+    rng = random.Random(seed)
+    values: Dict[str, List[float]] = {k: [] for k in keys}
     for _ in range(replicates):
         sampled = []
         for stratum in sorted(strata):

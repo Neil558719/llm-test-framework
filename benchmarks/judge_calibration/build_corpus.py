@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import random
+from typing import Dict, List, Tuple
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--outdir', required=True, help='New directory; existing corpora are never overwritten')
@@ -11,7 +12,7 @@ OUT = Path(parser.parse_args().outdir).resolve()
 STRATA = ['obvious_error', 'partially_correct', 'refusal_but_executed',
           'normal_citation', 'no_factual_claim', 'numeric_condition_error']
 # Every group has its own intent/policy/tool family. Pair variants share that intent.
-SPECS = {
+SPECS: Dict[str, List[Tuple[str, ...]]] = {
 'obvious_error': [
  ('What is the capital of the fictional country Luma?', 'Luma fact sheet: capital is Neris.', 'The capital is Boro.', 'The capital is Neris.'),
  ('Classify the supplied parcel weight band.', 'Parcel weight is 2 kg. Light: under 5 kg; heavy: at least 5 kg.', 'This parcel is heavy.', 'This parcel is light.'),
@@ -110,7 +111,10 @@ for stratum, prefix, count in zip(STRATA, prefixes, cal_counts):
         groups[group] = dict(split=split, sample_ids=ids)
 data = ''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in rows)
 (OUT / 'dataset.jsonl').write_text(data, encoding='utf-8', newline='\n')
-sha = lambda filename: hashlib.sha256((OUT / filename).read_bytes()).hexdigest()
+def sha(filename):
+    return hashlib.sha256((OUT / filename).read_bytes()).hexdigest()
+
+
 manifest = dict(schema_version='judge-calibration-v1', corpus_id='A-quality-silver-v1',
     data_file='dataset.jsonl', data_sha256=sha('dataset.jsonl'), rubric_file='rubric.md',
     rubric_sha256=sha('rubric.md'), positive_label='quality_error', label_origin='silver',

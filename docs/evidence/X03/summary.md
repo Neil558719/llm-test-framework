@@ -52,6 +52,12 @@ installation, network, Docker or service mutation occurred.
 | `main-review-red` | 3 failed / 0.91 s, exit 1 | Two existing run-contract tests and new repeated-exploration test reproduce main's two findings |
 | `review-fixed-focused` | 54 passed / 1.48 s, exit 0 | Revised final X03 after the two minimal review fixes |
 | `cli-consumer-v3` and `consumer-v3` | 9 command paths matched expected exits | Revised CLI consumers, including two explicit exploratory reports and unavailable run exit 2 |
+| `static-ruff-red` | 3 diagnostics, exit 1 | Assigned lambdas in statistics, builder and fake-transport test |
+| `static-mypy-red` | 16 diagnostics, exit 1 | Includes three dependency-discovery failures; not sixteen runtime/product defects |
+| `static-ruff-fixed` | All checks passed, exit 0 | Same eight new Python files, no rule suppression |
+| `static-mypy-fixed` | No issues in eight files, exit 0 | `--check-untyped-defs`, explicit package bases and actual A dependency interpreter |
+| `static-fixed-focused` | 54 passed / 1.59 s, exit 0 | Final runtime contracts after the static corrections |
+| `cli-consumer-v4` and `consumer-v4` | 9 command paths matched expected exits | Final-source consumers after the static corrections; 0 physical model requests |
 
 The final-focused-v2 and cli-consumer-v2 runs both completed before a usage-limit
 interruption; their existing session output, exit files and unchanged before/after
@@ -80,8 +86,8 @@ retain the original inputs; no threshold or token cap was relaxed.
 
 ## Saved CLI consumer, not Judge efficacy
 
-`consumer-v3/inventory.json` binds nine command records and every generated file.
-V1/V2 are retained as historical fixture-consumer evidence; these directories are
+`consumer-v4/inventory.json` binds nine command records and every generated file.
+V1/V2/V3 are retained as historical fixture-consumer evidence; these directories are
 separate artificial test runs, not repeated unseen real-Judge holdout evaluations.
 The explicit model identity is `FABRICATED-OFFLINE-CLI-FIXTURE-NOT-A-JUDGE`.
 Scores follow an arbitrary repeating pattern, not an actual model response.
@@ -103,6 +109,23 @@ so distinct legitimate exploratory evaluations produce distinct append-only
 completions. Their status remains exploratory; the first-use receipt is unchanged.
 The regression checks three independent completion records/identities and exact
 receipt-byte retention. No threshold, budget, silver label or split was altered.
+
+The plan-required static checks were subsequently added for all four scripts,
+the builder and three test files. Initial Ruff reported three assigned lambdas;
+they became ordinary functions without changing inputs or outputs. Initial mypy
+reported sixteen diagnostics: three were missing pytest caused by the cached tool
+environment's dependency lookup. `--python-executable` now points to the existing
+A test interpreter, with no install or shared-environment mutation. The remaining
+diagnostics concerned dynamic dictionary/list inference, accepted price-input
+types and optional Decimal arithmetic. Explicit JSON/container types and a
+normalizing typed PriceQuote constructor preserve the original fake quote and
+NaN inputs. A missing money reservation now has an explicit rejecting branch.
+The same eight files pass Ruff and mypy `--check-untyped-defs`; no ignore rule,
+reduced threshold or global configuration change was introduced. These saved
+lint/type failures are static findings, distinct from the actual runtime REDs.
+The final typed source then passed all 54 focused contracts in 1.59 seconds and
+nine actual CLI consumer paths. Both snapshots recorded unchanged working hashes.
+The previously passed 172 related nodes and B full were not rerun for these fixes.
 
 For this fabricated fixture only, calibration contains 42 labeled, 40 evaluable,
 1 abstain and 1 error (TP14/TN0/FP26/FN0, F1≈0.5185); holdout contains 18 labeled,

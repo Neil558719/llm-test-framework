@@ -7,6 +7,7 @@ retains its reservation. Physical retries must re-enter ``send``.
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from threading import RLock
+from typing import Union
 
 
 def _integer(value, name):
@@ -26,7 +27,7 @@ def _money(value):
     return number
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class PriceQuote:
     input_per_million: Decimal
     output_per_million: Decimal
@@ -34,13 +35,18 @@ class PriceQuote:
     currency: str
     pricing_version: str
 
-    def __post_init__(self):
-        object.__setattr__(self, 'input_per_million', _money(self.input_per_million))
-        object.__setattr__(self, 'output_per_million', _money(self.output_per_million))
-        if not isinstance(self.source, str) or not self.source.strip():
+    def __init__(self, input_per_million: Union[Decimal, int, float, str],
+                 output_per_million: Union[Decimal, int, float, str], source: str,
+                 currency: str, pricing_version: str):
+        object.__setattr__(self, 'input_per_million', _money(input_per_million))
+        object.__setattr__(self, 'output_per_million', _money(output_per_million))
+        if not isinstance(source, str) or not source.strip():
             raise ValueError('a traceable price source is required')
-        if not isinstance(self.currency, str) or not self.currency.strip() or not isinstance(self.pricing_version, str) or not self.pricing_version.strip():
+        if not isinstance(currency, str) or not currency.strip() or not isinstance(pricing_version, str) or not pricing_version.strip():
             raise ValueError('currency and pricing version are required')
+        object.__setattr__(self, 'source', source)
+        object.__setattr__(self, 'currency', currency)
+        object.__setattr__(self, 'pricing_version', pricing_version)
 
     def cost(self, inputs, outputs):
         return (self.input_per_million * inputs + self.output_per_million * outputs) / 1000000
@@ -88,8 +94,11 @@ class BudgetLedger:
         cost = None if self.price is None else self.price.cost(input_token_upper_bound, max_output_tokens)
         if self.requests + 1 > self.max_requests or self.reserved_tokens + tokens > self.max_tokens:
             raise BudgetExceeded('request or token budget exhausted before dispatch')
-        if self.max_cost is not None and self.reserved_cost + cost > self.max_cost:
-            raise BudgetExceeded('price budget exhausted before dispatch')
+        if self.max_cost is not None:
+            if self.reserved_cost is None or cost is None:
+                raise ValueError('money budget requires a valid reservation quote')
+            if self.reserved_cost + cost > self.max_cost:
+                raise BudgetExceeded('price budget exhausted before dispatch')
         # Reserve before crossing the transport boundary, including failed sends.
         self.requests += 1
         self.reserved_tokens += tokens

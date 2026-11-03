@@ -4,6 +4,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
+from typing import Any, Dict, List
 
 STRATA = ('obvious_error', 'partially_correct', 'refusal_but_executed',
           'normal_citation', 'no_factual_claim', 'numeric_condition_error')
@@ -92,7 +93,8 @@ def load_corpus(manifest_path):
         rows.append(row)
     ids = [r['sample_id'] for r in rows]
     _require(len(ids) == len(set(ids)), 'duplicate sample ID')
-    observed, templates = {}, {}
+    observed: Dict[str, List[Dict[str, Any]]] = {}
+    templates: Dict[str, str] = {}
     for row in rows:
         template = re.sub(r'\d+', '<n>', row['input'].casefold())
         template = ' '.join(template.split())
