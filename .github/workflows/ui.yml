@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: ["codex/**"]
+    branches: [master, "codex/**"]
 
 permissions:
   contents: read
@@ -22,8 +22,24 @@ jobs:
         run: uv sync --locked --extra ui
       - name: Install Chromium
         run: uv run playwright install --with-deps chromium
+      - name: Verify required browser prerequisites
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as api:
+              assert Path(api.chromium.executable_path).is_file(), "required Chromium binary missing"
+          PY
       - name: Run Playwright acceptance tests
         run: uv run pytest -m ui --junitxml=reports/ui-junit.xml
+      - name: Verify all five UI tests executed without skips
+        run: |
+          uv run python - <<'PY'
+          from xml.etree import ElementTree
+          cases = ElementTree.parse("reports/ui-junit.xml").findall(".//testcase")
+          assert len(cases) == 5, "UI test inventory changed; update its explicit acceptance contract"
+          assert all(not any(case.find(tag) is not None for tag in ("skipped", "failure", "error")) for case in cases), "UI acceptance incomplete"
+          PY
       - name: Upload UI evidence
         if: always()
         uses: actions/upload-artifact@v4

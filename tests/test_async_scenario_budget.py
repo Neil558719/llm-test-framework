@@ -98,11 +98,33 @@ async def test_queue_wait_is_inside_deadline_without_releasing_unowned_permit():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('stage', ['init', 'rate_wait'])
-async def test_initialization_and_limiter_are_inside_total_deadline(stage):
+async def test_initialization_and_limiter_are_inside_total_deadline(stage, monkeypatch):
     Runner, Budget = api()
-    async def hanging(*args): await asyncio.Event().wait()
-    runner = Runner(hanging if stage == 'init' else lambda _: Adapter(), limiter=hanging if stage == 'rate_wait' else None)
-    result = await runner.run(spec(), budget=Budget(case_timeout_s=.02))
+    entered, cancelled = asyncio.Event(), asyncio.Event()
+    adapter = Adapter()
+    loop = asyncio.get_running_loop()
+    original_clock = loop.time
+    clock = [original_clock()]
+    async def hanging(*args):
+        entered.set()
+        # Test the selected stage's deadline, independently of host scheduling
+        # before it. Keep the original 20ms policy and real asyncio cancellation.
+        clock[0] += .03
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+    runner = Runner(hanging if stage == 'init' else lambda _: adapter, limiter=hanging if stage == 'rate_wait' else None)
+    with monkeypatch.context() as patch:
+        patch.setattr(loop, 'time', lambda: clock[0])
+        result = await runner.run(spec(), budget=Budget(case_timeout_s=.02))
+    assert loop.time == original_clock
+    assert entered.is_set() and cancelled.is_set() and adapter.calls == 0
+    assert result.execution['status'] == 'deadline'
+    if stage == 'rate_wait':
+        assert adapter.closed and result.execution['cleanup_status'] == 'closed'
+    else:
+        assert not adapter.closed and result.execution['cleanup_status'] == 'not_created'
     assert not result.complete and not result.execution['effect_unknown']
     assert result.latency_ms is None and result.execution['stage_ms'][stage] > 0
 

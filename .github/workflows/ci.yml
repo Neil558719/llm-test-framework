@@ -5,6 +5,7 @@ on:
     branches: [master]
   push:
     branches:
+      - master
       - "codex/**"
 
 permissions:
@@ -39,7 +40,7 @@ jobs:
         run: uv sync --locked --extra ci
 
       - name: Run offline regression suite
-        run: uv run pytest -q
+        run: uv run python scripts/check.py --tier full --mode offline --out reports/check-full
 
       - name: Upload test reports
         if: always()
@@ -48,6 +49,32 @@ jobs:
           name: test-reports-python-${{ matrix.python-version }}
           path: reports/
           if-no-files-found: warn
+
+  check-tiers:
+    name: ${{ matrix.tier }} checks (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+        tier: [smoke, core]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install locked check dependencies
+        run: uv sync --locked --extra ci
+      - name: Run the declared tier without assertion reruns
+        run: uv run python scripts/check.py --tier ${{ matrix.tier }} --mode offline --out reports/check-${{ matrix.tier }}
+      - name: Upload tier evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: check-${{ matrix.tier }}-python-${{ matrix.python-version }}
+          path: reports/check-${{ matrix.tier }}/
+          if-no-files-found: error
 
   installed-wheel:
     name: Installed wheel (Python ${{ matrix.python-version }})
