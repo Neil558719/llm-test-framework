@@ -1,0 +1,247 @@
+{
+  "schema_version": "judge-calibration-v1",
+  "corpus_id": "A-quality-silver-v1",
+  "data_file": "dataset.jsonl",
+  "data_sha256": "383719b88f95fc73467eff6964d95b7d7117b6d84713222b4e9bc94a4a289c65",
+  "rubric_file": "rubric.md",
+  "rubric_sha256": "ce6bf5b625436e5e73d980af1980adb6b23fd6c73b418127c51b2017be99e7d2",
+  "positive_label": "quality_error",
+  "label_origin": "silver",
+  "sample_origin": "synthetic",
+  "seed": 20261103,
+  "counts": {
+    "samples": 60,
+    "groups": 30,
+    "splits": {
+      "calibration": 42,
+      "holdout": 18
+    },
+    "strata": {
+      "obvious_error": 10,
+      "partially_correct": 10,
+      "refusal_but_executed": 10,
+      "normal_citation": 10,
+      "no_factual_claim": 10,
+      "numeric_condition_error": 10
+    }
+  },
+  "groups": {
+    "A-err-01": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-err-01-v1",
+        "A-err-01-v2"
+      ]
+    },
+    "A-err-02": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-err-02-v1",
+        "A-err-02-v2"
+      ]
+    },
+    "A-err-03": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-err-03-v1",
+        "A-err-03-v2"
+      ]
+    },
+    "A-err-04": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-err-04-v1",
+        "A-err-04-v2"
+      ]
+    },
+    "A-err-05": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-err-05-v1",
+        "A-err-05-v2"
+      ]
+    },
+    "A-part-01": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-part-01-v1",
+        "A-part-01-v2"
+      ]
+    },
+    "A-part-02": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-part-02-v1",
+        "A-part-02-v2"
+      ]
+    },
+    "A-part-03": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-part-03-v1",
+        "A-part-03-v2"
+      ]
+    },
+    "A-part-04": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-part-04-v1",
+        "A-part-04-v2"
+      ]
+    },
+    "A-part-05": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-part-05-v1",
+        "A-part-05-v2"
+      ]
+    },
+    "A-trace-01": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-trace-01-v1",
+        "A-trace-01-v2"
+      ]
+    },
+    "A-trace-02": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-trace-02-v1",
+        "A-trace-02-v2"
+      ]
+    },
+    "A-trace-03": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-trace-03-v1",
+        "A-trace-03-v2"
+      ]
+    },
+    "A-trace-04": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-trace-04-v1",
+        "A-trace-04-v2"
+      ]
+    },
+    "A-trace-05": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-trace-05-v1",
+        "A-trace-05-v2"
+      ]
+    },
+    "A-cite-01": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-cite-01-v1",
+        "A-cite-01-v2"
+      ]
+    },
+    "A-cite-02": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-cite-02-v1",
+        "A-cite-02-v2"
+      ]
+    },
+    "A-cite-03": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-cite-03-v1",
+        "A-cite-03-v2"
+      ]
+    },
+    "A-cite-04": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-cite-04-v1",
+        "A-cite-04-v2"
+      ]
+    },
+    "A-cite-05": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-cite-05-v1",
+        "A-cite-05-v2"
+      ]
+    },
+    "A-nofact-01": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-nofact-01-v1",
+        "A-nofact-01-v2"
+      ]
+    },
+    "A-nofact-02": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-nofact-02-v1",
+        "A-nofact-02-v2"
+      ]
+    },
+    "A-nofact-03": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-nofact-03-v1",
+        "A-nofact-03-v2"
+      ]
+    },
+    "A-nofact-04": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-nofact-04-v1",
+        "A-nofact-04-v2"
+      ]
+    },
+    "A-nofact-05": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-nofact-05-v1",
+        "A-nofact-05-v2"
+      ]
+    },
+    "A-num-01": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-num-01-v1",
+        "A-num-01-v2"
+      ]
+    },
+    "A-num-02": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-num-02-v1",
+        "A-num-02-v2"
+      ]
+    },
+    "A-num-03": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-num-03-v1",
+        "A-num-03-v2"
+      ]
+    },
+    "A-num-04": {
+      "split": "holdout",
+      "sample_ids": [
+        "A-num-04-v1",
+        "A-num-04-v2"
+      ]
+    },
+    "A-num-05": {
+      "split": "calibration",
+      "sample_ids": [
+        "A-num-05-v1",
+        "A-num-05-v2"
+      ]
+    }
+  },
+  "provenance": {
+    "generator": "Happy Agent; AI authored",
+    "human_review": "pending",
+    "known_diagnostic_groups": [
+      "A-num-01"
+    ]
+  }
+}

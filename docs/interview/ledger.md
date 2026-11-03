@@ -221,3 +221,40 @@ X02-A最终准确受测3f1549b：1292项实际全量通过、11项独立环境�
 改用独立读取的Git/proof值后完整执行一次。练习（未评估）：解释为什么CI
 矩阵标签不保证实际解释器，以及为什么新4项必须在新冻结版本完整验证，
 不能把旧1288加4个定向通过冒称已执行1292。远端门禁与发布分别待验。
+
+## X03-A：银标校准、组相关性与实际派发预算（Issue #85）
+
+目标：把可复核的离线校准工具与真实Judge效果分开。A语料60条为AI自拟
+synthetic silver，六类各10条；同意图两个变体合为一组，30组先冻结为
+21组校准/9组留出，不能改数字或资源ID后当成独立组。公开英文14/7/9999
+诊断只放校准，不改写X01历史两项Mock数字失败，不称它们被修复。
+
+根因与取舍：新工具最初只暴露缺模块的collection error，这是接口缺口；
+之后保存了两项真实实现窗口RED：单类校准使undefined F1被错误分类器
+排序压过，以及provider违反token上界后仍可继续派发。前者对numeric
+F1拟合要求两个可评价类别；后者保留已消费预算、标记strict_cap_valid=false
+并阻止后续派发。没有放宽阈值、预算或生产TTL。
+
+实现：manifest绑定原始data/rubric哈希与group/split；只接受silver且人审
+pending，任意人名不能冒充独立复核。盲标去标签、预测、stratum和带答案
+暗示的ID前缀。冻结策略绑定model/prompt/data/rubric；消费收据先于留出
+评价写入且不覆盖，失败也不恢复未见状态，复用明确标exploratory。统计
+保留失败/弃答/未执行，undefined分母为null，组bootstrap不把两个变体
+当独立样本；每层只有一组时不给伪精确区间。数值score方向与离散label
+分别显式声明，Judge置信度不能自动当成阳性概率。
+
+预算：注入fake transport验证每次物理send/retry前预留输入及输出，SDK
+隐藏重试关闭；未知usage不退款，缺价成本null，有钱上限必须有币种、
+来源与价格版本。run默认max_requests=0且当前始终not-run；缺可靠provider
+tokenizer/adapter/调用授权，不能用估算冒充严格上限。工具通过不等于
+真实Judge有效，human_verified=false，标签效度和真实模型收益仍待验。
+
+验证证据与边界见[本地X03证据](../evidence/X03/summary.md)。面试练习
+（20分钟，待完成；掌握未评估）：手算一个含弃答的混淆矩阵和coverage；
+解释单类F1陷阱、为何同模板必须同组、为何holdout失败也消费、为何未知
+usage不能退款；分别复述tool_ready、人审、真实Judge、CI与发布的证据。
+
+X02前置交付补记：PR83合并1093229，同树merged1292通过、21CI通过；
+21contexts保护及故意失败PR84实际BLOCKED已读回验证，工程预发行
+x02-ci-20261103已回下载hash/tag核验，未替换dev8运行wheel。真实IdP、
+provider和持久环境、B外部交付及B08完整安全审查缺口保持。
