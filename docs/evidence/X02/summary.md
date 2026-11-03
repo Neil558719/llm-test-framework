@@ -58,3 +58,12 @@ passed、464 excluded、errors=[]、exit0；执行 XML、日志和 before/after 
 原 core-related 的833通过/2失败证据保留；没有把它改写为全通过。
 当前只完成 core 相关回归，full 尚未执行。主静态审阅共同入口、完整性守卫、
 CI 与已批准时钟夹具未发现未闭合问题；接下来冻结提交，再做 full 与B适配。
+
+最终普通本地full：固定提交ddb9f10cedd841e87f68b973a3733b0fb5a12640，
+Python3.12.14下1288 selected / executed / passed、11 excluded、errors=[]、exit0；
+实际XML1288项无失败/错误/skip，8项资产核对，258项工作哈希及clean状态前后
+一致。排除是5个UI、2个主机系统、1个Compose CLI、3个非原生POSIX参数节点，
+不把这些环境写为已验收。主证据work/ci-m0-resume/x02-a-frozen-full-verification.json。
+产品包目录与A08的110依赖锁未变，未虚称新的wheel或真实服务效果。
+最终文档提交仅记录证据，继承受测代码，不为文档重复运行测试。当前SHA远端
+CI、分支保护/失败PR、合并/Release和环境验收仍待执行；B适配继续独立推进。
