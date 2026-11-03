@@ -8,6 +8,10 @@ adapter, price table, TTL, dependency lock or runtime defaults were changed.
 The initial clean freeze `34adff1` received main's independent CLI review. Its two
 Important findings are corrected below and await a narrow recheck; it is not the
 final accepted freeze merely because its original 53 tests passed.
+Main subsequently accepted the narrow review fixes and ran the first full on
+`d5de8d8`: 1340 passed, 6 path-length failures and 11 reasoned exclusions. The
+latest filename correction below awaits main's narrow recheck and another full;
+the failed first full is retained and is never described as successful acceptance.
 
 ## Corpus and tool boundary
 
@@ -58,6 +62,10 @@ installation, network, Docker or service mutation occurred.
 | `static-mypy-fixed` | No issues in eight files, exit 0 | `--check-untyped-defs`, explicit package bases and actual A dependency interpreter |
 | `static-fixed-focused` | 54 passed / 1.59 s, exit 0 | Final runtime contracts after the static corrections |
 | `cli-consumer-v4` and `consumer-v4` | 9 command paths matched expected exits | Final-source consumers after the static corrections; 0 physical model requests |
+| `windows-path-red/execution.xml` | Main full: 1340 passed / 6 failed, 11 excluded | Exact copy of actual d5de8d8 full XML; not a new implementation-agent full run |
+| `windows-path-six` | 6 passed / 0.55 s, exit 0 | Exact original failed nodes, unchanged temporary-directory configuration |
+| `windows-path-focused` | 54 passed / 1.56 s, exit 0 | All calibration contracts after the filename correction |
+| `windows-path-ruff` and `windows-path-mypy` | Passed on 2 changed Python files, exit 0 | Same rules and untyped-body checking; remaining six files unchanged |
 
 The final-focused-v2 and cli-consumer-v2 runs both completed before a usage-limit
 interruption; their existing session output, exit files and unchanged before/after
@@ -127,6 +135,27 @@ The final typed source then passed all 54 focused contracts in 1.59 seconds and
 nine actual CLI consumer paths. Both snapshots recorded unchanged working hashes.
 The previously passed 172 related nodes and B full were not rerun for these fixes.
 
+The first actual main full on d5de8d8 found six FileNotFoundError failures because
+completion filenames concatenated two 64-character hashes. They reached 144
+characters and pushed the real Windows test paths beyond the native limit.
+Before changing code, its XML was copied without modification to
+`windows-path-red/execution.xml`; both original and copy have SHA256
+`9e5abb05e1365ce372852e58c9df8e978ff9a0163a80e225c1ac42323d552c30`.
+The original main command, pre/post 373 stable hashes, console and exit remain
+under `.context/X02/A/x03-frozen-full/`. This actual full RED supplies the failure
+evidence; no mirror negative or shortened temporary directory was introduced.
+
+The minimum correction uses `<evaluation_id>.completed.json` (47 characters).
+Payload evaluation_id and canonical report SHA remain unchanged; the original
+64-character-hash first-use receipt remains unchanged too. The existing three-
+completion regression now verifies a one-to-one ID/report-hash mapping to all
+three reports, as well as independent evaluation identities and retained receipt
+bytes. All six original failures then passed, followed by all 54 calibration
+contracts. Ruff/mypy ran only on the two changed Python files and passed. No
+remaining Python file, budget, label, split, OS setting or test temp path changed.
+The earlier nine-CLI/V4 and B-common-tool outputs remain historical evidence;
+those consumers, the eight-file static checks and B full were not rerun here.
+
 For this fabricated fixture only, calibration contains 42 labeled, 40 evaluable,
 1 abstain and 1 error (TP14/TN0/FP26/FN0, F1≈0.5185); holdout contains 18 labeled,
 16 evaluable, 1 abstain and 1 error (TP5/TN0/FP11/FN0, F1≈0.4762). These numbers
@@ -151,8 +180,8 @@ reviewed `7d086f`; merged1292 passed/11 reasoned exclusions, 259 stable fresh ha
 were verified. Engineering prerelease `x02-ci-20261103` was downloaded and matched
 its two JSON assets and tag. It does not replace the dev8 runtime wheel.
 
-X03 revised freeze awaits narrow independent recheck; root/full/CI/merge/release
-remain pending at this handoff.
+X03 latest filename-fix freeze awaits narrow independent recheck and a successful
+replacement full; CI/merge/release remain pending at this handoff.
 Human annotations, real Judge effects, IdP/provider/persistent environment and B
 external delivery remain unverified. The interrupted complete B08 security audit
 remains incomplete and was not resumed. Interview exercise and mastery are pending.

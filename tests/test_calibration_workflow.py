@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from scripts.calibrate_judge import evaluate_report, freeze_policy, main
-from scripts.calibration_data import blind_package, digest, load_corpus, read_json
+from scripts.calibration_data import blind_package, canonical, digest, load_corpus, read_json
 
 CORPUS = Path(__file__).resolve().parents[1] / 'benchmarks/judge_calibration'
 
@@ -162,6 +162,7 @@ def test_each_explicit_exploratory_report_has_an_independent_completion(corpus, 
     receipt = Path(first['consumption_receipt'])
     original_receipt = receipt.read_bytes()
     evaluation_ids = {first['evaluation_id']}
+    reports = [first]
     for name in ('exploratory-one.json', 'exploratory-two.json'):
         output = tmp_path / name
         assert main(['report', '--manifest', str(corpus), '--predictions', str(holdout),
@@ -170,9 +171,13 @@ def test_each_explicit_exploratory_report_has_an_independent_completion(corpus, 
         report = read_json(output)
         assert report['status'] == 'exploratory'
         evaluation_ids.add(report['evaluation_id'])
+        reports.append(report)
     assert receipt.read_bytes() == original_receipt
     assert len(list(state.glob('*.completed.json'))) == 3
     assert len(evaluation_ids) == 3
+    completions = [read_json(path) for path in state.glob('*.completed.json')]
+    assert {item['evaluation_id']: item['report_sha256'] for item in completions} == {
+        report['evaluation_id']: digest(canonical(report)) for report in reports}
 
 
 def test_changing_policy_does_not_reset_holdout_consumption(corpus, tmp_path):

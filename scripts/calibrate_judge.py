@@ -136,7 +136,7 @@ def evaluate_report(manifest_path, predictions_path, policy_path, output, *, spl
     write_new(output, report)
     if receipt is not None:
         # Separate append-only completion record; a crash still leaves consumption recorded.
-        completion = Path(state_dir) / (holdout_key + '.' + digest(canonical(report)) + '.completed.json')
+        completion = Path(state_dir) / (report['evaluation_id'] + '.completed.json')
         write_new(completion, dict(evaluation_id=report['evaluation_id'],
                                    report_sha256=digest(canonical(report)), evaluation_completed=True))
     return report

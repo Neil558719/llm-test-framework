@@ -74,6 +74,9 @@ Repeating evaluation requires `--exploratory` and a distinct output. Even an ini
 exploratory evaluation consumes freshness. Completion is a separate append-only
 record; the start receipt is never rewritten. Each report has its own `evaluation_id`,
 so repeated explicit exploratory evaluations append independent completion records.
+Completion filenames use that 32-character ID; report hashes remain inside the
+record. This keeps completion paths shorter than the unchanged first-use receipt,
+avoiding the former concatenated-hash filename's Windows path-length failure.
 Use one durable authoritative state
 directory and retain it with the corpus. This local accidental-reuse guard is not
 tamper-proof: deleting state, choosing another state directory or editing files
