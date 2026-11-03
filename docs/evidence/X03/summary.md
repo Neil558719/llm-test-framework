@@ -1,5 +1,14 @@
 # X03-A local tool evidence — Issue #85
 
+Current local acceptance: corrected immutable `85acc66` passed all1346selected/
+executed nodes with11explicit independent-environment exclusions. XML has no
+failure/error/unexpected skip;373working hashes match pre/post. The check runner
+verifies the existing eight runtime assets; the calibration manifest separately
+binds dataset/rubric bytes, and the373file freeze includes the new corpus/tooling.
+The runtime package and prior installed-consumer lineage stay unchanged. Earlier
+counts and pending wording below describe their historical checkpoints. Current-head
+remote CI, merge and engineering release are still separate pending stages.
+
 Base: `1093229d2ca3cb3c3e0ab19c7e4eca55e3920d5a`, isolated
 `codex/x03-judge-calibration`. This checkpoint implements repository tools and
 60 synthetic silver fixtures. Independent review, root/full, current-SHA CI,
@@ -180,8 +189,20 @@ reviewed `7d086f`; merged1292 passed/11 reasoned exclusions, 259 stable fresh ha
 were verified. Engineering prerelease `x02-ci-20261103` was downloaded and matched
 its two JSON assets and tag. It does not replace the dev8 runtime wheel.
 
-X03 latest filename-fix freeze awaits narrow independent recheck and a successful
-replacement full; CI/merge/release remain pending at this handoff.
+Main independently reviewed the filename fix and stronger ID/report-hash mapping;
+no unresolved findings remain. Replacement immutable full1346passed/11explicit
+exclusions with373stable hashes; original1340passed/6failed XML remains unchanged.
+Main full proof: parent work/ci-m0-resume/x03-a-frozen-full-verification.json.
+B common-tool integration proof records eight actual CLI paths and a subsequent
+controller-only zero-request assertion typo; read-only artifact verification
+completed without rerunning those commands. Final54/full cover the later short
+completion filename; B schema/statistics/budgets and corpus stayed unchanged.
+
+Actual preliminary X04 command rehearsal at85acc66: smoke5passed and the two
+validity demonstrations instantiate three parent nodes, all passed; command
+elapsed14.64s in the existing local environment, not a production latency result.
+No source edits, real model calls or real service-health claim. CI/merge/release
+remain pending at this documentation checkpoint.
 Human annotations, real Judge effects, IdP/provider/persistent environment and B
 external delivery remain unverified. The interrupted complete B08 security audit
 remains incomplete and was not resumed. Interview exercise and mastery are pending.
