@@ -67,3 +67,11 @@ Python3.12.14下1288 selected / executed / passed、11 excluded、errors=[]、ex
 产品包目录与A08的110依赖锁未变，未虚称新的wheel或真实服务效果。
 最终文档提交仅记录证据，继承受测代码，不为文档重复运行测试。当前SHA远端
 CI、分支保护/失败PR、合并/Release和环境验收仍待执行；B适配继续独立推进。
+
+CI解释器接线补充：默认.python-version=3.12不能覆盖setup-python选出的3.14。
+新增四份工作流契约先4失败/0.28秒，最小补全局UV_PYTHON=python，并给container
+明确setup-python3.12后4通过/0.21秒。元数据查询实际显示默认请求选择3.12.14、
+显式python请求选择PATH首位3.14.0；uv sync/run的帮助明确UV_PYTHON对应此请求。
+python find本身不读取该env，验证使用它的显式REQUEST，不能冒称GitHub实跑。
+独立窄静态复核无Critical/Important/Minor，公共脚本与产品包目录未改；新测试
+已加入files/core。原full1288仅属ddb9f10，CI修复将另行冻结并做必要最终full。

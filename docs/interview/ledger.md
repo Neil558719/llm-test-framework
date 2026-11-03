@@ -209,3 +209,9 @@ X02-A冻结ddb9f10的实际full1288通过/11项有理由排除、8项资产核�
 full的1288是父测试节点，子pytest中的预期失败/skip/异常不加入父通过数。
 产品目录和原110锁不变；GitHub required checks与故意失败PR未执行，不能把
 本地分层报告当远端强制门禁证明。用户练习与掌握状态未评估。
+
+X02新增CI绑定：.python-version提供开发默认，不能让3.14矩阵实际回退3.12。
+配置契约4RED→4pass，独立静态复核通过；UV_PYTHON=python明确沿用setup-python
+的PATH解释器，container也先setup3.12。元数据find的REQUEST与sync/run的env
+参数是不同接口，验证按帮助区分，未把元数据查询说成GitHub实跑。旧full1288
+证据保留，新配置冻结后的完整验收另记。用户练习与掌握状态未评估。

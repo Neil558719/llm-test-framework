@@ -1,5 +1,8 @@
 name: Container Readiness
 
+env:
+  UV_PYTHON: python
+
 on:
   pull_request:
     branches: [master]
@@ -16,6 +19,9 @@ jobs:
       COMPOSE_FILE: docker-compose.yml
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - uses: astral-sh/setup-uv@v6
       - uses: docker/setup-buildx-action@v4
       - name: Validate deployment assets

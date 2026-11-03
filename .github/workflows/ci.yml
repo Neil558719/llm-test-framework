@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  UV_PYTHON: python
+
 on:
   pull_request:
     branches: [master]
