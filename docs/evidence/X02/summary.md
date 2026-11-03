@@ -75,3 +75,12 @@ CI解释器接线补充：默认.python-version=3.12不能覆盖setup-python选�
 python find本身不读取该env，验证使用它的显式REQUEST，不能冒称GitHub实跑。
 独立窄静态复核无Critical/Important/Minor，公共脚本与产品包目录未改；新测试
 已加入files/core。原full1288仅属ddb9f10，CI修复将另行冻结并做必要最终full。
+
+CI修复最终冻结3f1549b24b1f7aea37a0ce9a616ffdfcf7f526bb后完整验收：
+Python3.12.14下1292 selected / executed / passed，11 excluded，errors=[]、exit0；
+XML1292节点无失败/错误/skip，8资产、259工作哈希及clean前后一致。
+独立CI绑定窄审已通过。旧1288仍对应旧提交，新增4项不是统计回填。
+恢复摘要曾带错误SHA，控制器第一次调用在pre-check即拒绝，没有启动产品命令；
+核对Git及冻结proof后仅实际执行本次完整验证。主proof为
+work/ci-m0-resume/x02-a-ci-full-verification.json。以下纯文档更新继承259哈希，
+不为文档重跑测试；远端CI/保护/故意失败PR/合并/发布与真实环境仍待验收。
