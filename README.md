@@ -13,7 +13,13 @@
 - **工程化交付**：FastAPI、SQLite WAL 与版本迁移、Docker Compose、健康/就绪探针、备份恢复、不可变镜像 rollback、GitHub Actions 和 Playwright。
 - **安全设计**：OIDC/OAuth2 + PKCE、Bearer API、四角色授权、浏览器 CSRF、Docker secrets、隐私安全字段和报告脱敏。
 
-## 当前交付状态
+## X03 离线校准工具
+
+新增 [校准工具指南](docs/calibration.md)：60 条自建 silver 数据、按意图分组的 calibration/holdout、盲标导出、冻结策略和保留集报告、请求/token/可选金额预算。公共工具已消费 B 独立的 60 条安全语料；这些 AI 标签与合成预测不代表人工金标或真实 Judge 效果。
+
+本地修正版 `85acc66` 的全量 1346 项通过、11 项按环境规则显式排除，373 文件 hash 前后一致；新增模块定向和静态检查通过。首次全量的 6 项 Windows 路径失败已保留并最小修复。当前 PR/CI/合并/工程发行另记；运行时 wheel 仍为 dev8。无真实模型调用，人工复核与真实环境尚未验收。详见 [X03 证据](docs/evidence/X03/summary.md)。
+
+## 历史交付快照（2026-09-11）
 
 截至 2026-09-11，M0–M17 的代码、测试和本机类生产演练已完成。生产加固分支的最终验证结果为：
 

@@ -7,6 +7,9 @@
     "tests/test_auth_oidc.py",
     "tests/test_builtin_scenarios.py",
     "tests/test_business_assertions.py",
+    "tests/test_calibration_budget.py",
+    "tests/test_calibration_statistics.py",
+    "tests/test_calibration_workflow.py",
     "tests/test_chatbot.py",
     "tests/test_check_ci_runtime.py",
     "tests/test_check_selection.py",
@@ -101,6 +104,9 @@
     "tests/test_v1_gate.py::test_v1_gate_can_fail_for_a_subset_with_a_bad_scenario_id"
   ],
   "core": [
+    "tests/test_calibration_budget.py",
+    "tests/test_calibration_statistics.py",
+    "tests/test_calibration_workflow.py",
     "tests/test_check_ci_runtime.py",
     "tests/test_check_selection.py",
     "tests/test_retention_clock.py",
