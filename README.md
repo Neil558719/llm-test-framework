@@ -17,7 +17,11 @@
 
 新增 [校准工具指南](docs/calibration.md)：60 条自建 silver 数据、按意图分组的 calibration/holdout、盲标导出、冻结策略和保留集报告、请求/token/可选金额预算。公共工具已消费 B 独立的 60 条安全语料；这些 AI 标签与合成预测不代表人工金标或真实 Judge 效果。
 
-本地修正版 `85acc66` 的全量 1346 项通过、11 项按环境规则显式排除，373 文件 hash 前后一致；新增模块定向和静态检查通过。首次全量的 6 项 Windows 路径失败已保留并最小修复。当前 PR/CI/合并/工程发行另记；运行时 wheel 仍为 dev8。无真实模型调用，人工复核与真实环境尚未验收。详见 [X03 证据](docs/evidence/X03/summary.md)。
+本地修正版 `85acc66` 的全量 1346 项通过、11 项按环境规则显式排除，373 文件 hash 前后一致；首次全量的 6 项 Windows 路径失败已保留并最小修复。[PR86](https://github.com/Neil558719/llm-test-framework/pull/86) 的 head `709020c` 记录 42 项检查成功及 21 项 required contexts。首次自动审批因缺少明确用户授权拒绝合并；用户随后具体批准，唯一一次新审批通过后正常合并为 [`821eb54`](https://github.com/Neil558719/llm-test-framework/commit/821eb544942b283ebbe5e6171ae3a246dd4a7df5)。合并树与已审 head 相同，合并后 Windows 全量 1346 通过/11 显式排除、373 hash 稳定，master 同 SHA 的 21 项检查成功。[工程预发布 x03-calibration-20261104](https://github.com/Neil558719/llm-test-framework/releases/tag/x03-calibration-20261104) 的两个 JSON 附件、tag 与回下载哈希已核验。运行时 wheel 仍为 dev8，未被替换；人工金标、真实 Judge 效果与真实环境尚未验收。详见 [当前交付状态](docs/delivery.md) 与 [X03 证据](docs/evidence/X03/summary.md)。
+
+## X04 本地交付与面试演示
+
+[交付指南](docs/delivery.md) 提供原生 PowerShell 离线命令、两张 A STAR 卡与十个追问。已有演练在 `85acc66` 上通过 smoke 5 项和证据 3 节点，命令总耗时 14.641 秒；这是本机命令耗时，不是生产性能结果。当前 X04 仅本地文档集成，未运行新测试或完成远程交付；用户独立练习与掌握状态未评估。
 
 ## 历史交付快照（2026-09-11）
 
